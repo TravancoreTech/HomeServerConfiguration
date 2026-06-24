@@ -756,107 +756,52 @@ for container in "${CONFLICT_CONTAINERS[@]}"; do
   fi
 done
 
-# Custom interactive checkbox selector in pure Bash
-checkbox_menu() {
-  local prompt="$1"
-  shift
-  local options=("$@")
-  local num_options=${#options[@]}
-  local selected=()
-  local active=0
-  local i
-
-  # Initialize selected array to 1 (all selected by default)
-  for ((i=0; i<num_options; i++)); do
-    selected[i]=1
-  done
-
-  # Hide cursor and handle interrupts
-  tput civis
-  trap 'tput cnorm; exit 1' INT TERM
-
-  draw_menu() {
-    # Move cursor up to overwrite previous print
-    if [ $1 -gt 0 ]; then
-      tput cuu $1
-    fi
-    tput el
-    echo -e "$prompt"
-    for ((i=0; i<num_options; i++)); do
-      tput el
-      # Checkbox indicator
-      local box="[ ]"
-      if [ ${selected[i]} -eq 1 ]; then
-        box="[${GREEN}✔${NC}]"
-      fi
-
-      # Active line indicator (cursor)
-      if [ $i -eq $active ]; then
-        echo -e "  ${BLUE}>${NC} $box ${BLUE}${options[i]}${NC}"
-      else
-        echo -e "    $box ${options[i]}"
-      fi
-    done
-  }
-
-  local first_draw=0
-  while true; do
-    draw_menu $first_draw
-    first_draw=$((num_options + 1))
-
-    # Read keypress (arrows, space, enter)
-    IFS= read -rsn1 key
-    if [[ $key == $'\e' ]]; then
-      read -rsn2 -t 0.1 key
-      if [[ $key == "[A" ]]; then # Up Arrow
-        active=$(( (active - 1 + num_options) % num_options ))
-      elif [[ $key == "[B" ]]; then # Down Arrow
-        active=$(( (active + 1) % num_options ))
-      fi
-    elif [[ $key == "" ]]; then # Enter key
-      break
-    elif [[ $key == " " ]]; then # Space key
-      if [ ${selected[active]} -eq 1 ]; then
-        selected[active]=0
-      else
-        selected[active]=1
-      fi
-    fi
-  done
-
-  tput cnorm
-  trap - INT TERM
-
-  # Output selected options
-  local result=()
-  for ((i=0; i<num_options; i++)); do
-    if [ ${selected[i]} -eq 1 ]; then
-      result+=("${options[i]}")
-    fi
-  done
-  echo "${result[@]}"
-}
-
 read -rp "Would you like to start/update homeserver services now? (y/n) [default: y]: " START_CONTAINERS
 START_CONTAINERS="${START_CONTAINERS:-y}"
 
 if [[ "$START_CONTAINERS" =~ ^[Yy]$ ]]; then
   # Fetch list of services across the active configuration
   ALL_SERVICES=($(docker compose $COMPOSE_ARGS config --services | sort))
-  
-  echo -e "\n${BLUE}Select which services you would like to start/update:${NC}"
-  echo -e "  - Use ${YELLOW}Up/Down Arrow Keys${NC} to navigate"
-  echo -e "  - Press ${YELLOW}Spacebar${NC} to select/deselect a service"
-  echo -e "  - Press ${YELLOW}Enter${NC} to confirm and start deployment\n"
-  
-  SELECTED_SERVICES=($(checkbox_menu "Toggle the services to deploy/update:" "${ALL_SERVICES[@]}"))
-  
-  if [ ${#SELECTED_SERVICES[@]} -eq 0 ]; then
-    echo -e "${YELLOW}No services selected. Exiting.${NC}"
-    exit 0
+  NUM_SERVICES=${#ALL_SERVICES[@]}
+
+  echo -e "\n${BLUE}Available services:${NC}"
+  for ((i=0; i<NUM_SERVICES; i++)); do
+    printf "  %2d) %s\n" $((i+1)) "${ALL_SERVICES[i]}"
+  done
+  echo ""
+
+  read -rp "Enter the numbers of the services you want to update (separated by commas, e.g. 1,4,5) [default: ALL]: " USER_CHOICE
+
+  SELECTED_SERVICES=()
+  if [ -z "$USER_CHOICE" ]; then
+    # Default: ALL
+    SELECTED_SERVICES=("${ALL_SERVICES[@]}")
+  else
+    # Parse comma-separated input
+    IFS=',' read -ra ADDR <<< "$USER_CHOICE"
+    for part in "${ADDR[@]}"; do
+      # Strip all whitespace
+      idx=$(echo "$part" | tr -d '[:space:]')
+      # Validate index is a number within 1..NUM_SERVICES
+      if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "$NUM_SERVICES" ]; then
+        SELECTED_SERVICES+=("${ALL_SERVICES[$((idx-1))]}")
+      else
+        echo -e "${RED}Warning: Ignoring invalid service number '$idx'.${NC}"
+      fi
+    done
   fi
-  
-  echo -e "\nSelected services: ${GREEN}${SELECTED_SERVICES[*]}${NC}\n"
+
+  if [ ${#SELECTED_SERVICES[@]} -eq 0 ]; then
+    echo -e "${RED}Error: No valid services selected. Exiting.${NC}"
+    exit 1
+  fi
+
+  echo -e "\nSelected services to update: ${GREEN}${SELECTED_SERVICES[*]}${NC}"
+
+  # Stop selected services first
+  echo -e "${BLUE}Stopping selected services...${NC}"
+  docker compose $COMPOSE_ARGS stop "${SELECTED_SERVICES[@]}"
+
   echo -e "${GREEN}Starting sequential image pull to prevent network saturation and timeouts...${NC}"
   
   for service in "${SELECTED_SERVICES[@]}"; do
