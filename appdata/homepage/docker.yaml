@@ -1,0 +1,9 @@
+# ==============================================================================
+# HOMEPAGE DOCKER DAEMON CONFIGURATION (DOCKER.YAML)
+# ==============================================================================
+# Connects Homepage to the local Docker socket to track container state, CPU, 
+# and memory usage.
+# ==============================================================================
+
+my-docker:
+  socket: /var/run/docker.sock

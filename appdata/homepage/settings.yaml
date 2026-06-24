@@ -8,6 +8,7 @@
 title: Homeserver
 theme: dark
 color: slate
+showStats: true
 
 # Active search bar targeting Google
 search:

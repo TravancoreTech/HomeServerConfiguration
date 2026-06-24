@@ -662,6 +662,12 @@ PAPERLESS_TIME_ZONE=${PAPERLESS_TIME_ZONE}
 GITHUB_REPO=${GITHUB_REPO}
 GITHUB_TOKEN=${GITHUB_TOKEN:-}
 HOMEPAGE_VAR_SERVER_IP=${SERVER_IP}
+
+# Homepage Widget Credentials
+HOMEPAGE_VAR_QBITTORRENT_PASSWORD=${HOMEPAGE_VAR_QBITTORRENT_PASSWORD:-YOUR_QBITTORRENT_PASSWORD}
+HOMEPAGE_VAR_PAPERLESS_USERNAME=${HOMEPAGE_VAR_PAPERLESS_USERNAME:-YOUR_PAPERLESS_USERNAME}
+HOMEPAGE_VAR_PAPERLESS_PASSWORD=${HOMEPAGE_VAR_PAPERLESS_PASSWORD:-YOUR_PAPERLESS_PASSWORD}
+HOMEPAGE_VAR_IMMICH_API_KEY=${HOMEPAGE_VAR_IMMICH_API_KEY:-YOUR_IMMICH_API_KEY}
 EOF
 echo -e "${GREEN}✔ Configured root global .env file.${NC}"
 
@@ -750,16 +756,110 @@ for container in "${CONFLICT_CONTAINERS[@]}"; do
   fi
 done
 
-read -rp "Would you like to start the entire homeserver stack now? (y/n) [default: y]: " START_CONTAINERS
+# Custom interactive checkbox selector in pure Bash
+checkbox_menu() {
+  local prompt="$1"
+  shift
+  local options=("$@")
+  local num_options=${#options[@]}
+  local selected=()
+  local active=0
+  local i
+
+  # Initialize selected array to 1 (all selected by default)
+  for ((i=0; i<num_options; i++)); do
+    selected[i]=1
+  done
+
+  # Hide cursor and handle interrupts
+  tput civis
+  trap 'tput cnorm; exit 1' INT TERM
+
+  draw_menu() {
+    # Move cursor up to overwrite previous print
+    if [ $1 -gt 0 ]; then
+      tput cuu $1
+    fi
+    tput el
+    echo -e "$prompt"
+    for ((i=0; i<num_options; i++)); do
+      tput el
+      # Checkbox indicator
+      local box="[ ]"
+      if [ ${selected[i]} -eq 1 ]; then
+        box="[${GREEN}✔${NC}]"
+      fi
+
+      # Active line indicator (cursor)
+      if [ $i -eq $active ]; then
+        echo -e "  ${BLUE}>${NC} $box ${BLUE}${options[i]}${NC}"
+      else
+        echo -e "    $box ${options[i]}"
+      fi
+    done
+  }
+
+  local first_draw=0
+  while true; do
+    draw_menu $first_draw
+    first_draw=$((num_options + 1))
+
+    # Read keypress (arrows, space, enter)
+    IFS= read -rsn1 key
+    if [[ $key == $'\e' ]]; then
+      read -rsn2 -t 0.1 key
+      if [[ $key == "[A" ]]; then # Up Arrow
+        active=$(( (active - 1 + num_options) % num_options ))
+      elif [[ $key == "[B" ]]; then # Down Arrow
+        active=$(( (active + 1) % num_options ))
+      fi
+    elif [[ $key == "" ]]; then # Enter key
+      break
+    elif [[ $key == " " ]]; then # Space key
+      if [ ${selected[active]} -eq 1 ]; then
+        selected[active]=0
+      else
+        selected[active]=1
+      fi
+    fi
+  done
+
+  tput cnorm
+  trap - INT TERM
+
+  # Output selected options
+  local result=()
+  for ((i=0; i<num_options; i++)); do
+    if [ ${selected[i]} -eq 1 ]; then
+      result+=("${options[i]}")
+    fi
+  done
+  echo "${result[@]}"
+}
+
+read -rp "Would you like to start/update homeserver services now? (y/n) [default: y]: " START_CONTAINERS
 START_CONTAINERS="${START_CONTAINERS:-y}"
 
 if [[ "$START_CONTAINERS" =~ ^[Yy]$ ]]; then
+  # Fetch list of services across the active configuration
+  ALL_SERVICES=($(docker compose $COMPOSE_ARGS config --services | sort))
+  
+  echo -e "\n${BLUE}Select which services you would like to start/update:${NC}"
+  echo -e "  - Use ${YELLOW}Up/Down Arrow Keys${NC} to navigate"
+  echo -e "  - Press ${YELLOW}Spacebar${NC} to select/deselect a service"
+  echo -e "  - Press ${YELLOW}Enter${NC} to confirm and start deployment\n"
+  
+  SELECTED_SERVICES=($(checkbox_menu "Toggle the services to deploy/update:" "${ALL_SERVICES[@]}"))
+  
+  if [ ${#SELECTED_SERVICES[@]} -eq 0 ]; then
+    echo -e "${YELLOW}No services selected. Exiting.${NC}"
+    exit 0
+  fi
+  
+  echo -e "\nSelected services: ${GREEN}${SELECTED_SERVICES[*]}${NC}\n"
   echo -e "${GREEN}Starting sequential image pull to prevent network saturation and timeouts...${NC}"
   
-  # Fetch list of services across the active configuration
-  SERVICES=$(docker compose $COMPOSE_ARGS config --services)
-  
-  for service in $SERVICES; do
+  for service in "${SELECTED_SERVICES[@]}"; do
     echo -e "Pulling image for: ${BLUE}$service${NC}..."
     RETRY=0
     SUCCESS=false
@@ -781,7 +881,7 @@ if [[ "$START_CONTAINERS" =~ ^[Yy]$ ]]; then
     fi
   done
   
-  docker compose $COMPOSE_ARGS up -d
+  docker compose $COMPOSE_ARGS up -d "${SELECTED_SERVICES[@]}"
   
   # Wait for services to initialize config files and configure Homepage
   echo -e "\n${BLUE}Waiting 5 seconds for services to initialize config files...${NC}"
@@ -792,7 +892,7 @@ if [[ "$START_CONTAINERS" =~ ^[Yy]$ ]]; then
   fi
   
   echo -e "\n${GREEN}======================================================================${NC}"
-  echo -e "${GREEN}✔ Stack deployed successfully! You can access the apps below:${NC}"
+  echo -e "${GREEN}✔ Selected services deployed successfully! You can access the apps below:${NC}"
   echo -e "  - Homepage Dashboard:   http://${SERVER_IP}"
   echo -e "  - Heimdall Dashboard:   http://${SERVER_IP}:8081"
   echo -e "  - Nextcloud:            http://${SERVER_IP}:8080"

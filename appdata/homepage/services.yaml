@@ -22,7 +22,7 @@
           type: qbittorrent
           url: http://media_qbittorrent:8085
           username: admin
-          password: YOUR_QBITTORRENT_PASSWORD
+          password: {{HOMEPAGE_VAR_QBITTORRENT_PASSWORD}}
 
     - Radarr:
         icon: radarr.png
@@ -80,6 +80,17 @@
         href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8080
         container: nextcloud_app
         description: Private Cloud Storage
+
+    - Immich:
+        icon: immich.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:2283
+        container: immich_server
+        description: Photo & Video Backup
+        widget:
+          type: immich
+          url: http://immich_server:2283
+          key: {{HOMEPAGE_VAR_IMMICH_API_KEY}}
+          version: 2
 
     - FileBrowser:
         icon: filebrowser.png
@@ -142,5 +153,5 @@
         widget:
           type: paperlessngx
           url: http://utility_paperless_web:8000
-          username: YOUR_PAPERLESS_USERNAME
-          password: YOUR_PAPERLESS_PASSWORD
+          username: {{HOMEPAGE_VAR_PAPERLESS_USERNAME}}
+          password: {{HOMEPAGE_VAR_PAPERLESS_PASSWORD}}
