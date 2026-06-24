@@ -728,6 +728,25 @@ if ! docker network inspect homeserver_network &>/dev/null; then
   docker network create homeserver_network
 fi
 
+# Clean up conflicting containers from older setups (belonging to other project names or created manually)
+CONFLICT_CONTAINERS=(
+  "homepage" "heimdall" "jellyfin" "radarr" "sonarr" "prowlarr" "qbittorrent" 
+  "navidrome" "metube" "jellyseerr" "immich_server" "immich_machine_learning" 
+  "immich_redis" "immich_postgres" "nextcloud" "nextcloud_postgres" "nextcloud_redis"
+  "filebrowser" "vaultwarden" "paperless-ngx" "utility_paperless_redis" "uptime-kuma" "syncthing"
+)
+
+echo -e "Checking for conflicting containers from older configurations..."
+for container in "${CONFLICT_CONTAINERS[@]}"; do
+  if docker ps -a --format '{{.Names}}' | grep -Eq "^${container}\$"; then
+    PROJ=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$container" 2>/dev/null || true)
+    if [ "$PROJ" != "homeserver" ]; then
+      echo -e "${YELLOW}Removing conflicting container '$container' (project: '${PROJ:-none}')...${NC}"
+      docker rm -f "$container" &>/dev/null || true
+    fi
+  fi
+done
+
 read -rp "Would you like to start the entire homeserver stack now? (y/n) [default: y]: " START_CONTAINERS
 START_CONTAINERS="${START_CONTAINERS:-y}"
 
