@@ -343,21 +343,22 @@ except Exception as e:
     echo -e "${GREEN}✔ Added Samba configuration to $smb_conf.${NC}"
   fi
 
-  # Restart Samba service
-  echo -e "Restarting Samba service..."
+  # Restart Samba service and enable it on startup
+  echo -e "Enabling and restarting Samba service..."
   if command -v systemctl &>/dev/null; then
-    if systemctl is-active --quiet smbd 2>/dev/null; then
+    if systemctl show smbd.service 2>/dev/null | grep -q "LoadState=loaded"; then
+      systemctl enable smbd
       systemctl restart smbd
-      echo -e "${GREEN}✔ Restarted smbd service.${NC}"
-    elif systemctl is-active --quiet smb 2>/dev/null; then
+      echo -e "${GREEN}✔ Enabled and restarted smbd service on startup.${NC}"
+    elif systemctl show smb.service 2>/dev/null | grep -q "LoadState=loaded"; then
+      systemctl enable smb
       systemctl restart smb
-      echo -e "${GREEN}✔ Restarted smb service.${NC}"
+      echo -e "${GREEN}✔ Enabled and restarted smb service on startup.${NC}"
     else
-      echo -e "${YELLOW}Warning: Samba service is not currently running. Starting it...${NC}"
-      systemctl enable --now smbd 2>/dev/null || systemctl enable --now smb 2>/dev/null
+      echo -e "${YELLOW}Warning: Neither smbd nor smb service was found in systemd. Please enable manually.${NC}"
     fi
   else
-    echo -e "${YELLOW}Warning: systemctl not found. Please restart your Samba daemon manually.${NC}"
+    echo -e "${YELLOW}Warning: systemctl not found. Please enable and restart your Samba daemon manually.${NC}"
   fi
 }
 
