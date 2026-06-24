@@ -22,6 +22,18 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Restore ownership helper to reset permissions back to the original sudo user
+restore_ownership() {
+  if [ -n "${SUDO_USER:-}" ]; then
+    chown "${SUDO_UID}:${SUDO_GID}" .env 2>/dev/null || true
+    chown "${SUDO_UID}:${SUDO_GID}" setup.sh 2>/dev/null || true
+    chown -R "${SUDO_UID}:${SUDO_GID}" immich nextcloud utility media dashboard storage 2>/dev/null || true
+    if [ -d "appdata" ]; then
+      chown -R "${SUDO_UID}:${SUDO_GID}" appdata 2>/dev/null || true
+    fi
+  fi
+}
+
 # ------------------------------------------------------------------------------
 # 0. HYBRID SYNC OPTION (RUNS AS NON-ROOT)
 # ------------------------------------------------------------------------------
@@ -204,7 +216,8 @@ COMPOSE_FILES=(
 )
 
 # Build docker compose arguments dynamically for existing files
-COMPOSE_ARGS=""
+# Set project directory to the root directory (.) so that the global .env file is loaded correctly
+COMPOSE_ARGS="--project-directory ."
 for file in "${COMPOSE_FILES[@]}"; do
   if [ -f "$file" ]; then
     COMPOSE_ARGS="$COMPOSE_ARGS -f $file"
@@ -231,7 +244,7 @@ if [ -f .env ]; then
 fi
 
 # Check if appdata or configured data directories exist and ask if they want to nuke the setup
-if [ -d "${SYSTEM_DATA_DIR:-./appdata}" ] || [ -d "${MEDIA_DIR:-/mnt/hdd/media}" ] || [ -d "${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}" ]; then
+if [ -d "${SYSTEM_DATA_DIR:-./appdata}" ] || [ -d "${MEDIA_DIR:-/mnt/hdd6t/media}" ] || [ -d "${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}" ] || [ -d "${UPLOAD_LOCATION:-/mnt/hdd/immich/photos}" ]; then
   echo -e "\n${YELLOW}Detected existing homeserver data and configurations.${NC}"
   read -rp "Would you like to NUKE/CLEAN the entire setup (deleting all databases and media) and start from scratch? (y/n) [default: n]: " NUKE_SETUP
   if [[ "$NUKE_SETUP" =~ ^[Yy]$ ]]; then
@@ -243,7 +256,7 @@ if [ -d "${SYSTEM_DATA_DIR:-./appdata}" ] || [ -d "${MEDIA_DIR:-/mnt/hdd/media}"
       fi
       # Nuke active folders using variables or defaults
       rm -rf "${SYSTEM_DATA_DIR:-./appdata}"
-      rm -rf "${MEDIA_DIR:-/mnt/hdd/media}" "${UPLOAD_LOCATION:-/mnt/hdd/immich/photos}" "${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}"
+      rm -rf "${MEDIA_DIR:-/mnt/hdd6t/media}" "${UPLOAD_LOCATION:-/mnt/hdd/immich/photos}" "${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}"
       rm -f .env immich/.env nextcloud/.env utility/.env media/.env
       CLEAN_START=true
       echo -e "${GREEN}✔ Cleaned up existing data. Ready for fresh setup.${NC}"
@@ -299,35 +312,117 @@ read -rp "Press Enter to use this IP, or type your server's local IP/domain: " U
 SERVER_IP="${USER_IP:-$DETECTED_IP}"
 echo -e "Configuring homepage links to point to: ${GREEN}${SERVER_IP}${NC}"
 
-# Apply sensible defaults for path and system variables if not already defined
-TZ="${TZ:-Etc/UTC}"
-PUID="${PUID:-1000}"
-PGID="${PGID:-1000}"
-SYSTEM_DATA_DIR="${SYSTEM_DATA_DIR:-./appdata}"
-DB_DATA_LOCATION="${DB_DATA_LOCATION:-./appdata/immich/postgres}"
-NEXTCLOUD_DB_LOCATION="${NEXTCLOUD_DB_LOCATION:-./appdata/nextcloud/postgres}"
-
-MEDIA_DIR="${MEDIA_DIR:-/mnt/hdd/media}"
-UPLOAD_LOCATION="${UPLOAD_LOCATION:-/mnt/hdd/immich/photos}"
-NEXTCLOUD_DATA_LOCATION="${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}"
-
-DB_USERNAME="${DB_USERNAME:-postgres}"
-DB_DATABASE_NAME="${DB_DATABASE_NAME:-immich}"
-IMMICH_VERSION="${IMMICH_VERSION:-release}"
-
-POSTGRES_DB="${POSTGRES_DB:-nextcloud}"
-POSTGRES_USER="${POSTGRES_USER:-nextcloud}"
-NEXTCLOUD_VERSION="${NEXTCLOUD_VERSION:-latest}"
-
-PAPERLESS_PORT="${PAPERLESS_PORT:-8010}"
-PAPERLESS_TIME_ZONE="${PAPERLESS_TIME_ZONE:-Etc/UTC}"
-
+# Apply sensible defaults for path and system variables if not already defined, prompting if missing or empty
 # ------------------------------------------------------------------------------
-# 3. PROMPT FOR APPLICATION CREDENTIALS & SECRETS
+# 3. PROMPT FOR APPLICATION PATHS & CREDENTIALS
 # ------------------------------------------------------------------------------
-echo -e "\n${BLUE}[3/4] Configuring credentials & secret keys...${NC}"
+echo -e "\n${BLUE}[3/4] Configuring paths, credentials & secret keys...${NC}"
 
-# Immich Password Prompt (Reuses value from sourced shell variables)
+# Timezone Prompt
+if [ -n "${TZ:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Timezone: ${TZ}${NC}"
+else
+  read -rp "Enter system timezone [default: Etc/UTC]: " USER_TZ
+  TZ="${USER_TZ:-Etc/UTC}"
+fi
+
+# PUID Prompt
+if [ -n "${PUID:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing PUID: ${PUID}${NC}"
+else
+  read -rp "Enter system PUID [default: 1000]: " USER_PUID
+  PUID="${USER_PUID:-1000}"
+fi
+
+# PGID Prompt
+if [ -n "${PGID:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing PGID: ${PGID}${NC}"
+else
+  read -rp "Enter system PGID [default: 1000]: " USER_PGID
+  PGID="${USER_PGID:-1000}"
+fi
+
+# Appdata Directory (SSD/fast storage)
+if [ -n "${SYSTEM_DATA_DIR:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Appdata directory: ${SYSTEM_DATA_DIR}${NC}"
+else
+  read -rp "Enter Appdata directory (SSD/fast storage) [default: ./appdata]: " USER_SYS_DIR
+  SYSTEM_DATA_DIR="${USER_SYS_DIR:-./appdata}"
+fi
+
+# Media Directory (HDD/mass storage)
+if [ -n "${MEDIA_DIR:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing media directory: ${MEDIA_DIR}${NC}"
+else
+  read -rp "Enter Media directory (HDD/mass storage) [default: /mnt/hdd6t/media]: " USER_MEDIA_DIR
+  MEDIA_DIR="${USER_MEDIA_DIR:-/mnt/hdd6t/media}"
+fi
+
+# Immich photos directory (HDD/mass storage)
+if [ -n "${UPLOAD_LOCATION:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Immich photos directory: ${UPLOAD_LOCATION}${NC}"
+else
+  read -rp "Enter Immich photos directory (HDD/mass storage) [default: /mnt/hdd/immich/photos]: " USER_UPLOAD
+  UPLOAD_LOCATION="${USER_UPLOAD:-/mnt/hdd/immich/photos}"
+fi
+
+# Immich database directory (SSD/fast storage)
+if [ -n "${DB_DATA_LOCATION:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Immich DB directory: ${DB_DATA_LOCATION}${NC}"
+else
+  read -rp "Enter Immich database directory (SSD/fast storage) [default: ./appdata/immich/postgres]: " USER_DB_LOC
+  DB_DATA_LOCATION="${USER_DB_LOC:-./appdata/immich/postgres}"
+fi
+
+# Immich database user
+if [ -n "${DB_USERNAME:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Immich DB user: ${DB_USERNAME}${NC}"
+else
+  read -rp "Enter Immich database username [default: postgres]: " USER_DB_USER
+  DB_USERNAME="${USER_DB_USER:-postgres}"
+fi
+
+# Immich database name
+if [ -n "${DB_DATABASE_NAME:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Immich DB name: ${DB_DATABASE_NAME}${NC}"
+else
+  read -rp "Enter Immich database name [default: immich]: " USER_DB_NAME
+  DB_DATABASE_NAME="${USER_DB_NAME:-immich}"
+fi
+
+# Nextcloud data directory (HDD/mass storage)
+if [ -n "${NEXTCLOUD_DATA_LOCATION:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Nextcloud data directory: ${NEXTCLOUD_DATA_LOCATION}${NC}"
+else
+  read -rp "Enter Nextcloud data directory (HDD/mass storage) [default: /mnt/hdd/nextcloud/data]: " USER_NC_DATA
+  NEXTCLOUD_DATA_LOCATION="${USER_NC_DATA:-/mnt/hdd/nextcloud/data}"
+fi
+
+# Nextcloud database directory (SSD/fast storage)
+if [ -n "${NEXTCLOUD_DB_LOCATION:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Nextcloud DB directory: ${NEXTCLOUD_DB_LOCATION}${NC}"
+else
+  read -rp "Enter Nextcloud database directory (SSD/fast storage) [default: ./appdata/nextcloud/postgres]: " USER_NC_DB
+  NEXTCLOUD_DB_LOCATION="${USER_NC_DB:-./appdata/nextcloud/postgres}"
+fi
+
+# Nextcloud database name
+if [ -n "${POSTGRES_DB:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Nextcloud DB name: ${POSTGRES_DB}${NC}"
+else
+  read -rp "Enter Nextcloud database name [default: nextcloud]: " USER_NC_POSTGRES_DB
+  POSTGRES_DB="${USER_NC_POSTGRES_DB:-nextcloud}"
+fi
+
+# Nextcloud database user
+if [ -n "${POSTGRES_USER:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing Nextcloud DB user: ${POSTGRES_USER}${NC}"
+else
+  read -rp "Enter Nextcloud database username [default: nextcloud]: " USER_NC_POSTGRES_USER
+  POSTGRES_USER="${USER_NC_POSTGRES_USER:-nextcloud}"
+fi
+
+# Immich Password Prompt
 if [ -n "${DB_PASSWORD:-}" ] && [ "$DB_PASSWORD" != "changeme_immich_db_password" ]; then
   echo -e "${GREEN}✔ Reusing existing database password for Immich.${NC}"
   IMMICH_DB_PASS="$DB_PASSWORD"
@@ -350,6 +445,7 @@ else
     echo ""
   done
 fi
+POSTGRES_PASSWORD="$NEXTCLOUD_DB_PASS"
 
 # Paperless Secret Prompt
 if [ -n "${PAPERLESS_SECRET_KEY:-}" ] && [ "$PAPERLESS_SECRET_KEY" != "change_this_to_a_random_string_for_security_123!" ] && [ "$PAPERLESS_SECRET_KEY" != "change_this_secret_key_123" ]; then
@@ -362,6 +458,12 @@ else
     echo ""
   done
 fi
+
+# Versions and Ports defaults
+IMMICH_VERSION="${IMMICH_VERSION:-release}"
+NEXTCLOUD_VERSION="${NEXTCLOUD_VERSION:-latest}"
+PAPERLESS_PORT="${PAPERLESS_PORT:-8010}"
+PAPERLESS_TIME_ZONE="${PAPERLESS_TIME_ZONE:-$TZ}"
 
 echo -e "Writing and unifying environment configuration files..."
 
@@ -462,6 +564,9 @@ echo -e "${GREEN}✔ Configured media/.env file.${NC}"
 # Cleanup backup files
 find . -name "*.bak" -type f -delete || true
 
+# Restore file ownership to the non-root user
+restore_ownership
+
 # ------------------------------------------------------------------------------
 # 4. START HOMESERVER CONTAINER STACK
 # ------------------------------------------------------------------------------
@@ -528,3 +633,6 @@ if [[ "$START_CONTAINERS" =~ ^[Yy]$ ]]; then
 else
   echo -e "${YELLOW}Setup complete! Run 'docker compose $COMPOSE_ARGS up -d' manually to start.${NC}"
 fi
+
+# Ensure all files are owned by the original user
+restore_ownership
