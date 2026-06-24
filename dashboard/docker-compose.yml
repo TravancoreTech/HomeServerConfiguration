@@ -1,0 +1,39 @@
+# ==============================================================================
+# DASHBOARD DOCKER COMPOSE CONFIGURATION (DOCKER-COMPOSE.YML)
+# ==============================================================================
+# This stack serves as the landing portal for the home server.
+# Homepage is bound straight to port 80 to act as the root landing page.
+#
+# Services included:
+#   1. Heimdall - Visual application launcher portal (port 8081)
+#   2. Homepage - Modern, metric-capable server dashboard (port 80)
+# ==============================================================================
+
+services:
+  heimdall:
+    container_name: dashboard_heimdall
+    image: lscr.io/linuxserver/heimdall:latest
+    restart: always
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+    ports:
+      - "8081:80"
+      - "8443:443"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/heimdall:/config
+
+  homepage:
+    container_name: dashboard_homepage
+    image: ghcr.io/benphelps/homepage:latest
+    restart: always
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+    ports:
+      - "80:3000"  # Re-routed root IP (port 80) straight to Homepage
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Attached to read container/API metrics

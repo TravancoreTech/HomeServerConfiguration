@@ -1,0 +1,41 @@
+# ==============================================================================
+# STORAGE STACK DOCKER COMPOSE CONFIGURATION (DOCKER-COMPOSE_5.YML)
+# ==============================================================================
+# FileBrowser is a lightweight web file manager to navigate directories.
+# Mounted to display local media files and provides template mounts for legacy NAS.
+# ==============================================================================
+
+services:
+  filebrowser:
+    container_name: storage_filebrowser
+    image: filebrowser/filebrowser:latest
+    restart: always
+    user: "${PUID}:${PGID}"
+    ports:
+      - "8082:80"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/filebrowser/filebrowser.db:/database.db
+      - ${MEDIA_DIR:-../data}:/srv/local  # Local media files library
+      # ------------------------------------------------------------------------
+      # LEGACY NAS MOUNTS (UNCOMMENT TO USE)
+      # ------------------------------------------------------------------------
+      # - legacy-nas-smb:/srv/nas-smb
+      # - legacy-nas-nfs:/srv/nas-nfs
+
+# ------------------------------------------------------------------------------
+# LEGACY NAS MOUNT TEMPLATES (UNCOMMENT AND EDIT TO ACTIVATE)
+# ------------------------------------------------------------------------------
+# volumes:
+#   legacy-nas-smb:
+#     driver: local
+#     driver_opts:
+#       type: cifs
+#       device: "//192.168.1.50/ShareName"
+#       o: "username=your_user,password=your_pass,vers=1.0,file_mode=0777,dir_mode=0777"
+#
+#   legacy-nas-nfs:
+#     driver: local
+#     driver_opts:
+#       type: nfs
+#       o: "addr=192.168.1.50,nfsvers=3,nolock,soft,rw"
+#       device: ":/path/to/nfs/share"

@@ -1,0 +1,114 @@
+# ==============================================================================
+# UTILITY STACK DOCKER COMPOSE CONFIGURATION (DOCKER-COMPOSE_6.YML)
+# ==============================================================================
+# Consolidates background utilities, security tools, and productivity suites.
+# The Redis service is bridged globally to allow other stacks (Nextcloud) to 
+# cache data here, saving database/daemon runtime memory overhead.
+# ==============================================================================
+
+services:
+  vaultwarden:
+    container_name: utility_vaultwarden
+    image: vaultwarden/server:latest
+    restart: always
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+      - SIGNUPS_ALLOWED=true         # Set to false after account registration
+      - WEBSOCKET_ENABLED=true
+    ports:
+      - "8086:80"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/vaultwarden:/data
+
+  stirling-pdf:
+    container_name: utility_stirling_pdf
+    image: stirlingtools/stirling-pdf:latest
+    restart: always
+    environment:
+      - DOCKER_ENABLE_SECURITY=false
+      - INSTALL_BOOK_AND_ADVANCED_HTML_OPS=false
+    ports:
+      - "8083:8080"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/stirling-pdf/trainingData:/usr/share/tessdata
+      - ${SYSTEM_DATA_DIR:-../appdata}/stirling-pdf/extraConfigs:/configs
+
+  it-tools:
+    container_name: utility_it_tools
+    image: corentinth/it-tools:latest
+    restart: always
+    ports:
+      - "8084:80"
+
+  uptime-kuma:
+    container_name: utility_uptime_kuma
+    image: louislam/uptime-kuma:1
+    restart: always
+    ports:
+      - "3001:3001"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/uptime-kuma:/app/data
+
+  syncthing:
+    container_name: utility_syncthing
+    image: lscr.io/linuxserver/syncthing:latest
+    restart: always
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+    ports:
+      - "8384:8384"
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+      - "21027:21027/udp"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/syncthing:/config
+      - ${MEDIA_DIR:-../data}:/data
+
+  pairdrop:
+    container_name: utility_pairdrop
+    image: lscr.io/linuxserver/pairdrop:latest
+    restart: always
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+    ports:
+      - "3010:3000"
+
+  paperless-redis:
+    container_name: utility_paperless_redis
+    image: docker.io/library/redis:7
+    restart: always
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/paperless/redis:/data
+    networks:
+      - default
+      - homeserver_network  # Shared network layout to expose Redis cache to Nextcloud
+
+  paperless-web:
+    container_name: utility_paperless_web
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: always
+    depends_on:
+      - paperless-redis
+    ports:
+      - "8010:8000"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/paperless/data:/usr/src/paperless/data
+      - ${SYSTEM_DATA_DIR:-../appdata}/paperless/media:/usr/src/paperless/media
+      - ${SYSTEM_DATA_DIR:-../appdata}/paperless/export:/usr/src/paperless/export
+      - ${SYSTEM_DATA_DIR:-../appdata}/paperless/consume:/usr/src/paperless/consume
+    environment:
+      - PAPERLESS_REDIS=redis://utility_paperless_redis:6379
+      - PAPERLESS_DBENGINE=sqlite
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY:-change_this_secret_key_123}
+      - PAPERLESS_TIME_ZONE=${TZ:-Etc/UTC}
+      - PAPERLESS_OCR_LANGUAGES=eng
+    networks:
+      - default
+
+networks:
+  homeserver_network:
+    external: true

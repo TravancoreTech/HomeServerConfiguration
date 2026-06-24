@@ -1,0 +1,15 @@
+# ==============================================================================
+# MASTER HOMESERVER DOCKER COMPOSE CONFIGURATION (MASTER)
+# ==============================================================================
+# Links all modular stack configurations using the Compose V2 'include' feature.
+# ==============================================================================
+
+name: homeserver
+
+include:
+  - path: ./dashboard/docker-compose.yml
+  - path: ./media/docker-compose.yml
+  - path: ./immich/docker-compose.yml
+  - path: ./nextcloud/docker-compose.yml
+  - path: ./storage/docker-compose.yml
+  - path: ./utility/docker-compose.yml

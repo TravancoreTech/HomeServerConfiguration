@@ -1,0 +1,64 @@
+# ==============================================================================
+# NEXTCLOUD PHOTOS STACK DOCKER COMPOSE CONFIGURATION (DOCKER-COMPOSE_4.YML)
+# ==============================================================================
+# Nextcloud is a suite of client-server software for creating and using file
+# hosting services. It utilizes the consolidated Redis database from the utility 
+# stack to reduce system memory overhead.
+# ==============================================================================
+
+services:
+  nextcloud-app:
+    container_name: nextcloud_app
+    image: nextcloud:${NEXTCLOUD_VERSION:-latest}
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      - ${NEXTCLOUD_DATA_LOCATION:-../data/nextcloud}:/var/www/html
+      - /mnt/hdd/media:/mnt/media:ro  # Read-only mount of the host's secondary media drive
+    environment:
+      - POSTGRES_HOST=nextcloud-db
+      - POSTGRES_DB=${POSTGRES_DB:-nextcloud}
+      - POSTGRES_USER=${POSTGRES_USER:-nextcloud}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme_nextcloud_db_password}
+      - REDIS_HOST=utility_paperless_redis  # Routed directly to paperless-redis in docker-compose_6.yml
+    depends_on:
+      - nextcloud-db
+    networks:
+      - default
+      - homeserver_network
+
+  nextcloud-cron:
+    container_name: nextcloud_cron
+    image: nextcloud:${NEXTCLOUD_VERSION:-latest}
+    restart: always
+    volumes:
+      - ${NEXTCLOUD_DATA_LOCATION:-../data/nextcloud}:/var/www/html
+    entrypoint: /cron.sh
+    depends_on:
+      - nextcloud-db
+    networks:
+      - default
+      - homeserver_network
+
+  nextcloud-db:
+    container_name: nextcloud_postgres
+    image: postgres:16-alpine
+    restart: always
+    volumes:
+      - ${NEXTCLOUD_DB_LOCATION:-../appdata/nextcloud/postgres}:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-nextcloud}
+      - POSTGRES_USER=${POSTGRES_USER:-nextcloud}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme_nextcloud_db_password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]  # Escaped environment variable for dynamic resolution
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+networks:
+  homeserver_network:
+    external: true

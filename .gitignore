@@ -1,0 +1,24 @@
+# ==============================================================================
+# HOMESERVER GIT IGNORE CONFIGURATION
+# ==============================================================================
+
+# Ignore all environment secrets (database passwords, API keys, etc.)
+.env
+*/*.env
+
+# Ignore application runtime state (active databases, configuration storage, and media)
+appdata/
+data/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Backup and temp files
+*.bak
+*.tmp
+temp_extract/
+config_temp.zip
+
+# Ignore nested configurations or submodules
+HomeServerConfiguration/

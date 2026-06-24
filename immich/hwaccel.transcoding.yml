@@ -1,0 +1,10 @@
+# ==============================================================================
+# IMMICH HARDWARE ACCELERATION PROFILE (HWACCEL.TRANSCODING.YML)
+# ==============================================================================
+# Companion file referenced by extends property in docker-compose_3.yml.
+# ==============================================================================
+
+services:
+  intel-gpu:
+    devices:
+      - /dev/dri:/dev/dri

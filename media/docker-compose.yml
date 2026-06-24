@@ -1,0 +1,169 @@
+# ==============================================================================
+# MEDIA STACK DOCKER COMPOSE CONFIGURATION (DOCKER-COMPOSE_2.YML)
+# ==============================================================================
+# Fully integrated media stack with shared permissions and paths.
+# Adheres to TRaSH Guides guidelines for optimal downloads and instant moves.
+# Includes Navidrome & MeTube for automated YouTube music grabbing.
+# ==============================================================================
+
+services:
+  jellyfin:
+    container_name: media_jellyfin
+    image: lscr.io/linuxserver/jellyfin:latest
+    restart: always
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - JELLYFIN_PublishedServerUrl=http://localhost:8096
+    ports:
+      - "8096:8096"
+      - "8920:8920"
+      - "1900:1900/udp"
+      - "7359:7359/udp"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/jellyfin/config:/config
+      - ${SYSTEM_DATA_DIR:-../appdata}/jellyfin/cache:/cache
+      - ${MEDIA_DIR:-../data}:/data
+    # Active hardware acceleration mapping for Intel QuickSync / VAAPI
+    devices:
+      - /dev/dri:/dev/dri
+
+  qbittorrent:
+    container_name: media_qbittorrent
+    image: lscr.io/linuxserver/qbittorrent:latest
+    restart: always
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=8085
+      - TORRENTING_PORT=6881
+    ports:
+      - "8085:8085"
+      - "6881:6881"
+      - "6881:6881/udp"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/qbittorrent:/config
+      - ${MEDIA_DIR:-../data}:/data
+
+  radarr:
+    container_name: media_radarr
+    image: lscr.io/linuxserver/radarr:latest
+    restart: always
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - "7878:7878"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/radarr:/config
+      - ${MEDIA_DIR:-../data}:/data
+    depends_on:
+      - qbittorrent
+
+  sonarr:
+    container_name: media_sonarr
+    image: lscr.io/linuxserver/sonarr:latest
+    restart: always
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - "8989:8989"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/sonarr:/config
+      - ${MEDIA_DIR:-../data}:/data
+    depends_on:
+      - qbittorrent
+
+  prowlarr:
+    container_name: media_prowlarr
+    image: lscr.io/linuxserver/prowlarr:latest
+    restart: always
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - "9696:9696"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/prowlarr:/config
+    depends_on:
+      - flaresolverr
+
+  flaresolverr:
+    container_name: media_flaresolverr
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: always
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=${TZ}
+
+  jellyseerr:
+    container_name: media_jellyseerr
+    image: fallenbagel/jellyseerr:latest
+    restart: always
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=${TZ}
+    ports:
+      - "5055:5055"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/jellyseerr:/config
+    depends_on:
+      - jellyfin
+      - radarr
+      - sonarr
+
+  bazarr:
+    container_name: media_bazarr
+    image: lscr.io/linuxserver/bazarr:latest
+    restart: always
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - "6767:6767"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/bazarr:/config
+      - ${MEDIA_DIR:-../data}:/data
+    depends_on:
+      - radarr
+      - sonarr
+
+  navidrome:
+    container_name: media_navidrome
+    image: deluan/navidrome:latest
+    restart: always
+    user: "${PUID}:${PGID}"
+    ports:
+      - "4533:4533"
+    environment:
+      - ND_SCANSCHEDULE=1m
+      - ND_LOGLEVEL=info
+      - ND_SESSIONTIMEOUT=24h
+      - ND_BASEURL=""
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/navidrome:/data
+      - ${MEDIA_DIR:-../data}/media/music:/music:ro
+
+  metube:
+    container_name: media_metube
+    image: ghcr.io/alexta69/metube:latest
+    restart: always
+    ports:
+      - "8087:8081"
+    environment:
+      - DOWNLOAD_DIR=/downloads
+      - AUDIO_ONLY_DIR=/downloads
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - YTDL_OPTIONS={"writethumbnail":true,"postprocessors":[{"key":"FFmpegExtractAudio","preferredcodec":"mp3","preferredquality":"320"},{"key":"FFmpegMetadata","add_chapters":true},{"key":"EmbedThumbnail"}]}
+    volumes:
+      - ${MEDIA_DIR:-../data}/media/music:/downloads
