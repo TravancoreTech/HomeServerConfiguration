@@ -27,6 +27,7 @@ restore_ownership() {
   if [ -n "${SUDO_USER:-}" ]; then
     chown "${SUDO_UID}:${SUDO_GID}" .env 2>/dev/null || true
     chown "${SUDO_UID}:${SUDO_GID}" setup.sh 2>/dev/null || true
+    chown "${SUDO_UID}:${SUDO_GID}" configure_homepage.sh 2>/dev/null || true
     chown -R "${SUDO_UID}:${SUDO_GID}" immich nextcloud utility media dashboard storage 2>/dev/null || true
     if [ -d "appdata" ]; then
       chown -R "${SUDO_UID}:${SUDO_GID}" appdata 2>/dev/null || true
@@ -780,12 +781,20 @@ if [[ "$START_CONTAINERS" =~ ^[Yy]$ ]]; then
     fi
   done
   
-  echo -e "\n${GREEN}✔ All images successfully pulled. Launching container stack...${NC}"
   docker compose $COMPOSE_ARGS up -d
+  
+  # Wait for services to initialize config files and configure Homepage
+  echo -e "\n${BLUE}Waiting 5 seconds for services to initialize config files...${NC}"
+  sleep 5
+  if [ -f "./configure_homepage.sh" ]; then
+    chmod +x ./configure_homepage.sh
+    ./configure_homepage.sh || true
+  fi
   
   echo -e "\n${GREEN}======================================================================${NC}"
   echo -e "${GREEN}✔ Stack deployed successfully! You can access the apps below:${NC}"
   echo -e "  - Homepage Dashboard:   http://${SERVER_IP}"
+  echo -e "  - Heimdall Dashboard:   http://${SERVER_IP}:8081"
   echo -e "  - Nextcloud:            http://${SERVER_IP}:8080"
   echo -e "  - Jellyfin:             http://${SERVER_IP}:8096"
   echo -e "  - Immich Photos:        http://${SERVER_IP}:2283"
