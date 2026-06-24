@@ -243,23 +243,21 @@ if [ -f .env ]; then
   set +a
 fi
 
-# Check if appdata or configured data directories exist and ask if they want to nuke the setup
-if [ -d "${SYSTEM_DATA_DIR:-./appdata}" ] || [ -d "${MEDIA_DIR:-/mnt/hdd6t/media}" ] || [ -d "${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}" ] || [ -d "${UPLOAD_LOCATION:-/mnt/hdd/immich/photos}" ]; then
-  echo -e "\n${YELLOW}Detected existing homeserver data and configurations.${NC}"
-  read -rp "Would you like to NUKE/CLEAN the entire setup (deleting all databases and media) and start from scratch? (y/n) [default: n]: " NUKE_SETUP
+if [ -d "${SYSTEM_DATA_DIR:-./appdata}" ] || [ -f .env ]; then
+  echo -e "\n${YELLOW}Detected existing homeserver database or configurations.${NC}"
+  read -rp "Would you like to NUKE/CLEAN all configurations and databases (retaining your HDD media/photos)? (y/n) [default: n]: " NUKE_SETUP
   if [[ "$NUKE_SETUP" =~ ^[Yy]$ ]]; then
-    read -rp "Are you absolutely sure you want to delete all databases, configurations, and media files? This CANNOT be undone! (type 'yes' to confirm): " CONFIRM_NUKE
+    read -rp "Are you absolutely sure you want to delete all databases and application configurations? Media files will NOT be touched. (type 'yes' to confirm): " CONFIRM_NUKE
     if [ "$CONFIRM_NUKE" = "yes" ]; then
-      echo -e "${RED}Stopping containers (if any) and nuking existing directories...${NC}"
+      echo -e "${RED}Stopping containers (if any) and cleaning configurations/databases...${NC}"
       if [ -n "$COMPOSE_ARGS" ]; then
         docker compose $COMPOSE_ARGS down -v --remove-orphans || true
       fi
-      # Nuke active folders using variables or defaults
+      # Clear appdata configuration folder (databases, configs, caches) and environment files
       rm -rf "${SYSTEM_DATA_DIR:-./appdata}"
-      rm -rf "${MEDIA_DIR:-/mnt/hdd6t/media}" "${UPLOAD_LOCATION:-/mnt/hdd/immich/photos}" "${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}"
       rm -f .env immich/.env nextcloud/.env utility/.env media/.env
       CLEAN_START=true
-      echo -e "${GREEN}✔ Cleaned up existing data. Ready for fresh setup.${NC}"
+      echo -e "${GREEN}✔ Cleaned up configuration directories. Ready for fresh configuration.${NC}"
     else
       echo -e "${GREEN}Cleanup cancelled. Proceeding in update mode.${NC}"
     fi
