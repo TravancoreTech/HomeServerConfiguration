@@ -213,6 +213,154 @@ if [ -f .env ]; then
   set +a
 fi
 
+# Install Samba on the host machine using the native package manager
+install_samba() {
+  echo -e "\n${BLUE}Installing Samba on host...${NC}"
+  if command -v apt-get &>/dev/null; then
+    apt-get update && apt-get install -y samba
+  elif command -v dnf &>/dev/null; then
+    dnf install -y samba
+  elif command -v yum &>/dev/null; then
+    yum install -y samba
+  elif command -v pacman &>/dev/null; then
+    pacman -Sy --noconfirm samba
+  else
+    echo -e "${RED}Error: Package manager not found. Please install 'samba' manually.${NC}"
+    return 1
+  fi
+}
+
+# Configure host Samba share for Media directory
+configure_samba() {
+  local smb_conf="/etc/samba/smb.conf"
+  if [ ! -f "$smb_conf" ]; then
+    echo -e "${RED}Error: Samba configuration file not found at $smb_conf${NC}"
+    return 1
+  fi
+
+  # Determine matching local user for PUID/SUDO_USER to prevent file permission issues
+  local share_user="${SUDO_USER:-}"
+  if [ -z "$share_user" ] || [ "$share_user" = "root" ]; then
+    share_user=$(id -un "${PUID:-1000}" 2>/dev/null || echo "root")
+  fi
+
+  echo -e "\nConfiguring Samba share for: ${BLUE}/mnt${NC}"
+  echo -e "Files will be forced to user: ${BLUE}${share_user}${NC}"
+
+  # 1. Enable SMB1 (NT1) protocol and NTLM auth in [global] section for old NAS/RAID systems
+  echo -e "Enabling SMB1 (NT1) and NTLM compatibility in Samba global config..."
+  python3 -c "
+import sys
+import re
+conf_path = '$smb_conf'
+try:
+    with open(conf_path, 'r') as f:
+        content = f.read()
+    
+    if not re.search(r'\[global\]', content, re.IGNORECASE):
+        print('Error: [global] section not found.')
+        sys.exit(1)
+        
+    # Inject client/server min protocols and ntlm auth
+    for opt, val in [('server min protocol', 'NT1'), ('client min protocol', 'NT1'), ('ntlm auth', 'yes')]:
+        pattern = r'^\s*' + re.escape(opt) + r'\s*=.*$'
+        if re.search(pattern, content, re.MULTILINE | re.IGNORECASE):
+            content = re.sub(pattern, f'   {opt} = {val}', content, flags=re.MULTILINE | re.IGNORECASE)
+        else:
+            content = re.sub(r'(\[global\])', r'\1\n   ' + f'{opt} = {val}', content, flags=re.IGNORECASE, count=1)
+            
+    with open(conf_path, 'w') as f:
+        f.write(content)
+except Exception as e:
+    print(f'Error updating global config: {e}')
+    sys.exit(1)
+" 2>/dev/null || true
+
+  # 2. Define Samba block for /mnt
+  local smb_block
+  smb_block=$(cat <<EOF
+
+# ==============================================================================
+# HOMESERVER MOUNTS SHARE (AUTOMATICALLY GENERATED)
+# ==============================================================================
+[homeserver-mnt]
+   comment = Homeserver Mounts (/mnt)
+   path = /mnt
+   browseable = yes
+   read only = no
+   guest ok = no
+   create mask = 0775
+   directory mask = 0775
+   force user = ${share_user}
+EOF
+)
+
+  # Remove old [homeserver-media] share if it exists
+  python3 -c "
+import sys
+import re
+conf_path = '$smb_conf'
+try:
+    with open(conf_path, 'r') as f:
+        content = f.read()
+    cleaned = re.sub(r'\[homeserver-media\].*?(?=\n\s*\[|\Z)', '', content, flags=re.DOTALL)
+    with open(conf_path, 'w') as f:
+        f.write(cleaned.strip() + '\n')
+except Exception as e:
+    sys.exit(1)
+" 2>/dev/null || true
+
+  # Check if [homeserver-mnt] block exists
+  if grep -q "\[homeserver-mnt\]" "$smb_conf"; then
+    echo -e "Samba share '[homeserver-mnt]' already exists in $smb_conf."
+    read -rp "Would you like to overwrite it? (y/n) [default: n]: " OVERWRITE_SMB
+    OVERWRITE_SMB="${OVERWRITE_SMB:-n}"
+    if [[ "$OVERWRITE_SMB" =~ ^[Yy]$ ]]; then
+      # Clean up existing block from config file
+      python3 -c "
+import sys
+import re
+conf_path = '$smb_conf'
+try:
+    with open(conf_path, 'r') as f:
+        content = f.read()
+    cleaned = re.sub(r'\[homeserver-mnt\].*?(?=\n\s*\[|\Z)', '', content, flags=re.DOTALL)
+    with open(conf_path, 'w') as f:
+        f.write(cleaned.strip() + '\n')
+except Exception as e:
+    sys.exit(1)
+" 2>/dev/null || sed -i '/\[homeserver-mnt\]/,/^[[:space:]]*$/d' "$smb_conf"
+      
+      echo "$smb_block" >> "$smb_conf"
+      echo -e "${GREEN}✔ Updated Samba configuration in $smb_conf.${NC}"
+    else
+      echo -e "Skipping update of existing Samba configuration."
+      return 0
+    fi
+  else
+    # Append new block
+    echo "$smb_block" >> "$smb_conf"
+    echo -e "${GREEN}✔ Added Samba configuration to $smb_conf.${NC}"
+  fi
+
+  # Restart Samba service
+  echo -e "Restarting Samba service..."
+  if command -v systemctl &>/dev/null; then
+    if systemctl is-active --quiet smbd 2>/dev/null; then
+      systemctl restart smbd
+      echo -e "${GREEN}✔ Restarted smbd service.${NC}"
+    elif systemctl is-active --quiet smb 2>/dev/null; then
+      systemctl restart smb
+      echo -e "${GREEN}✔ Restarted smb service.${NC}"
+    else
+      echo -e "${YELLOW}Warning: Samba service is not currently running. Starting it...${NC}"
+      systemctl enable --now smbd 2>/dev/null || systemctl enable --now smb 2>/dev/null
+    fi
+  else
+    echo -e "${YELLOW}Warning: systemctl not found. Please restart your Samba daemon manually.${NC}"
+  fi
+}
+
 echo -e "${BLUE}======================================================================${NC}"
 echo -e "${GREEN}          HOMESERVER ONE-CLICK DOCKER INSTALlATION & SETUP${NC}"
 echo -e "${BLUE}======================================================================${NC}"
@@ -834,6 +982,23 @@ if [[ "$START_CONTAINERS" =~ ^[Yy]$ ]]; then
   if [ -f "./configure_homepage.sh" ]; then
     chmod +x ./configure_homepage.sh
     ./configure_homepage.sh || true
+  fi
+  
+  # Check if Samba is installed on the host and prompt to install or update it
+  if command -v smbd &>/dev/null; then
+    echo -e "\n${BLUE}Samba detected on the system.${NC}"
+    read -rp "Would you like to configure/update your host Samba mounts share? (y/n) [default: y]: " CONFIGURE_SAMBA
+    CONFIGURE_SAMBA="${CONFIGURE_SAMBA:-y}"
+    if [[ "$CONFIGURE_SAMBA" =~ ^[Yy]$ ]]; then
+      configure_samba || true
+    fi
+  else
+    echo -e "\n${YELLOW}Samba is not installed on this system.${NC}"
+    read -rp "Would you like to install and configure Samba to share your /mnt directory? (y/n) [default: y]: " INSTALL_SAMBA_CHOICE
+    INSTALL_SAMBA_CHOICE="${INSTALL_SAMBA_CHOICE:-y}"
+    if [[ "$INSTALL_SAMBA_CHOICE" =~ ^[Yy]$ ]]; then
+      install_samba && configure_samba || true
+    fi
   fi
   
   echo -e "\n${GREEN}======================================================================${NC}"
