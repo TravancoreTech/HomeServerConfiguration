@@ -215,15 +215,9 @@ done
 if [ -n "$COMPOSE_ARGS" ]; then
   RUNNING_SERVICES=$(docker compose $COMPOSE_ARGS ps --services --filter "status=running" 2>/dev/null || true)
   if [ -n "$RUNNING_SERVICES" ]; then
-    echo -e "${YELLOW}Detected active homeserver containers running.${NC}"
-    read -rp "Would you like to completely shut down the running containers first? (y/n) [default: n - in-place update]: " STOP_CONTAINERS_BEFORE
-    if [[ "$STOP_CONTAINERS_BEFORE" =~ ^[Yy]$ ]]; then
-      echo -e "${BLUE}Stopping running container stack...${NC}"
-      docker compose $COMPOSE_ARGS down
-      echo -e "${GREEN}✔ Container stack stopped successfully.${NC}"
-    else
-      echo -e "${GREEN}Proceeding with in-place update. Containers will be updated dynamically without full shutdown.${NC}"
-    fi
+    echo -e "${YELLOW}Detected active container stack running. Automatically shutting down containers to apply updates safely...${NC}"
+    docker compose $COMPOSE_ARGS down
+    echo -e "${GREEN}✔ Container stack stopped successfully.${NC}"
   fi
 fi
 
