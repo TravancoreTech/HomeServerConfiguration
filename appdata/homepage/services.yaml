@@ -1,0 +1,146 @@
+# ==============================================================================
+# HOMEPAGE SERVICES CONFIGURATION (SERVICES.YAML)
+# ==============================================================================
+# Maps all 20 homeserver services with docker container tracking.
+# Uses `{{HOMEPAGE_VAR_SERVER_IP}}` to dynamically resolve the server IP.
+# Includes active API status widgets for supported containers.
+# ==============================================================================
+
+- Media Orchestration:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8096
+        container: media_jellyfin
+        description: Media Streaming Server
+
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8085
+        container: media_qbittorrent
+        description: Torrent Client
+        widget:
+          type: qbittorrent
+          url: http://media_qbittorrent:8085
+          username: admin
+          password: YOUR_QBITTORRENT_PASSWORD
+
+    - Radarr:
+        icon: radarr.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:7878
+        container: media_radarr
+        description: Movies Management
+        widget:
+          type: radarr
+          url: http://media_radarr:7878
+          key: YOUR_RADARR_API_KEY
+
+    - Sonarr:
+        icon: sonarr.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8989
+        container: media_sonarr
+        description: TV Shows Management
+        widget:
+          type: sonarr
+          url: http://media_sonarr:8989
+          key: YOUR_SONARR_API_KEY
+
+    - Prowlarr:
+        icon: prowlarr.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:9696
+        container: media_prowlarr
+        description: Torrent Indexer Manager
+
+    - Jellyseerr:
+        icon: jellyseerr.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:5055
+        container: media_jellyseerr
+        description: Media Requests Portal
+
+    - Bazarr:
+        icon: bazarr.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:6767
+        container: media_bazarr
+        description: Subtitles Downloader
+
+    - Navidrome:
+        icon: navidrome.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:4533
+        container: media_navidrome
+        description: Music Streaming Server
+
+    - MeTube:
+        icon: metube.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8087
+        container: media_metube
+        description: YouTube Audio Downloader
+
+- Personal Storage:
+    - Nextcloud:
+        icon: nextcloud.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8080
+        container: nextcloud_app
+        description: Private Cloud Storage
+
+    - FileBrowser:
+        icon: filebrowser.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8082
+        container: storage_filebrowser
+        description: Web File Manager
+
+    - Syncthing:
+        icon: syncthing.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8384
+        container: utility_syncthing
+        description: Continuous File Syncing
+
+- Utilities & Security:
+    - Heimdall:
+        icon: heimdall.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8081
+        container: dashboard_heimdall
+        description: Visual Apps Portal
+
+    - Vaultwarden:
+        icon: vaultwarden.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8086
+        container: utility_vaultwarden
+        description: Passwords Manager (SSL Required)
+
+    - Stirling-PDF:
+        icon: stirling-pdf.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8083
+        container: utility_stirling_pdf
+        description: PDF Manipulation Tools
+
+    - IT-Tools:
+        icon: it-tools.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8084
+        container: utility_it_tools
+        description: Developer & Admin Utilities
+
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:3001
+        container: utility_uptime_kuma
+        description: Service Status Monitor
+        widget:
+          type: uptimekuma
+          url: http://utility_uptime_kuma:3001
+          slug: default
+
+    - PairDrop:
+        icon: pairdrop.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:3010
+        container: utility_pairdrop
+        description: Local File Sharing Portal
+
+    - Paperless-ngx:
+        icon: paperless-ngx.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8010
+        container: utility_paperless_web
+        description: Document Archiver & Search
+        widget:
+          type: paperlessngx
+          url: http://utility_paperless_web:8000
+          username: YOUR_PAPERLESS_USERNAME
+          password: YOUR_PAPERLESS_PASSWORD

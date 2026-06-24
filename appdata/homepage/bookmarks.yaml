@@ -1,0 +1,11 @@
+# Homepage Bookmarks Configuration
+- Useful Links:
+    - GitHub:
+        - abbr: GH
+          href: https://github.com/
+    - Docker Hub:
+        - abbr: DH
+          href: https://hub.docker.com/
+    - TRaSH Guides:
+        - abbr: TG
+          href: https://trash-guides.info/

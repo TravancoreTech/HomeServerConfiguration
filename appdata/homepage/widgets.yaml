@@ -1,0 +1,19 @@
+# ==============================================================================
+# HOMEPAGE WIDGETS CONFIGURATION (WIDGETS.YAML)
+# ==============================================================================
+# Shows active CPU, Memory, and Disk vitals along with system datetime.
+# ==============================================================================
+
+- logo:
+    icon: https://raw.githubusercontent.com/benphelps/homepage/main/public/android-chrome-192x192.png
+
+- datetime:
+    text_size: xl
+    format:
+      timeStyle: short
+      dateStyle: long
+
+- resources:
+    cpu: true
+    memory: true
+    disk: /srv/local  # Tracks the secondary media drive mounted into Homepage container

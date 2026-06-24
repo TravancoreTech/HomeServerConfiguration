@@ -7,7 +7,8 @@
 */*.env
 
 # Ignore application runtime state (active databases, configuration storage, and media)
-appdata/
+appdata/*
+!appdata/homepage/
 data/
 
 # OS specific files

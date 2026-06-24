@@ -1,0 +1,28 @@
+# ==============================================================================
+# HOMEPAGE SETTINGS CONFIGURATION (SETTINGS.YAML)
+# ==============================================================================
+# Configures title, theme, and grid layout columns for Homepage.
+# Integrates active Google search bar focusing on landing.
+# ==============================================================================
+
+title: My Homeserver Dashboard
+theme: dark
+color: slate
+
+# Active search bar targeting Google
+search:
+  provider: google
+  focus: true
+  showText: true
+
+# Grid layout mapping the exact services categories
+layout:
+  Media Orchestration:
+    style: grid
+    columns: 4
+  Personal Storage:
+    style: grid
+    columns: 3
+  Utilities & Security:
+    style: grid
+    columns: 3
