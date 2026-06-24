@@ -10,7 +10,7 @@ services:
     container_name: immich_server
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
     extends:
-      file: hwaccel.transcoding.yml
+      file: immich/hwaccel.transcoding.yml
       service: intel-gpu
     volumes:
       - ${UPLOAD_LOCATION:-../data/photos}:/data

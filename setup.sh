@@ -34,10 +34,46 @@ restore_ownership() {
   fi
 }
 
-# ------------------------------------------------------------------------------
-# 0. HYBRID SYNC OPTION (RUNS AS NON-ROOT)
-# ------------------------------------------------------------------------------
-if [[ "${1:-}" == "--sync" ]]; then
+# Helper to write/update GitHub config in .env
+save_github_config() {
+  local repo="$1"
+  local token="$2"
+  local temp_env
+  temp_env=$(mktemp)
+  
+  if [ -f .env ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [[ "$line" =~ ^GITHUB_REPO= ]]; then
+        echo "GITHUB_REPO=${repo}" >> "$temp_env"
+      elif [[ "$line" =~ ^GITHUB_TOKEN= ]]; then
+        echo "GITHUB_TOKEN=${token}" >> "$temp_env"
+      else
+        echo "$line" >> "$temp_env"
+      fi
+    done < .env
+    
+    # If variables were not in .env, append them
+    if ! grep -q "^GITHUB_REPO=" "$temp_env"; then
+      echo "GITHUB_REPO=${repo}" >> "$temp_env"
+    fi
+    if ! grep -q "^GITHUB_TOKEN=" "$temp_env"; then
+      echo "GITHUB_TOKEN=${token}" >> "$temp_env"
+    fi
+    mv "$temp_env" .env
+  else
+    cat << EOF > .env
+# ==============================================================================
+# GLOBAL HOMESERVER ENVIRONMENT CONFIGURATION (.ENV)
+# ==============================================================================
+GITHUB_REPO=${repo}
+GITHUB_TOKEN=${token}
+EOF
+  fi
+  restore_ownership
+}
+
+# Function to download and sync configurations from GitHub
+sync_from_github() {
   echo -e "${BLUE}======================================================================${NC}"
   echo -e "${GREEN}          HOMESERVER CONFIGURATION SYNCHRONIZER (GITHUB BALL)${NC}"
   echo -e "${BLUE}======================================================================${NC}"
@@ -48,36 +84,82 @@ if [[ "${1:-}" == "--sync" ]]; then
     eval "$(grep -E "^GITHUB_" .env | sed 's/^/export /' || true)"
   fi
 
-  if [ -z "${GITHUB_REPO:-}" ]; then
-    echo -e "${RED}Error: GITHUB_REPO is not set in your root .env file.${NC}"
-    echo -e "Please add 'GITHUB_REPO=username/repo-name' to your .env file."
-    exit 1
+  # Strip quotes from GITHUB_REPO and GITHUB_TOKEN if they exist
+  GITHUB_REPO=$(echo "${GITHUB_REPO:-}" | sed 's/^"//;s/"$//')
+  GITHUB_TOKEN=$(echo "${GITHUB_TOKEN:-}" | sed 's/^"//;s/"$//')
+
+  if [ -z "${GITHUB_REPO:-}" ] || [ "$GITHUB_REPO" = "username/repo-name" ]; then
+    read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
+    GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
   fi
 
-  # Validate system requirements for sync
-  if ! command -v unzip &>/dev/null; then
-    echo -e "${RED}Error: 'unzip' utility is not installed. Please install it first.${NC}"
-    exit 1
+  if [ -z "${GITHUB_TOKEN:-}" ]; then
+    read -s -rp "Enter GitHub Personal Access Token (optional, press Enter to skip for public repos): " USER_TOKEN
+    echo ""
+    GITHUB_TOKEN="${USER_TOKEN:-}"
   fi
-  if ! command -v rsync &>/dev/null; then
-    echo -e "${RED}Error: 'rsync' utility is not installed. Please install it first.${NC}"
-    exit 1
+
+  # Save configuration immediately to .env
+  save_github_config "$GITHUB_REPO" "$GITHUB_TOKEN"
+
+  # Validate system requirements for sync, installing automatically if running as root
+  if ! command -v unzip &>/dev/null || ! command -v rsync &>/dev/null; then
+    if [ "$EUID" -eq 0 ]; then
+      echo -e "${YELLOW}Missing unzip/rsync utilities. Attempting automatic installation...${NC}"
+      if command -v apt-get &>/dev/null; then
+        apt-get update && apt-get install -y unzip rsync
+      elif command -v dnf &>/dev/null; then
+        dnf install -y unzip rsync
+      elif command -v yum &>/dev/null; then
+        yum install -y unzip rsync
+      elif command -v pacman &>/dev/null; then
+        pacman -Sy --noconfirm unzip rsync
+      else
+        echo -e "${RED}Error: Package manager not found. Please install 'unzip' and 'rsync' manually.${NC}"
+        exit 1
+      fi
+    else
+      echo -e "${RED}Error: 'unzip' and 'rsync' utilities are required but not installed.${NC}"
+      echo -e "Please install them manually, or run 'sudo ./setup.sh' to have them installed automatically.${NC}"
+      exit 1
+    fi
   fi
 
   echo -e "Fetching latest configuration from: ${YELLOW}https://github.com/${GITHUB_REPO}${NC}..."
   
   # Download archive ZIP
   HTTP_CODE=0
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-    HTTP_CODE=$(curl -s -w "%{http_code}" -H "Authorization: token $GITHUB_TOKEN" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/main" -o config_temp.zip)
-  else
-    HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/main" -o config_temp.zip)
-  fi
+  SUCCESS=false
+  
+  for branch in "main" "master"; do
+    echo -e "Checking branch: ${BLUE}$branch${NC}..."
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+      HTTP_CODE=$(curl -s -w "%{http_code}" -H "Authorization: token $GITHUB_TOKEN" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
+    else
+      HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
+    fi
+    
+    if [ "$HTTP_CODE" -eq 200 ]; then
+      SUCCESS=true
+      break
+    else
+      rm -f config_temp.zip
+    fi
+  done
 
-  if [ "$HTTP_CODE" -ne 200 ]; then
+  if [ "$SUCCESS" = false ]; then
     echo -e "${RED}Error: Failed to download repository archive (HTTP status: $HTTP_CODE).${NC}"
-    echo -e "If it is a private repository, please ensure GITHUB_TOKEN is configured correctly in .env."
-    rm -f config_temp.zip
+    if [ -f config_temp.zip ]; then
+      echo -e "${YELLOW}GitHub API Response:${NC}"
+      cat config_temp.zip || true
+      echo ""
+      rm -f config_temp.zip
+    fi
+    echo -e "Suggestions:"
+    echo -e "1. If the repository is private, verify your GITHUB_TOKEN has read access to the repo."
+    echo -e "   (Note: GitHub returns 404 Not Found for unauthorized private repo requests to hide their existence)."
+    echo -e "2. Check that the repository owner and name ($GITHUB_REPO) are spelled correctly."
+    echo -e "3. Ensure the repository has a 'main' or 'master' branch."
     exit 1
   fi
 
@@ -110,7 +192,22 @@ if [[ "${1:-}" == "--sync" ]]; then
   # Clean up temporary files
   rm -rf config_temp.zip temp_extract
   echo -e "${GREEN}✔ Configuration sync completed successfully!${NC}\n"
+}
+
+# ------------------------------------------------------------------------------
+# 0. HYBRID SYNC OPTION (RUNS AS NON-ROOT)
+# ------------------------------------------------------------------------------
+if [[ "${1:-}" == "--sync" ]]; then
+  sync_from_github
   exit 0
+fi
+
+# Load variables from .env if it exists to preserve current configuration early
+if [ -f .env ]; then
+  # Load env variables safely in shell
+  set -a
+  source .env
+  set +a
 fi
 
 echo -e "${BLUE}======================================================================${NC}"
@@ -215,14 +312,50 @@ COMPOSE_FILES=(
   "dashboard/docker-compose.yml"
 )
 
+# ------------------------------------------------------------------------------
+# 1. AUTO-SYNC & DEPENDENCIES RESOLUTION
+# ------------------------------------------------------------------------------
+# Determine default GITHUB_REPO in case .env is missing
+if [ -z "${GITHUB_REPO:-}" ] || [ "$GITHUB_REPO" = "username/repo-name" ]; then
+  GITHUB_REPO="arunkarshan/HomeServerConfiguration"
+fi
+
+# Check if configuration files exist
+FOUND_FILES=0
+for file in "${COMPOSE_FILES[@]}"; do
+  if [ -f "$file" ]; then
+    FOUND_FILES=$((FOUND_FILES + 1))
+  fi
+done
+
+if [ "$FOUND_FILES" -eq 0 ]; then
+  echo -e "${YELLOW}No Docker Compose configuration files were found in the current directory.${NC}"
+  echo -e "Automatically downloading latest configurations from GitHub..."
+  sync_from_github
+else
+  # Prompt to sync latest configurations
+  read -rp "Would you like to pull/update the latest configurations from GitHub first? (y/n) [default: n]: " SYNC_LATEST
+  if [[ "$SYNC_LATEST" =~ ^[Yy]$ ]]; then
+    sync_from_github
+  fi
+fi
+
 # Build docker compose arguments dynamically for existing files
 # Set project directory to the root directory (.) so that the global .env file is loaded correctly
 COMPOSE_ARGS="--project-directory ."
+FOUND_FILES=0
 for file in "${COMPOSE_FILES[@]}"; do
   if [ -f "$file" ]; then
     COMPOSE_ARGS="$COMPOSE_ARGS -f $file"
+    FOUND_FILES=$((FOUND_FILES + 1))
   fi
 done
+
+if [ "$FOUND_FILES" -eq 0 ]; then
+  echo -e "${RED}Error: No Docker Compose configuration files found after syncing.${NC}"
+  echo -e "Please check your repository content and structure.${NC}"
+  exit 1
+fi
 
 # Check if any containers are currently running before setting up
 if [ -n "$COMPOSE_ARGS" ]; then
@@ -457,6 +590,25 @@ else
   done
 fi
 
+# GitHub Configuration Prompt
+GITHUB_REPO=$(echo "${GITHUB_REPO:-}" | sed 's/^"//;s/"$//')
+GITHUB_TOKEN=$(echo "${GITHUB_TOKEN:-}" | sed 's/^"//;s/"$//')
+
+if [ -n "${GITHUB_REPO:-}" ] && [ "$GITHUB_REPO" != "username/repo-name" ]; then
+  echo -e "${GREEN}✔ Reusing existing GitHub repository: ${GITHUB_REPO}${NC}"
+else
+  read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
+  GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
+fi
+
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  echo -e "${GREEN}✔ Reusing existing GitHub token.${NC}"
+else
+  read -s -rp "Enter GitHub Personal Access Token (optional, press Enter to skip for public repos): " USER_TOKEN
+  echo ""
+  GITHUB_TOKEN="${USER_TOKEN:-}"
+fi
+
 # Versions and Ports defaults
 IMMICH_VERSION="${IMMICH_VERSION:-release}"
 NEXTCLOUD_VERSION="${NEXTCLOUD_VERSION:-latest}"
@@ -504,8 +656,8 @@ PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}
 PAPERLESS_TIME_ZONE=${PAPERLESS_TIME_ZONE}
 
 # GitHub Sync Configuration
-GITHUB_REPO=${GITHUB_REPO:-"username/repo-name"}
-GITHUB_TOKEN=${GITHUB_TOKEN:-""}
+GITHUB_REPO=${GITHUB_REPO}
+GITHUB_TOKEN=${GITHUB_TOKEN:-}
 HOMEPAGE_VAR_SERVER_IP=${SERVER_IP}
 EOF
 echo -e "${GREEN}✔ Configured root global .env file.${NC}"
