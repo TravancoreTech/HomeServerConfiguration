@@ -180,10 +180,12 @@ sync_from_github() {
   # Safely sync files to workspace root, avoiding database/media state and secrets overwrite
   echo -e "Deploying files to homeserver workspace..."
   rsync -av \
+    --include='appdata/' \
+    --include='appdata/homepage/***' \
+    --exclude='appdata/*' \
     --exclude='.git*' \
     --exclude='.env*' \
     --exclude='*/*.env*' \
-    --exclude='appdata/' \
     --exclude='data/' \
     --exclude='temp_extract/' \
     --exclude='config_temp.zip' \
