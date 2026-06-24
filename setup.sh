@@ -320,8 +320,8 @@ echo -e "\n${BLUE}[3/4] Configuring paths, credentials & secret keys...${NC}"
 if [ -n "${TZ:-}" ]; then
   echo -e "${GREEN}✔ Reusing existing Timezone: ${TZ}${NC}"
 else
-  read -rp "Enter system timezone [default: Etc/UTC]: " USER_TZ
-  TZ="${USER_TZ:-Etc/UTC}"
+  read -rp "Enter system timezone [default: Asia/Kolkata]: " USER_TZ
+  TZ="${USER_TZ:-Asia/Kolkata}"
 fi
 
 # PUID Prompt
