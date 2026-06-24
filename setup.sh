@@ -227,6 +227,29 @@ if [ -n "$COMPOSE_ARGS" ]; then
   fi
 fi
 
+# Check if appdata or data directories exist and ask if they want to nuke/clean the setup
+CLEAN_START=false
+if [ -d "./appdata" ] || [ -d "/mnt/hdd/media" ] || [ -d "/mnt/hdd/nextcloud/data" ]; then
+  echo -e "\n${YELLOW}Detected existing homeserver data and configurations.${NC}"
+  read -rp "Would you like to NUKE/CLEAN the entire setup (deleting all databases and media) and start from scratch? (y/n) [default: n]: " NUKE_SETUP
+  if [[ "$NUKE_SETUP" =~ ^[Yy]$ ]]; then
+    read -rp "Are you absolutely sure you want to delete all databases, configurations, and media files? This CANNOT be undone! (type 'yes' to confirm): " CONFIRM_NUKE
+    if [ "$CONFIRM_NUKE" = "yes" ]; then
+      echo -e "${RED}Stopping containers (if any) and nuking existing directories...${NC}"
+      if [ -n "$COMPOSE_ARGS" ]; then
+        docker compose $COMPOSE_ARGS down -v --remove-orphans || true
+      fi
+      rm -rf ./appdata
+      rm -rf /mnt/hdd/media /mnt/hdd/immich/photos /mnt/hdd/nextcloud/data
+      rm -f .env immich/.env nextcloud/.env utility/.env media/.env
+      CLEAN_START=true
+      echo -e "${GREEN}✔ Cleaned up existing data. Ready for fresh setup.${NC}"
+    else
+      echo -e "${GREEN}Cleanup cancelled. Proceeding in update mode.${NC}"
+    fi
+  fi
+fi
+
 # ------------------------------------------------------------------------------
 # 2. DETERMINE SERVER IP & CONFIGURE HOMEPAGE
 # ------------------------------------------------------------------------------
@@ -266,26 +289,57 @@ fi
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[3/4] Configuring credentials & secret keys...${NC}"
 
-# Prompt for Immich Database Password
-IMMICH_DB_PASS=""
-while [ -z "$IMMICH_DB_PASS" ]; do
-  read -s -rp "Enter database password for Immich (cannot be empty): " IMMICH_DB_PASS
-  echo ""
-done
+# Load existing values if we are doing an update run
+EXISTING_IMMICH_PASS=""
+if [ -f immich/.env ] && [ "${CLEAN_START:-false}" = false ]; then
+  EXISTING_IMMICH_PASS=$(grep "^DB_PASSWORD=" immich/.env | cut -d'=' -f2- || true)
+fi
 
-# Prompt for Nextcloud Database Password
-NEXTCLOUD_DB_PASS=""
-while [ -z "$NEXTCLOUD_DB_PASS" ]; do
-  read -s -rp "Enter database password for Nextcloud (cannot be empty): " NEXTCLOUD_DB_PASS
-  echo ""
-done
+EXISTING_NEXTCLOUD_PASS=""
+if [ -f nextcloud/.env ] && [ "${CLEAN_START:-false}" = false ]; then
+  EXISTING_NEXTCLOUD_PASS=$(grep "^POSTGRES_PASSWORD=" nextcloud/.env | cut -d'=' -f2- || true)
+fi
 
-# Prompt for Paperless-ngx Secret Key
-PAPERLESS_SECRET=""
-while [ -z "$PAPERLESS_SECRET" ]; do
-  read -s -rp "Enter secret key for Paperless-ngx (cannot be empty): " PAPERLESS_SECRET
-  echo ""
-done
+EXISTING_PAPERLESS_SECRET=""
+if [ -f utility/.env ] && [ "${CLEAN_START:-false}" = false ]; then
+  EXISTING_PAPERLESS_SECRET=$(grep "^PAPERLESS_SECRET_KEY=" utility/.env | cut -d'=' -f2- || true)
+fi
+
+# Immich Password Prompt
+if [ -n "$EXISTING_IMMICH_PASS" ] && [ "$EXISTING_IMMICH_PASS" != "changeme_immich_db_password" ]; then
+  echo -e "${GREEN}✔ Reusing existing database password for Immich.${NC}"
+  IMMICH_DB_PASS="$EXISTING_IMMICH_PASS"
+else
+  IMMICH_DB_PASS=""
+  while [ -z "$IMMICH_DB_PASS" ]; do
+    read -s -rp "Enter database password for Immich (cannot be empty): " IMMICH_DB_PASS
+    echo ""
+  done
+fi
+
+# Nextcloud Password Prompt
+if [ -n "$EXISTING_NEXTCLOUD_PASS" ] && [ "$EXISTING_NEXTCLOUD_PASS" != "changeme_nextcloud_db_password" ]; then
+  echo -e "${GREEN}✔ Reusing existing database password for Nextcloud.${NC}"
+  NEXTCLOUD_DB_PASS="$EXISTING_NEXTCLOUD_PASS"
+else
+  NEXTCLOUD_DB_PASS=""
+  while [ -z "$NEXTCLOUD_DB_PASS" ]; do
+    read -s -rp "Enter database password for Nextcloud (cannot be empty): " NEXTCLOUD_DB_PASS
+    echo ""
+  done
+fi
+
+# Paperless Secret Prompt
+if [ -n "$EXISTING_PAPERLESS_SECRET" ] && [ "$EXISTING_PAPERLESS_SECRET" != "change_this_to_a_random_string_for_security_123!" ] && [ "$EXISTING_PAPERLESS_SECRET" != "change_this_secret_key_123" ]; then
+  echo -e "${GREEN}✔ Reusing existing secret key for Paperless-ngx.${NC}"
+  PAPERLESS_SECRET="$EXISTING_PAPERLESS_SECRET"
+else
+  PAPERLESS_SECRET=""
+  while [ -z "$PAPERLESS_SECRET" ]; do
+    read -s -rp "Enter secret key for Paperless-ngx (cannot be empty): " PAPERLESS_SECRET
+    echo ""
+  done
+fi
 
 # Replace passwords in sub-folder .env files
 # Immich
