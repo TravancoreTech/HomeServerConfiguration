@@ -221,9 +221,17 @@ if [ -n "$COMPOSE_ARGS" ]; then
   fi
 fi
 
-# Check if appdata or data directories exist and ask if they want to nuke/clean the setup
+# Source the root .env file if it exists to preserve current configuration
 CLEAN_START=false
-if [ -d "./appdata" ] || [ -d "/mnt/hdd/media" ] || [ -d "/mnt/hdd/nextcloud/data" ]; then
+if [ -f .env ]; then
+  # Load env variables safely in shell
+  set -a
+  source .env
+  set +a
+fi
+
+# Check if appdata or configured data directories exist and ask if they want to nuke the setup
+if [ -d "${SYSTEM_DATA_DIR:-./appdata}" ] || [ -d "${MEDIA_DIR:-/mnt/hdd/media}" ] || [ -d "${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}" ]; then
   echo -e "\n${YELLOW}Detected existing homeserver data and configurations.${NC}"
   read -rp "Would you like to NUKE/CLEAN the entire setup (deleting all databases and media) and start from scratch? (y/n) [default: n]: " NUKE_SETUP
   if [[ "$NUKE_SETUP" =~ ^[Yy]$ ]]; then
@@ -233,8 +241,9 @@ if [ -d "./appdata" ] || [ -d "/mnt/hdd/media" ] || [ -d "/mnt/hdd/nextcloud/dat
       if [ -n "$COMPOSE_ARGS" ]; then
         docker compose $COMPOSE_ARGS down -v --remove-orphans || true
       fi
-      rm -rf ./appdata
-      rm -rf /mnt/hdd/media /mnt/hdd/immich/photos /mnt/hdd/nextcloud/data
+      # Nuke active folders using variables or defaults
+      rm -rf "${SYSTEM_DATA_DIR:-./appdata}"
+      rm -rf "${MEDIA_DIR:-/mnt/hdd/media}" "${UPLOAD_LOCATION:-/mnt/hdd/immich/photos}" "${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}"
       rm -f .env immich/.env nextcloud/.env utility/.env media/.env
       CLEAN_START=true
       echo -e "${GREEN}✔ Cleaned up existing data. Ready for fresh setup.${NC}"
@@ -242,6 +251,27 @@ if [ -d "./appdata" ] || [ -d "/mnt/hdd/media" ] || [ -d "/mnt/hdd/nextcloud/dat
       echo -e "${GREEN}Cleanup cancelled. Proceeding in update mode.${NC}"
     fi
   fi
+fi
+
+# Load variables again if clean start cleared them
+if [ "$CLEAN_START" = true ]; then
+  TZ=""
+  PUID=""
+  PGID=""
+  SYSTEM_DATA_DIR=""
+  DB_DATA_LOCATION=""
+  NEXTCLOUD_DB_LOCATION=""
+  MEDIA_DIR=""
+  UPLOAD_LOCATION=""
+  NEXTCLOUD_DATA_LOCATION=""
+  DB_USERNAME=""
+  DB_DATABASE_NAME=""
+  IMMICH_VERSION=""
+  POSTGRES_DB=""
+  POSTGRES_USER=""
+  NEXTCLOUD_VERSION=""
+  PAPERLESS_PORT=""
+  PAPERLESS_TIME_ZONE=""
 fi
 
 # ------------------------------------------------------------------------------
@@ -269,40 +299,38 @@ read -rp "Press Enter to use this IP, or type your server's local IP/domain: " U
 SERVER_IP="${USER_IP:-$DETECTED_IP}"
 echo -e "Configuring homepage links to point to: ${GREEN}${SERVER_IP}${NC}"
 
-# Update the .env file with the server IP
-if [ -f .env ]; then
-  sed -i.bak "s/^HOMEPAGE_VAR_SERVER_IP=.*/HOMEPAGE_VAR_SERVER_IP=${SERVER_IP}/" .env || \
-  sed -i "" "s/^HOMEPAGE_VAR_SERVER_IP=.*/HOMEPAGE_VAR_SERVER_IP=${SERVER_IP}/" .env
-  echo -e "${GREEN}✔ Updated HOMEPAGE_VAR_SERVER_IP in .env${NC}"
-else
-  echo -e "${RED}Warning: .env file not found in current directory.${NC}"
-fi
+# Apply sensible defaults for path and system variables if not already defined
+TZ="${TZ:-Etc/UTC}"
+PUID="${PUID:-1000}"
+PGID="${PGID:-1000}"
+SYSTEM_DATA_DIR="${SYSTEM_DATA_DIR:-./appdata}"
+DB_DATA_LOCATION="${DB_DATA_LOCATION:-./appdata/immich/postgres}"
+NEXTCLOUD_DB_LOCATION="${NEXTCLOUD_DB_LOCATION:-./appdata/nextcloud/postgres}"
+
+MEDIA_DIR="${MEDIA_DIR:-/mnt/hdd/media}"
+UPLOAD_LOCATION="${UPLOAD_LOCATION:-/mnt/hdd/immich/photos}"
+NEXTCLOUD_DATA_LOCATION="${NEXTCLOUD_DATA_LOCATION:-/mnt/hdd/nextcloud/data}"
+
+DB_USERNAME="${DB_USERNAME:-postgres}"
+DB_DATABASE_NAME="${DB_DATABASE_NAME:-immich}"
+IMMICH_VERSION="${IMMICH_VERSION:-release}"
+
+POSTGRES_DB="${POSTGRES_DB:-nextcloud}"
+POSTGRES_USER="${POSTGRES_USER:-nextcloud}"
+NEXTCLOUD_VERSION="${NEXTCLOUD_VERSION:-latest}"
+
+PAPERLESS_PORT="${PAPERLESS_PORT:-8010}"
+PAPERLESS_TIME_ZONE="${PAPERLESS_TIME_ZONE:-Etc/UTC}"
 
 # ------------------------------------------------------------------------------
 # 3. PROMPT FOR APPLICATION CREDENTIALS & SECRETS
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[3/4] Configuring credentials & secret keys...${NC}"
 
-# Load existing values if we are doing an update run
-EXISTING_IMMICH_PASS=""
-if [ -f immich/.env ] && [ "${CLEAN_START:-false}" = false ]; then
-  EXISTING_IMMICH_PASS=$(grep "^DB_PASSWORD=" immich/.env | cut -d'=' -f2- || true)
-fi
-
-EXISTING_NEXTCLOUD_PASS=""
-if [ -f nextcloud/.env ] && [ "${CLEAN_START:-false}" = false ]; then
-  EXISTING_NEXTCLOUD_PASS=$(grep "^POSTGRES_PASSWORD=" nextcloud/.env | cut -d'=' -f2- || true)
-fi
-
-EXISTING_PAPERLESS_SECRET=""
-if [ -f utility/.env ] && [ "${CLEAN_START:-false}" = false ]; then
-  EXISTING_PAPERLESS_SECRET=$(grep "^PAPERLESS_SECRET_KEY=" utility/.env | cut -d'=' -f2- || true)
-fi
-
-# Immich Password Prompt
-if [ -n "$EXISTING_IMMICH_PASS" ] && [ "$EXISTING_IMMICH_PASS" != "changeme_immich_db_password" ]; then
+# Immich Password Prompt (Reuses value from sourced shell variables)
+if [ -n "${DB_PASSWORD:-}" ] && [ "$DB_PASSWORD" != "changeme_immich_db_password" ]; then
   echo -e "${GREEN}✔ Reusing existing database password for Immich.${NC}"
-  IMMICH_DB_PASS="$EXISTING_IMMICH_PASS"
+  IMMICH_DB_PASS="$DB_PASSWORD"
 else
   IMMICH_DB_PASS=""
   while [ -z "$IMMICH_DB_PASS" ]; do
@@ -312,9 +340,9 @@ else
 fi
 
 # Nextcloud Password Prompt
-if [ -n "$EXISTING_NEXTCLOUD_PASS" ] && [ "$EXISTING_NEXTCLOUD_PASS" != "changeme_nextcloud_db_password" ]; then
+if [ -n "${POSTGRES_PASSWORD:-}" ] && [ "$POSTGRES_PASSWORD" != "changeme_nextcloud_db_password" ]; then
   echo -e "${GREEN}✔ Reusing existing database password for Nextcloud.${NC}"
-  NEXTCLOUD_DB_PASS="$EXISTING_NEXTCLOUD_PASS"
+  NEXTCLOUD_DB_PASS="$POSTGRES_PASSWORD"
 else
   NEXTCLOUD_DB_PASS=""
   while [ -z "$NEXTCLOUD_DB_PASS" ]; do
@@ -324,9 +352,9 @@ else
 fi
 
 # Paperless Secret Prompt
-if [ -n "$EXISTING_PAPERLESS_SECRET" ] && [ "$EXISTING_PAPERLESS_SECRET" != "change_this_to_a_random_string_for_security_123!" ] && [ "$EXISTING_PAPERLESS_SECRET" != "change_this_secret_key_123" ]; then
+if [ -n "${PAPERLESS_SECRET_KEY:-}" ] && [ "$PAPERLESS_SECRET_KEY" != "change_this_to_a_random_string_for_security_123!" ] && [ "$PAPERLESS_SECRET_KEY" != "change_this_secret_key_123" ]; then
   echo -e "${GREEN}✔ Reusing existing secret key for Paperless-ngx.${NC}"
-  PAPERLESS_SECRET="$EXISTING_PAPERLESS_SECRET"
+  PAPERLESS_SECRET="$PAPERLESS_SECRET_KEY"
 else
   PAPERLESS_SECRET=""
   while [ -z "$PAPERLESS_SECRET" ]; do
@@ -335,29 +363,103 @@ else
   done
 fi
 
-# Replace passwords in sub-folder .env files
-# Immich
-if [ -f immich/.env ]; then
-  sed -i.bak "s/DB_PASSWORD=.*/DB_PASSWORD=${IMMICH_DB_PASS}/" immich/.env || \
-  sed -i "" "s/DB_PASSWORD=.*/DB_PASSWORD=${IMMICH_DB_PASS}/" immich/.env
-  echo -e "${GREEN}✔ Configured database password for Immich.${NC}"
-fi
+echo -e "Writing and unifying environment configuration files..."
 
-# Nextcloud
-if [ -f nextcloud/.env ]; then
-  sed -i.bak "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASS}/" nextcloud/.env || \
-  sed -i "" "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASS}/" nextcloud/.env
-  echo -e "${GREEN}✔ Configured database password for Nextcloud.${NC}"
-fi
+# 1. Generate Global root .env
+cat << EOF > .env
+# ==============================================================================
+# GLOBAL HOMESERVER ENVIRONMENT CONFIGURATION (.ENV)
+# ==============================================================================
 
-# Paperless (in utility folder)
-if [ -f utility/.env ]; then
-  sed -i.bak "s/PAPERLESS_SECRET_KEY=.*/PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}/" utility/.env || \
-  sed -i "" "s/PAPERLESS_SECRET_KEY=.*/PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}/" utility/.env
-  echo -e "${GREEN}✔ Configured secret key for Paperless-ngx.${NC}"
-fi
+# Timezone and User Identifiers
+TZ=${TZ}
+PUID=${PUID}
+PGID=${PGID}
 
-# Cleanup sed backup files
+# Fast Storage (SSD) - Configs, Databases, and Metadata Cache
+SYSTEM_DATA_DIR=${SYSTEM_DATA_DIR}
+DB_DATA_LOCATION=${DB_DATA_LOCATION}
+NEXTCLOUD_DB_LOCATION=${NEXTCLOUD_DB_LOCATION}
+
+# Mass Storage (HDD) - Media, Downloads, Photos, and Cloud Files
+MEDIA_DIR=${MEDIA_DIR}
+UPLOAD_LOCATION=${UPLOAD_LOCATION}
+NEXTCLOUD_DATA_LOCATION=${NEXTCLOUD_DATA_LOCATION}
+
+# Immich Configuration
+IMMICH_VERSION=${IMMICH_VERSION}
+DB_USERNAME=${DB_USERNAME}
+DB_DATABASE_NAME=${DB_DATABASE_NAME}
+DB_PASSWORD=${IMMICH_DB_PASS}
+
+# Nextcloud Configuration
+NEXTCLOUD_VERSION=${NEXTCLOUD_VERSION}
+POSTGRES_DB=${POSTGRES_DB}
+POSTGRES_USER=${POSTGRES_USER}
+POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASS}
+
+# Paperless Configuration
+PAPERLESS_PORT=${PAPERLESS_PORT}
+PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}
+PAPERLESS_TIME_ZONE=${PAPERLESS_TIME_ZONE}
+
+# GitHub Sync Configuration
+GITHUB_REPO=${GITHUB_REPO:-"username/repo-name"}
+GITHUB_TOKEN=${GITHUB_TOKEN:-""}
+HOMEPAGE_VAR_SERVER_IP=${SERVER_IP}
+EOF
+echo -e "${GREEN}✔ Configured root global .env file.${NC}"
+
+# 2. Generate immich/.env
+mkdir -p immich
+cat << EOF > immich/.env
+IMMICH_VERSION=${IMMICH_VERSION}
+UPLOAD_LOCATION=${UPLOAD_LOCATION}
+DB_DATA_LOCATION=../appdata/immich/postgres
+DB_PASSWORD=${IMMICH_DB_PASS}
+DB_USERNAME=${DB_USERNAME}
+DB_DATABASE_NAME=${DB_DATABASE_NAME}
+EOF
+echo -e "${GREEN}✔ Configured immich/.env file.${NC}"
+
+# 3. Generate nextcloud/.env
+mkdir -p nextcloud
+cat << EOF > nextcloud/.env
+NEXTCLOUD_VERSION=${NEXTCLOUD_VERSION}
+POSTGRES_DB=${POSTGRES_DB}
+POSTGRES_USER=${POSTGRES_USER}
+POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASS}
+NEXTCLOUD_DATA_LOCATION=${NEXTCLOUD_DATA_LOCATION}
+NEXTCLOUD_DB_LOCATION=../appdata/nextcloud/postgres
+EOF
+echo -e "${GREEN}✔ Configured nextcloud/.env file.${NC}"
+
+# 4. Generate utility/.env
+mkdir -p utility
+cat << EOF > utility/.env
+PUID=${PUID}
+PGID=${PGID}
+TZ=${TZ}
+SYSTEM_DATA_DIR=../appdata
+MEDIA_DIR=${MEDIA_DIR}
+PAPERLESS_PORT=${PAPERLESS_PORT}
+PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}
+PAPERLESS_TIME_ZONE=${PAPERLESS_TIME_ZONE}
+EOF
+echo -e "${GREEN}✔ Configured utility/.env file.${NC}"
+
+# 5. Generate media/.env
+mkdir -p media
+cat << EOF > media/.env
+PUID=${PUID}
+PGID=${PGID}
+TZ=${TZ}
+MEDIA_DIR=${MEDIA_DIR}
+SYSTEM_DATA_DIR=../appdata
+EOF
+echo -e "${GREEN}✔ Configured media/.env file.${NC}"
+
+# Cleanup backup files
 find . -name "*.bak" -type f -delete || true
 
 # ------------------------------------------------------------------------------
