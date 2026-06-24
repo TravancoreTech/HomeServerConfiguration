@@ -371,7 +371,8 @@ if ! docker network inspect homeserver_network &>/dev/null; then
   docker network create homeserver_network
 fi
 
-read -rp "Would you like to start the entire homeserver stack now? (y/n): " START_CONTAINERS
+read -rp "Would you like to start the entire homeserver stack now? (y/n) [default: y]: " START_CONTAINERS
+START_CONTAINERS="${START_CONTAINERS:-y}"
 
 if [[ "$START_CONTAINERS" =~ ^[Yy]$ ]]; then
   echo -e "${GREEN}Starting sequential image pull to prevent network saturation and timeouts...${NC}"
