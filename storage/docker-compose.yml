@@ -2,7 +2,8 @@
 # STORAGE STACK DOCKER COMPOSE CONFIGURATION (DOCKER-COMPOSE_5.YML)
 # ==============================================================================
 # FileBrowser is a lightweight web file manager to navigate directories.
-# Mounted to display local media files and provides template mounts for legacy NAS.
+# Kopia is a fast, secure, deduplicating backup engine with a web interface.
+# Backrest is a web client and scheduler for Restic backups.
 # ==============================================================================
 
 services:
@@ -16,26 +17,58 @@ services:
     volumes:
       - ${SYSTEM_DATA_DIR:-../appdata}/filebrowser/filebrowser.db:/database.db
       - ${MEDIA_DIR:-../data}:/srv/local  # Local media files library
-      # ------------------------------------------------------------------------
-      # LEGACY NAS MOUNTS (UNCOMMENT TO USE)
-      # ------------------------------------------------------------------------
-      # - legacy-nas-smb:/srv/nas-smb
-      # - legacy-nas-nfs:/srv/nas-nfs
+    networks:
+      - default
+      - homeserver_network
 
-# ------------------------------------------------------------------------------
-# LEGACY NAS MOUNT TEMPLATES (UNCOMMENT AND EDIT TO ACTIVATE)
-# ------------------------------------------------------------------------------
-# volumes:
-#   legacy-nas-smb:
-#     driver: local
-#     driver_opts:
-#       type: cifs
-#       device: "//192.168.1.50/ShareName"
-#       o: "username=your_user,password=your_pass,vers=1.0,file_mode=0777,dir_mode=0777"
-#
-#   legacy-nas-nfs:
-#     driver: local
-#     driver_opts:
-#       type: nfs
-#       o: "addr=192.168.1.50,nfsvers=3,nolock,soft,rw"
-#       device: ":/path/to/nfs/share"
+  kopia:
+    container_name: storage_kopia
+    image: kopia/kopia:latest
+    restart: always
+    ports:
+      - "51515:51515"
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/kopia/config:/app/config
+      - ${SYSTEM_DATA_DIR:-../appdata}/kopia/cache:/app/cache
+      - ${SYSTEM_DATA_DIR:-../appdata}/kopia/logs:/app/logs
+      - /mnt:/mnt
+    command:
+      - server
+      - start
+      - --insecure
+      - --address=0.0.0.0:51515
+      - --server-username=admin
+      - --server-password=${KOPIA_ADMIN_PASSWORD:-admin}
+    networks:
+      - default
+      - homeserver_network
+
+  backrest:
+    container_name: storage_backrest
+    image: ghcr.io/garethgeorge/backrest:latest
+    hostname: backrest
+    restart: always
+    ports:
+      - "9898:9898"
+    environment:
+      - BACKREST_DATA=/data
+      - BACKREST_CONFIG=/config/config.json
+      - XDG_CACHE_HOME=/cache
+      - TMPDIR=/tmp
+      - TZ=${TZ:-Etc/UTC}
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/backrest/data:/data
+      - ${SYSTEM_DATA_DIR:-../appdata}/backrest/config:/config
+      - ${SYSTEM_DATA_DIR:-../appdata}/backrest/cache:/cache
+      - ${SYSTEM_DATA_DIR:-../appdata}/backrest/tmp:/tmp
+      - /mnt:/mnt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+      - homeserver_network
+
+networks:
+  homeserver_network:
+    external: true

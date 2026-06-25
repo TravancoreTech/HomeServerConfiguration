@@ -138,6 +138,36 @@ services:
     environment:
       - TZ=${TZ:-Etc/UTC}
 
+  cronicle:
+    container_name: utility_cronicle
+    image: soulteary/cronicle:latest
+    restart: always
+    ports:
+      - "3012:3012"
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/cronicle/data:/opt/cronicle/data:rw
+      - ${SYSTEM_DATA_DIR:-../appdata}/cronicle/logs:/opt/cronicle/logs:rw
+      - ${SYSTEM_DATA_DIR:-../appdata}/cronicle/plugins:/opt/cronicle/plugins:rw
+      - /mnt:/mnt
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - homeserver_network
+
+  ofelia:
+    container_name: utility_ofelia
+    image: mcuadros/ofelia:latest
+    restart: always
+    command: daemon --docker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+      - homeserver_network
+
 networks:
   homeserver_network:
     external: true
+

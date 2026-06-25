@@ -810,6 +810,15 @@ prompt_and_generate_configs() {
   PAPERLESS_PORT="${PAPERLESS_PORT:-8010}"
   PAPERLESS_TIME_ZONE="${PAPERLESS_TIME_ZONE:-$TZ}"
 
+  # Check and load existing Kopia admin password
+  local generated_kopia_pass=false
+  KOPIA_ADMIN_PASS="${KOPIA_ADMIN_PASSWORD:-}"
+  if [ -z "$KOPIA_ADMIN_PASS" ]; then
+    KOPIA_ADMIN_PASS=$(openssl rand -hex 16 2>/dev/null || echo "admin_kopia_pass_123")
+    generated_kopia_pass=true
+  fi
+
+
   echo -e "Writing and unifying environment configuration files..."
 
   # 1. Generate Global root .env
@@ -849,6 +858,9 @@ POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASS}
 PAPERLESS_PORT=${PAPERLESS_PORT}
 PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}
 PAPERLESS_TIME_ZONE=${PAPERLESS_TIME_ZONE}
+
+# Kopia Configuration
+KOPIA_ADMIN_PASSWORD=${KOPIA_ADMIN_PASS}
 
 # GitHub Sync Configuration
 GITHUB_REPO=${GITHUB_REPO}
@@ -912,15 +924,49 @@ SYSTEM_DATA_DIR=../appdata
 EOF
   echo -e "${GREEN}✔ Configured media/.env file.${NC}"
 
+  # 6. Generate storage/.env
+  mkdir -p storage
+  cat << EOF > storage/.env
+PUID=${PUID}
+PGID=${PGID}
+TZ=${TZ}
+MEDIA_DIR=${MEDIA_DIR}
+SYSTEM_DATA_DIR=../appdata
+KOPIA_ADMIN_PASSWORD=${KOPIA_ADMIN_PASS}
+EOF
+  echo -e "${GREEN}✔ Configured storage/.env file.${NC}"
+
   # Pre-create appdata directories for services to ensure correct ownership and permissions
-  mkdir -p "${SYSTEM_DATA_DIR:-./appdata}/radicale"
-  mkdir -p "${SYSTEM_DATA_DIR:-./appdata}/baikal/config"
-  mkdir -p "${SYSTEM_DATA_DIR:-./appdata}/baikal/Specific"
+  local app_dir="${SYSTEM_DATA_DIR:-./appdata}"
+  mkdir -p "$app_dir/radicale"
+  mkdir -p "$app_dir/baikal/config"
+  mkdir -p "$app_dir/baikal/Specific"
+  mkdir -p "$app_dir/kopia/config" "$app_dir/kopia/cache" "$app_dir/kopia/logs"
+  mkdir -p "$app_dir/backrest/data" "$app_dir/backrest/config" "$app_dir/backrest/cache" "$app_dir/backrest/tmp"
+  mkdir -p "$app_dir/cronicle/data" "$app_dir/cronicle/logs" "$app_dir/cronicle/plugins"
+  mkdir -p "$app_dir/torrent-generator"
+
   if [ -n "${SUDO_UID:-}" ]; then
-    chown -R "${SUDO_UID}:${SUDO_GID}" "${SYSTEM_DATA_DIR:-./appdata}/radicale" "${SYSTEM_DATA_DIR:-./appdata}/baikal" 2>/dev/null || true
+    chown -R "${SUDO_UID}:${SUDO_GID}" \
+      "$app_dir/radicale" \
+      "$app_dir/baikal" \
+      "$app_dir/kopia" \
+      "$app_dir/backrest" \
+      "$app_dir/cronicle" \
+      "$app_dir/torrent-generator" 2>/dev/null || true
   fi
-  # Allow the container services to write (especially Baikal which runs as UID 101)
-  chmod -R 777 "${SYSTEM_DATA_DIR:-./appdata}/radicale" "${SYSTEM_DATA_DIR:-./appdata}/baikal" 2>/dev/null || true
+  # Allow the container services to write (especially Baikal/Kopia/Cronicle which run as special UIDs)
+  chmod -R 777 \
+    "$app_dir/radicale" \
+    "$app_dir/baikal" \
+    "$app_dir/kopia" \
+    "$app_dir/backrest" \
+    "$app_dir/cronicle" 2>/dev/null || true
+
+  if [ "$generated_kopia_pass" = true ]; then
+    echo -e "\n${YELLOW}🔑 A random Kopia Admin Password has been generated: ${GREEN}${KOPIA_ADMIN_PASS}${NC}"
+    echo -e "${YELLOW}   This password has been saved to your root .env and storage/.env files.${NC}\n"
+  fi
 
   find . -name "*.bak" -type f -delete || true
   restore_ownership
@@ -1003,7 +1049,80 @@ print_successful_urls() {
   echo -e "  - Vaultwarden (SSL req):http://${SERVER_IP}:8086"
   echo -e "  - Radicale CalDAV:      http://${SERVER_IP}:5232"
   echo -e "  - Baïkal CalDAV:        http://${SERVER_IP}:8088"
+  echo -e "  - Local Tracker:        http://${SERVER_IP}:8000/announce"
+  echo -e "  - Torrent Generator UI: http://${SERVER_IP}:8089"
   echo -e "======================================================================${NC}"
+}
+
+# Interactive service selection helper (supporting individual services and grouped suites)
+# Returns a space-separated list of selected services in stdout.
+select_services_prompt() {
+  local prompt_text="$1"  # Custom prompt text
+  
+  # Fetch raw services
+  local raw_services=($(docker compose $COMPOSE_ARGS config --services | sort))
+  local num_raw=${#raw_services[@]}
+  
+  # Define suites
+  local suites=("immich_suite" "nextcloud_suite" "jellyfin_suite")
+  local num_suites=${#suites[@]}
+  
+  # Print choices
+  echo -e "\n${BLUE}Available services & suites:${NC}"
+  # Print individual services
+  for ((i=0; i<num_raw; i++)); do
+    printf "  %2d) %s\n" $((i+1)) "${raw_services[i]}"
+  done
+  # Print groups/suites
+  echo -e "${BLUE}  --- Service Groups (Suites) ---${NC}"
+  for ((i=0; i<num_suites; i++)); do
+    printf "  %2d) %s (Group)\n" $((num_raw + i + 1)) "${suites[i]}"
+  done
+  
+  local total_options=$((num_raw + num_suites))
+  
+  read -rp "$prompt_text" USER_CHOICE
+  
+  local selected=()
+  if [ -z "$USER_CHOICE" ]; then
+    # Return all raw services
+    echo "${raw_services[*]}"
+    return 0
+  fi
+  
+  IFS=',' read -ra ADDR <<< "$USER_CHOICE"
+  for idx in "${ADDR[@]}"; do
+    idx=$(echo "$idx" | xargs)
+    if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "$total_options" ]; then
+      if [ "$idx" -le "$num_raw" ]; then
+        # Individual service
+        selected+=("${raw_services[$((idx-1))]}")
+      else
+        # Group/suite selected
+        local suite_idx=$((idx - num_raw - 1))
+        local suite_name="${suites[suite_idx]}"
+        if [ "$suite_name" = "immich_suite" ]; then
+          selected+=("immich-server" "immich-machine-learning" "redis" "database")
+        elif [ "$suite_name" = "nextcloud_suite" ]; then
+          selected+=("nextcloud-app" "nextcloud-cron" "nextcloud-db")
+        elif [ "$suite_name" = "jellyfin_suite" ]; then
+          selected+=("jellyfin" "qbittorrent" "radarr" "sonarr" "prowlarr" "flaresolverr" "jellyseerr" "bazarr" "navidrome" "metube")
+        fi
+      fi
+    else
+      if [ -n "$idx" ]; then
+        echo -e "${RED}Warning: Ignoring invalid option '$idx'.${NC}" >&2
+      fi
+    fi
+  done
+  
+  # Deduplicate selected services in case they overlap
+  local uniq_selected=()
+  if [ ${#selected[@]} -gt 0 ]; then
+    uniq_selected=($(echo "${selected[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+  fi
+  
+  echo "${uniq_selected[*]}"
 }
 
 # ------------------------------------------------------------------------------
@@ -1018,32 +1137,9 @@ action_update_config() {
     set -a; source .env; set +a
   fi
 
-  local all_services=($(docker compose $COMPOSE_ARGS config --services | sort))
-  local num_services=${#all_services[@]}
-
-  echo -e "\n${BLUE}Available services:${NC}"
-  for ((i=0; i<num_services; i++)); do
-    printf "  %2d) %s\n" $((i+1)) "${all_services[i]}"
-  done
-  echo ""
-
-  read -rp "Enter the numbers of the services you want to update (comma-separated, e.g. 1,4,5) [default: ALL]: " USER_CHOICE
-
-  local selected_services=()
-  if [ -z "$USER_CHOICE" ]; then
-    selected_services=("${all_services[@]}")
-  else
-    IFS=',' read -ra ADDR <<< "$USER_CHOICE"
-    for part in "${ADDR[@]}"; do
-      local idx
-      idx=$(echo "$part" | tr -d '[:space:]')
-      if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "$num_services" ]; then
-        selected_services+=("${all_services[$((idx-1))]}")
-      else
-        echo -e "${RED}Warning: Ignoring invalid service number '$idx'.${NC}"
-      fi
-    done
-  fi
+  local selected_list
+  selected_list=$(select_services_prompt "Enter the numbers of the services/groups you want to update (comma-separated, e.g. 1,4,22) [default: ALL]: ")
+  local selected_services=($selected_list)
 
   if [ ${#selected_services[@]} -eq 0 ]; then
     echo -e "${RED}Error: No valid services selected. Returning to main menu.${NC}"
@@ -1096,32 +1192,9 @@ action_update_config() {
 # PORTAL ACTION 2: RESTART SELECTIVE SERVICES (STOP & START)
 # ------------------------------------------------------------------------------
 action_restart_services() {
-  local all_services=($(docker compose $COMPOSE_ARGS config --services | sort))
-  local num_services=${#all_services[@]}
-
-  echo -e "\n${BLUE}Available services:${NC}"
-  for ((i=0; i<num_services; i++)); do
-    printf "  %2d) %s\n" $((i+1)) "${all_services[i]}"
-  done
-  echo ""
-
-  read -rp "Enter the numbers of the services you want to restart (comma-separated, e.g. 1,4,5) [default: ALL]: " USER_CHOICE
-
-  local selected_services=()
-  if [ -z "$USER_CHOICE" ]; then
-    selected_services=("${all_services[@]}")
-  else
-    IFS=',' read -ra ADDR <<< "$USER_CHOICE"
-    for part in "${ADDR[@]}"; do
-      local idx
-      idx=$(echo "$part" | tr -d '[:space:]')
-      if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "$num_services" ]; then
-        selected_services+=("${all_services[$((idx-1))]}")
-      else
-        echo -e "${RED}Warning: Ignoring invalid service number '$idx'.${NC}"
-      fi
-    done
-  fi
+  local selected_list
+  selected_list=$(select_services_prompt "Enter the numbers of the services/groups you want to restart (comma-separated, e.g. 1,4,22) [default: ALL]: ")
+  local selected_services=($selected_list)
 
   if [ ${#selected_services[@]} -eq 0 ]; then
     echo -e "${RED}Error: No valid services selected. Returning to main menu.${NC}"
@@ -1189,8 +1262,6 @@ action_nuke_everything() {
   build_compose_args
 
   echo -e "${GREEN}Deploying fresh container stack...${NC}"
-  local all_services=($(docker compose $COMPOSE_ARGS config --services | sort))
-  local num_services=${#all_services[@]}
   local selected_services=()
 
   echo -e "\nWould you like to deploy all services or select a subset to deploy?"
@@ -1198,25 +1269,14 @@ action_nuke_everything() {
   deploy_choice="${deploy_choice:-all}"
 
   if [[ "$deploy_choice" =~ ^[Ss]elect$ ]]; then
-    echo -e "\n${BLUE}Available services:${NC}"
-    for ((i=0; i<num_services; i++)); do
-      printf "  %2d) %s\n" $((i+1)) "${all_services[i]}"
-    done
-    read -rp "Enter the numbers of the services you want to deploy (comma-separated, e.g. 1,4,5): " USER_CHOICE
-    if [ -n "$USER_CHOICE" ]; then
-      IFS=',' read -ra ADDR <<< "$USER_CHOICE"
-      for idx in "${ADDR[@]}"; do
-        idx=$(echo "$idx" | xargs)
-        if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "$num_services" ]; then
-          selected_services+=("${all_services[$((idx-1))]}")
-        fi
-      done
-    fi
+    local selected_list
+    selected_list=$(select_services_prompt "Enter the numbers of the services/groups you want to deploy (comma-separated, e.g. 1,4,22): ")
+    selected_services=($selected_list)
   fi
 
   # Fallback to ALL services if choice was 'all' or selection was empty/invalid
   if [ ${#selected_services[@]} -eq 0 ]; then
-    selected_services=("${all_services[@]}")
+    selected_services=($(docker compose $COMPOSE_ARGS config --services | sort))
   fi
 
   echo -e "\nSelected services to deploy: ${GREEN}${selected_services[*]}${NC}"
@@ -1270,6 +1330,75 @@ action_update_homepage() {
   restore_ownership
 }
 
+# Install Cockpit and 45Drives Samba GUI sharing plugin
+install_cockpit_samba_gui() {
+  echo -e "\n${BLUE}======================================================================${NC}"
+  echo -e "${GREEN}          INSTALLING COCKPIT & 45DRIVES FILE SHARING GUI PANEL${NC}"
+  echo -e "${BLUE}======================================================================${NC}"
+  
+  if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}Error: This operation requires root/sudo privileges.${NC}"
+    return 1
+  fi
+  
+  # 1. Install Cockpit
+  echo -e "Installing Cockpit web service..."
+  if command -v apt-get &>/dev/null; then
+    apt-get update && apt-get install -y cockpit
+  elif command -v dnf &>/dev/null; then
+    dnf install -y cockpit
+  elif command -v yum &>/dev/null; then
+    yum install -y cockpit
+  elif command -v pacman &>/dev/null; then
+    pacman -Sy --noconfirm cockpit
+  else
+    echo -e "${RED}Error: Package manager not found. Please install Cockpit manually.${NC}"
+    return 1
+  fi
+  
+  # 2. Enable and Start Cockpit Service
+  if command -v systemctl &>/dev/null; then
+    systemctl enable --now cockpit.socket
+    echo -e "${GREEN}✔ Cockpit socket service enabled and started.${NC}"
+  fi
+  
+  # 3. Add 45Drives Repository and Install cockpit-file-sharing
+  echo -e "Adding 45Drives package repository for File Sharing plugin..."
+  if command -v apt-get &>/dev/null; then
+    # For Debian/Ubuntu
+    curl -sSL https://repo.45drives.com/setup | bash
+    apt-get update
+    apt-get install -y cockpit-file-sharing
+    echo -e "${GREEN}✔ 45Drives Cockpit File Sharing plugin installed successfully!${NC}"
+  elif [ -d /etc/yum.repos.d/ ] || command -v dnf &>/dev/null; then
+    # For CentOS/RHEL/Fedora
+    curl -sSL https://repo.45drives.com/setup | bash
+    dnf install -y cockpit-file-sharing || yum install -y cockpit-file-sharing
+    echo -e "${GREEN}✔ 45Drives Cockpit File Sharing plugin installed successfully!${NC}"
+  else
+    echo -e "${YELLOW}Warning: Automatic repository setup not supported for this distro.${NC}"
+    echo -e "Please install the cockpit-file-sharing plugin manually from: https://github.com/45Drives/cockpit-file-sharing"
+  fi
+  
+  # Get Server IP
+  local detected_ip=""
+  if command -v ip &> /dev/null; then
+    detected_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' || true)
+  fi
+  if [ -z "$detected_ip" ] && command -v hostname &> /dev/null; then
+    detected_ip=$(hostname -I | awk '{print $1}' || true)
+  fi
+  detected_ip="${detected_ip:-localhost}"
+  
+  echo -e "\n${GREEN}======================================================================${NC}"
+  echo -e "${GREEN}✔ COCKPIT SAMBA MANAGER DEPLOYED SUCCESSFULLY!${NC}"
+  echo -e "  You can access the Samba File Sharing UI at:"
+  echo -e "  URL:      ${YELLOW}https://${detected_ip}:9090${NC}"
+  echo -e "  User:     Log in using your host server system credentials"
+  echo -e "  Features: Manage Samba & NFS shares, configure users, and permissions"
+  echo -e "${GREEN}======================================================================${NC}"
+}
+
 # ------------------------------------------------------------------------------
 # PORTAL ACTION 5: INSTALL/CONFIGURE HOST SAMBA
 # ------------------------------------------------------------------------------
@@ -1278,20 +1407,24 @@ action_install_samba() {
     echo -e "\n${BLUE}Samba detected on the system.${NC}"
     read -rp "Would you like to configure/update your host Samba mounts share? (y/n) [default: y]: " CONFIGURE_SAMBA
     CONFIGURE_SAMBA="${CONFIGURE_SAMBA:-y}"
-    if [[ ! "$CONFIGURE_SAMBA" =~ ^[Yy]$ ]]; then
-      echo -e "Returning to main menu."
-      return 0
+    if [[ "$CONFIGURE_SAMBA" =~ ^[Yy]$ ]]; then
+      configure_samba || true
     fi
-    configure_samba || true
   else
     echo -e "\n${YELLOW}Samba is not installed on this system.${NC}"
     read -rp "Would you like to install and configure Samba to share your /mnt directory? (y/n) [default: y]: " INSTALL_SAMBA_CHOICE
     INSTALL_SAMBA_CHOICE="${INSTALL_SAMBA_CHOICE:-y}"
-    if [[ ! "$INSTALL_SAMBA_CHOICE" =~ ^[Yy]$ ]]; then
-      echo -e "Returning to main menu."
-      return 0
+    if [[ "$INSTALL_SAMBA_CHOICE" =~ ^[Yy]$ ]]; then
+      install_samba && configure_samba || true
     fi
-    install_samba && configure_samba || true
+  fi
+
+  # Prompt for Cockpit File Sharing Web GUI
+  echo -e ""
+  read -rp "Would you like to install Cockpit Web Console + 45Drives File Sharing GUI? (y/n) [default: y]: " INSTALL_COCKPIT
+  INSTALL_COCKPIT="${INSTALL_COCKPIT:-y}"
+  if [[ "$INSTALL_COCKPIT" =~ ^[Yy]$ ]]; then
+    install_cockpit_samba_gui || true
   fi
 }
 

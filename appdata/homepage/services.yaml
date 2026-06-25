@@ -74,6 +74,18 @@
         container: media_metube
         description: YouTube Audio Downloader
 
+    - Local Tracker:
+        icon: bittorrent.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8000/announce
+        container: media_local_tracker
+        description: Private BitTorrent Tracker
+
+    - Torrent Generator:
+        icon: webtorrent.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8089
+        container: media_torrent_generator
+        description: Local Torrent Creator
+
 - Personal Storage:
     - Nextcloud:
         icon: nextcloud.png
@@ -115,6 +127,19 @@
         href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8088
         container: utility_baikal
         description: Lightweight CalDAV & CardDAV server
+
+    - Kopia:
+        icon: kopia.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:51515
+        container: storage_kopia
+        description: Deduplicating Backup Manager
+
+    - Backrest:
+        icon: restic.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:9898
+        container: storage_backrest
+        description: Restic Backup Orchestrator
+
 
 - Utilities & Security:
     - Heimdall:
@@ -167,3 +192,10 @@
           url: http://utility_paperless_web:8000
           username: {{HOMEPAGE_VAR_PAPERLESS_USERNAME}}
           password: {{HOMEPAGE_VAR_PAPERLESS_PASSWORD}}
+
+    - Cronicle:
+        icon: cronicle.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:3012
+        container: utility_cronicle
+        description: Visual Task Scheduler
+

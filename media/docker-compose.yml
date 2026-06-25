@@ -177,6 +177,26 @@ services:
     volumes:
       - ${MEDIA_DIR:-../data}/music:/downloads
 
+  media-local-tracker:
+    container_name: media_local_tracker
+    image: jarylc/bittorrent-tracker:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HTTP=1
+      - UDP=1
+    restart: unless-stopped
+
+  torrent-generator:
+    container_name: media_torrent_generator
+    image: nginx:alpine
+    ports:
+      - "8089:80"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/torrent-generator:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
 networks:
   homeserver_network:
     external: true
