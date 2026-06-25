@@ -230,7 +230,7 @@ install_samba() {
   fi
 }
 
-# Configure host Samba share for Media directory
+# Configure host Samba share with detailed prompts (user addition, path creation, authentication etc.)
 configure_samba() {
   local smb_conf="/etc/samba/smb.conf"
   if [ ! -f "$smb_conf" ]; then
@@ -244,11 +244,121 @@ configure_samba() {
     share_user=$(id -un "${PUID:-1000}" 2>/dev/null || echo "root")
   fi
 
-  echo -e "\nConfiguring Samba share for: ${BLUE}/mnt${NC}"
-  echo -e "Files will be forced to user: ${BLUE}${share_user}${NC}"
+  echo -e "\n${BLUE}======================================================================${NC}"
+  echo -e "${GREEN}                  SAMBA FILE SHARING CONFIGURATION WIZARD${NC}"
+  echo -e "${BLUE}======================================================================${NC}"
 
-  # 1. Enable SMB1 (NT1) protocol and NTLM auth in [global] section for old NAS/RAID systems
-  echo -e "Enabling SMB1 (NT1) and NTLM compatibility in Samba global config..."
+  # 1. Share Path Selection
+  local share_path=""
+  while [ -z "$share_path" ]; do
+    read -rp "Enter the directory path you want to share [default: /mnt]: " share_path
+    share_path="${share_path:-/mnt}"
+  done
+
+  # Verify or create the sharing directory
+  if [ ! -d "$share_path" ]; then
+    read -rp "Directory '$share_path' does not exist. Create it now? (y/n) [default: y]: " create_dir
+    create_dir="${create_dir:-y}"
+    if [[ "$create_dir" =~ ^[Yy]$ ]]; then
+      echo -e "Creating directory '$share_path'..."
+      mkdir -p "$share_path"
+      if [ "$share_user" != "root" ]; then
+        chown "$share_user":"$(id -gn "$share_user")" "$share_path" 2>/dev/null || true
+      fi
+      chmod 775 "$share_path"
+      echo -e "${GREEN}✔ Directory created and permissions configured (775).${NC}"
+    else
+      echo -e "${RED}Error: Shared directory must exist to configure Samba share.${NC}"
+      return 1
+    fi
+  fi
+
+  # 2. Share Name Selection
+  local share_name=""
+  while [ -z "$share_name" ]; do
+    read -rp "Enter the Samba share name [default: homeserver-mnt]: " share_name
+    share_name="${share_name:-homeserver-mnt}"
+    # Strip brackets to prevent configuration syntax errors
+    share_name=$(echo "$share_name" | tr -d '[]')
+  done
+
+  # 3. Authentication Configuration
+  local guest_ok="no"
+  local valid_users_line=""
+  local added_users=()
+  
+  while true; do
+    read -rp "Configure authenticated sharing (requires password)? (y/n) [default: y]: " auth_choice
+    auth_choice="${auth_choice:-y}"
+    if [[ "$auth_choice" =~ ^[Yy]$ ]]; then
+      while true; do
+        local samba_user=""
+        read -rp "Enter Samba username [default: $share_user]: " samba_user
+        samba_user="${samba_user:-$share_user}"
+        
+        # Ensure system user exists
+        if ! id "$samba_user" &>/dev/null; then
+          echo -e "${YELLOW}System user '$samba_user' does not exist.${NC}"
+          read -rp "Create system user '$samba_user' (without login shell)? (y/n) [default: y]: " create_user
+          create_user="${create_user:-y}"
+          if [[ "$create_user" =~ ^[Yy]$ ]]; then
+            echo -e "Creating system user '$samba_user'..."
+            useradd -M -s /usr/sbin/nologin "$samba_user" || useradd -M -s /sbin/nologin "$samba_user" || adduser -D -H -s /sbin/nologin "$samba_user"
+            echo -e "${GREEN}✔ System user created.${NC}"
+          else
+            echo -e "${RED}Error: Authenticated sharing requires a system user. Please enter an existing user or allow creation.${NC}"
+            continue
+          fi
+        fi
+
+        # Samba Password Setup
+        local samba_password=""
+        local samba_password_confirm=""
+        while true; do
+          read -s -rp "Enter Samba password for '$samba_user': " samba_password
+          echo ""
+          read -s -rp "Confirm Samba password: " samba_password_confirm
+          echo ""
+          if [ -z "$samba_password" ]; then
+            echo -e "${RED}Password cannot be empty. Please try again.${NC}"
+          elif [ "$samba_password" != "$samba_password_confirm" ]; then
+            echo -e "${RED}Passwords do not match. Please try again.${NC}"
+          else
+            break
+          fi
+        done
+
+        # Set the Samba user password
+        echo -e "Configuring Samba password for user '$samba_user'..."
+        printf "%s\n%s\n" "$samba_password" "$samba_password" | smbpasswd -a -s "$samba_user"
+        
+        added_users+=("$samba_user")
+        
+        read -rp "Would you like to configure another Samba user for this share? (y/n) [default: n]: " add_another
+        add_another="${add_another:-n}"
+        if [[ ! "$add_another" =~ ^[Yy]$ ]]; then
+          break
+        fi
+      done
+      
+      guest_ok="no"
+      valid_users_line="   valid users = ${added_users[*]}"
+      break
+    elif [[ "$auth_choice" =~ ^[Nn]$ ]]; then
+      read -rp "WARNING: Guest sharing allows anonymous read-write access. Confirm? (y/n) [default: n]: " guest_confirm
+      guest_confirm="${guest_confirm:-n}"
+      if [[ "$guest_confirm" =~ ^[Yy]$ ]]; then
+        guest_ok="yes"
+        valid_users_line=""
+        break
+      fi
+    else
+      echo -e "${RED}Invalid option. Please enter 'y' or 'n'.${NC}"
+    fi
+  done
+
+  # 4. Enable SMB1 (NT1) protocol and NTLM auth in [global] section for old NAS/RAID systems
+  echo -e "\nEnabling SMB1 (NT1) and NTLM compatibility in Samba global config..."
   python3 -c "
 import sys
 import re
@@ -276,19 +386,20 @@ except Exception as e:
     sys.exit(1)
 " 2>/dev/null || true
 
-  # 2. Define Samba block for /mnt
+  # 5. Define Samba block dynamically
   local smb_block
   smb_block=$(cat <<EOF
 
 # ==============================================================================
 # HOMESERVER MOUNTS SHARE (AUTOMATICALLY GENERATED)
 # ==============================================================================
-[homeserver-mnt]
-   comment = Homeserver Mounts (/mnt)
-   path = /mnt
+[${share_name}]
+   comment = Homeserver Mounts (${share_path})
+   path = ${share_path}
    browseable = yes
    read only = no
-   guest ok = no
+   guest ok = ${guest_ok}
+$( [ -n "$valid_users_line" ] && echo "$valid_users_line" || true )
    create mask = 0775
    directory mask = 0775
    force user = ${share_user}
@@ -310,9 +421,9 @@ except Exception as e:
     sys.exit(1)
 " 2>/dev/null || true
 
-  # Check if [homeserver-mnt] block exists
-  if grep -q "\[homeserver-mnt\]" "$smb_conf"; then
-    echo -e "Samba share '[homeserver-mnt]' already exists in $smb_conf."
+  # Check if the share block already exists in smb.conf
+  if grep -q "\[${share_name}\]" "$smb_conf"; then
+    echo -e "Samba share '[${share_name}]' already exists in $smb_conf."
     read -rp "Would you like to overwrite it? (y/n) [default: n]: " OVERWRITE_SMB
     OVERWRITE_SMB="${OVERWRITE_SMB:-n}"
     if [[ "$OVERWRITE_SMB" =~ ^[Yy]$ ]]; then
@@ -321,15 +432,16 @@ except Exception as e:
 import sys
 import re
 conf_path = '$smb_conf'
+share_name = '$share_name'
 try:
     with open(conf_path, 'r') as f:
         content = f.read()
-    cleaned = re.sub(r'\[homeserver-mnt\].*?(?=\n\s*\[|\Z)', '', content, flags=re.DOTALL)
+    cleaned = re.sub(r'\[' + re.escape(share_name) + r'\].*?(?=\n\s*\[|\Z)', '', content, flags=re.DOTALL)
     with open(conf_path, 'w') as f:
         f.write(cleaned.strip() + '\n')
 except Exception as e:
     sys.exit(1)
-" 2>/dev/null || sed -i '/\[homeserver-mnt\]/,/^[[:space:]]*$/d' "$smb_conf"
+" 2>/dev/null || sed -i "/\[${share_name}\]/,/^[[:space:]]*$/d" "$smb_conf"
       
       echo "$smb_block" >> "$smb_conf"
       echo -e "${GREEN}✔ Updated Samba configuration in $smb_conf.${NC}"
@@ -1045,9 +1157,39 @@ action_nuke_everything() {
   build_compose_args
 
   echo -e "${GREEN}Deploying fresh container stack...${NC}"
-  local services
-  services=($(docker compose $COMPOSE_ARGS config --services | sort))
-  for service in "${services[@]}"; do
+  local all_services=($(docker compose $COMPOSE_ARGS config --services | sort))
+  local num_services=${#all_services[@]}
+  local selected_services=()
+
+  echo -e "\nWould you like to deploy all services or select a subset to deploy?"
+  read -rp "Enter 'all' or 'select' [default: all]: " deploy_choice
+  deploy_choice="${deploy_choice:-all}"
+
+  if [[ "$deploy_choice" =~ ^[Ss]elect$ ]]; then
+    echo -e "\n${BLUE}Available services:${NC}"
+    for ((i=0; i<num_services; i++)); do
+      printf "  %2d) %s\n" $((i+1)) "${all_services[i]}"
+    done
+    read -rp "Enter the numbers of the services you want to deploy (comma-separated, e.g. 1,4,5): " USER_CHOICE
+    if [ -n "$USER_CHOICE" ]; then
+      IFS=',' read -ra ADDR <<< "$USER_CHOICE"
+      for idx in "${ADDR[@]}"; do
+        idx=$(echo "$idx" | xargs)
+        if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "$num_services" ]; then
+          selected_services+=("${all_services[$((idx-1))]}")
+        fi
+      done
+    fi
+  fi
+
+  # Fallback to ALL services if choice was 'all' or selection was empty/invalid
+  if [ ${#selected_services[@]} -eq 0 ]; then
+    selected_services=("${all_services[@]}")
+  fi
+
+  echo -e "\nSelected services to deploy: ${GREEN}${selected_services[*]}${NC}"
+
+  for service in "${selected_services[@]}"; do
     echo -e "Pulling image for: ${BLUE}$service${NC}..."
     local retry=0
     local success=false
@@ -1062,7 +1204,7 @@ action_nuke_everything() {
     done
   done
 
-  docker compose $COMPOSE_ARGS up -d
+  docker compose $COMPOSE_ARGS up -d "${selected_services[@]}"
 
   echo -e "\n${BLUE}Waiting 5 seconds for services to initialize...${NC}"
   sleep 5
