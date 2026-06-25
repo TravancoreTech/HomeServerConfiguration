@@ -73,6 +73,26 @@ EOF
   restore_ownership
 }
 
+# ------------------------------------------------------------------------------
+# GIT FETCH TIMESTAMP HELPERS
+# ------------------------------------------------------------------------------
+save_fetch_timestamp() {
+  TZ="Asia/Kolkata" date "+%Y-%m-%d %H:%M:%S IST" > .last_fetch_timestamp 2>/dev/null || true
+  if [ -n "${SUDO_UID:-}" ]; then
+    chown "${SUDO_UID}:${SUDO_GID}" .last_fetch_timestamp 2>/dev/null || true
+  fi
+}
+
+show_last_fetch_timestamp() {
+  if [ -f .last_fetch_timestamp ]; then
+    local last_ts
+    last_ts=$(cat .last_fetch_timestamp)
+    echo -e "Last Git Fetch: ${YELLOW}${last_ts}${NC}"
+  else
+    echo -e "Last Git Fetch: ${YELLOW}Never / Unknown${NC}"
+  fi
+}
+
 # Function to download and sync configurations from GitHub
 sync_from_github() {
   echo -e "${BLUE}======================================================================${NC}"
@@ -194,6 +214,7 @@ sync_from_github() {
 
   # Clean up temporary files
   rm -rf config_temp.zip temp_extract
+  save_fetch_timestamp
   echo -e "${GREEN}✔ Configuration sync completed successfully!${NC}\n"
 }
 
@@ -891,6 +912,16 @@ SYSTEM_DATA_DIR=../appdata
 EOF
   echo -e "${GREEN}✔ Configured media/.env file.${NC}"
 
+  # Pre-create appdata directories for services to ensure correct ownership and permissions
+  mkdir -p "${SYSTEM_DATA_DIR:-./appdata}/radicale"
+  mkdir -p "${SYSTEM_DATA_DIR:-./appdata}/baikal/config"
+  mkdir -p "${SYSTEM_DATA_DIR:-./appdata}/baikal/Specific"
+  if [ -n "${SUDO_UID:-}" ]; then
+    chown -R "${SUDO_UID}:${SUDO_GID}" "${SYSTEM_DATA_DIR:-./appdata}/radicale" "${SYSTEM_DATA_DIR:-./appdata}/baikal" 2>/dev/null || true
+  fi
+  # Allow the container services to write (especially Baikal which runs as UID 101)
+  chmod -R 777 "${SYSTEM_DATA_DIR:-./appdata}/radicale" "${SYSTEM_DATA_DIR:-./appdata}/baikal" 2>/dev/null || true
+
   find . -name "*.bak" -type f -delete || true
   restore_ownership
 }
@@ -942,6 +973,7 @@ sync_from_github_silent() {
     top_dir=$(find config_temp_dir -mindepth 1 -maxdepth 1 -type d | head -n 1)
     rsync -a --exclude='.git' --exclude='.env*' --exclude='*/*.env*' "${top_dir}/" ./
     rm -rf config_temp_dir config_temp.zip
+    save_fetch_timestamp
     echo -e "${GREEN}✔ Repository synchronized successfully.${NC}"
   else
     echo -e "${RED}Error: Failed to silently download repository archive. Sync skipped.${NC}"
@@ -1586,6 +1618,113 @@ action_system_maintenance() {
   fi
 }
 
+# PORTAL ACTION 0: FETCH LATEST CONFIGURATIONS FROM GITHUB
+action_sync_latest() {
+  echo -e "\n${BLUE}Syncing latest configurations from Git repository...${NC}"
+  sync_from_github
+}
+
+# Find device name in lsblk by matching size (part/disk)
+find_dev_by_size() {
+  local target_size="$1" # e.g. "465.8G" or "5.5T"
+  lsblk -r -p -o NAME,SIZE,TYPE 2>/dev/null | grep -E " (part|disk)$" | grep -w "$target_size" | awk '{print $1}' | head -n 1
+}
+
+# Automatically configure auto-mounting in /etc/fstab for a drive by its size
+configure_mount_fstab() {
+  local mp="$1"          # e.g., "/mnt/hdd"
+  local size_label="$2"  # e.g., "465.8G"
+
+  # Find the disk/partition by its size using lsblk
+  local dev_path
+  dev_path=$(find_dev_by_size "$size_label")
+  if [ -z "$dev_path" ]; then
+    echo -e "${RED}Warning: Could not find drive of size $size_label in lsblk to auto-mount at $mp.${NC}"
+    return 1
+  fi
+
+  echo -e "Discovered device ${BLUE}${dev_path}${NC} (${size_label}) for ${BLUE}${mp}${NC}."
+
+  # Resolve partition UUID and filesystem type using blkid
+  local uuid
+  uuid=$(blkid -o value -s UUID "$dev_path" 2>/dev/null || echo "")
+  local fs_type
+  fs_type=$(blkid -o value -s TYPE "$dev_path" 2>/dev/null || echo "ext4")
+
+  # Construct the fstab entry with defaults,nofail option so the OS still boots if drive is unplugged
+  local fstab_entry=""
+  if [ -n "$uuid" ]; then
+    fstab_entry="UUID=${uuid} ${mp} ${fs_type} defaults,nofail 0 2"
+    echo -e "UUID resolved: ${BLUE}${uuid}${NC} (FS: ${fs_type})."
+  else
+    fstab_entry="${dev_path} ${mp} ${fs_type} defaults,nofail 0 2"
+    echo -e "UUID not found. Falling back to device path: ${BLUE}${dev_path}${NC}."
+  fi
+
+  # Ensure the mount point directory exists on the host
+  mkdir -p "$mp"
+
+  # Append mount entry to fstab
+  echo -e "\n# Added by Homeserver Configuration Portal for auto-mount on $(date)" >> /etc/fstab
+  echo "$fstab_entry" >> /etc/fstab
+  echo -e "${GREEN}✔ Configured auto-mount for ${mp} in /etc/fstab.${NC}"
+}
+
+# Ensure required storage drives are mounted and configured to auto-mount on startup
+ensure_mounts() {
+  if [ "$EUID" -eq 0 ]; then
+    # 1. Verify and configure auto-mount in /etc/fstab if missing
+    if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]/mnt/hdd([[:space:]]|$)"; then
+      configure_mount_fstab "/mnt/hdd" "465.8G" || true
+    fi
+    if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]/mnt/hdd6t([[:space:]]|$)"; then
+      configure_mount_fstab "/mnt/hdd6t" "5.5T" || true
+    fi
+
+    # 2. Verify active mounting and mount immediately if offline
+    if ! grep -qs " /mnt/hdd " /proc/mounts; then
+      echo -e "${YELLOW}Warning: /mnt/hdd is not mounted. Attempting to mount...${NC}"
+      mount /mnt/hdd &>/dev/null || true
+    fi
+    if ! grep -qs " /mnt/hdd6t " /proc/mounts; then
+      echo -e "${YELLOW}Warning: /mnt/hdd6t is not mounted. Attempting to mount...${NC}"
+      mount /mnt/hdd6t &>/dev/null || true
+    fi
+  fi
+}
+
+# Print mount status and fstab auto-mount configuration info
+print_mount_vitals() {
+  local hdd_mounted="${RED}Not Mounted${NC}"
+  local hdd_auto="${RED}No Auto-mount${NC}"
+  local hdd6t_mounted="${RED}Not Mounted${NC}"
+  local hdd6t_auto="${RED}No Auto-mount${NC}"
+
+  # Check /mnt/hdd
+  if grep -qs " /mnt/hdd " /proc/mounts; then
+    hdd_mounted="${GREEN}Mounted${NC}"
+  fi
+  if grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]/mnt/hdd([[:space:]]|$)"; then
+    if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E "[[:space:]]/mnt/hdd([[:space:]]|$)" | grep -q "noauto"; then
+      hdd_auto="${GREEN}Auto-mount Configured${NC}"
+    fi
+  fi
+
+  # Check /mnt/hdd6t
+  if grep -qs " /mnt/hdd6t " /proc/mounts; then
+    hdd6t_mounted="${GREEN}Mounted${NC}"
+  fi
+  if grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]/mnt/hdd6t([[:space:]]|$)"; then
+    if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E "[[:space:]]/mnt/hdd6t([[:space:]]|$)" | grep -q "noauto"; then
+      hdd6t_auto="${GREEN}Auto-mount Configured${NC}"
+    fi
+  fi
+
+  echo -e "  Storage Mounts:"
+  echo -e "    - /mnt/hdd:   [${hdd_mounted}] [${hdd_auto}]"
+  echo -e "    - /mnt/hdd6t: [${hdd6t_mounted}] [${hdd6t_auto}]"
+}
+
 # ------------------------------------------------------------------------------
 # PORTAL INTERACTIVE MAIN MENU LOOP
 # ------------------------------------------------------------------------------
@@ -1597,40 +1736,47 @@ main_menu() {
   fi
 
   while true; do
+    # Ensure mounts are active
+    ensure_mounts
+
     echo -e "\n${BLUE}======================================================================${NC}"
     echo -e "${GREEN}                 HOMESERVER SYSTEM MANAGEMENT PORTAL${NC}"
+    echo -ne "  " && show_last_fetch_timestamp
+    print_mount_vitals
     echo -e "${BLUE}======================================================================${NC}"
-    echo -e "  1) NUKE everything and deploy from scratch (⚠️ DANGER ⚠️)"
-    echo -e "  2) Update configuration from Git & update specific services"
-    echo -e "  3) Restart specific services (Stop & Start)"
-    echo -e "  4) View real-time logs of a container"
-    echo -e "  5) Check/Pull latest Docker image updates (without restarting)"
-    echo -e "  6) Run Docker garbage collection (prune unused files/caches)"
-    echo -e "  7) Push local configurations to GitHub (Git commit & push)"
-    echo -e "  8) Update Homepage Dashboard (Pull configs, update container)"
-    echo -e "  9) Install/Configure host Samba (SMB) file sharing"
-    echo -e " 10) Configure secure remote access (Tailscale VPN)"
-    echo -e " 11) Run system updates and maintenance (OS upgrade & reboot check)"
-    echo -e " 12) Show container status and disk usage (System Vitals)"
-    echo -e " 13) Backup server configurations (.env and app configs)"
+    echo -e "  1) Fetch latest configurations from Git repository"
+    echo -e "  2) NUKE everything and deploy from scratch (⚠️ DANGER ⚠️)"
+    echo -e "  3) Update configuration from Git & update specific services"
+    echo -e "  4) Restart specific services (Stop & Start)"
+    echo -e "  5) View real-time logs of a container"
+    echo -e "  6) Check/Pull latest Docker image updates (without restarting)"
+    echo -e "  7) Run Docker garbage collection (prune unused files/caches)"
+    echo -e "  8) Push local configurations to GitHub (Git commit & push)"
+    echo -e "  9) Update Homepage Dashboard (Pull configs, update container)"
+    echo -e " 10) Install/Configure host Samba (SMB) file sharing"
+    echo -e " 11) Configure secure remote access (Tailscale VPN)"
+    echo -e " 12) Run system updates and maintenance (OS upgrade & reboot check)"
+    echo -e " 13) Show container status and disk usage (System Vitals)"
+    echo -e " 14) Backup server configurations (.env and app configs)"
     echo -e "  0) Exit"
     echo -e "${BLUE}======================================================================${NC}"
-    read -rp "Please enter your choice (0-13): " MENU_CHOICE
+    read -rp "Please enter your choice (0-14): " MENU_CHOICE
 
     case "$MENU_CHOICE" in
-      1) action_nuke_everything ;;
-      2) action_update_config ;;
-      3) action_restart_services ;;
-      4) action_view_logs ;;
-      5) action_check_updates ;;
-      6) action_docker_prune ;;
-      7) action_git_push ;;
-      8) action_update_homepage ;;
-      9) action_install_samba ;;
-      10) action_setup_tailscale ;;
-      11) action_system_maintenance ;;
-      12) action_show_status ;;
-      13) action_backup_configs ;;
+      1) action_sync_latest ;;
+      2) action_nuke_everything ;;
+      3) action_update_config ;;
+      4) action_restart_services ;;
+      5) action_view_logs ;;
+      6) action_check_updates ;;
+      7) action_docker_prune ;;
+      8) action_git_push ;;
+      9) action_update_homepage ;;
+      10) action_install_samba ;;
+      11) action_setup_tailscale ;;
+      12) action_system_maintenance ;;
+      13) action_show_status ;;
+      14) action_backup_configs ;;
       0) echo -e "${GREEN}Exiting management portal. Goodbye!${NC}"; exit 0 ;;
       *) echo -e "${RED}Invalid option. Please try again.${NC}" ;;
     esac
