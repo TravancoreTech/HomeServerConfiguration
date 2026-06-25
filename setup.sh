@@ -1068,15 +1068,15 @@ select_services_prompt() {
   local num_suites=${#suites[@]}
   
   # Print choices
-  echo -e "\n${BLUE}Available services & suites:${NC}"
+  echo -e "\n${BLUE}Available services & suites:${NC}" >&2
   # Print individual services
   for ((i=0; i<num_raw; i++)); do
-    printf "  %2d) %s\n" $((i+1)) "${raw_services[i]}"
+    printf "  %2d) %s\n" $((i+1)) "${raw_services[i]}" >&2
   done
   # Print groups/suites
-  echo -e "${BLUE}  --- Service Groups (Suites) ---${NC}"
+  echo -e "${BLUE}  --- Service Groups (Suites) ---${NC}" >&2
   for ((i=0; i<num_suites; i++)); do
-    printf "  %2d) %s (Group)\n" $((num_raw + i + 1)) "${suites[i]}"
+    printf "  %2d) %s (Group)\n" $((num_raw + i + 1)) "${suites[i]}" >&2
   done
   
   local total_options=$((num_raw + num_suites))
