@@ -841,6 +841,7 @@ sync_from_github_silent() {
 # HELPER TO PRINT APPLICATION ACCESS URLS
 # ------------------------------------------------------------------------------
 print_successful_urls() {
+  local SERVER_IP="${SERVER_IP:-${HOMEPAGE_VAR_SERVER_IP:-localhost}}"
   echo -e "\n${GREEN}======================================================================${NC}"
   echo -e "${GREEN}✔ Active services are accessible at the URLs below:${NC}"
   echo -e "  - Homepage Dashboard:   http://${SERVER_IP}"
@@ -856,6 +857,8 @@ print_successful_urls() {
   echo -e "  - Stirling-PDF tools:   http://${SERVER_IP}:8083"
   echo -e "  - IT-Tools:             http://${SERVER_IP}:8084"
   echo -e "  - Vaultwarden (SSL req):http://${SERVER_IP}:8086"
+  echo -e "  - Radicale CalDAV:      http://${SERVER_IP}:5232"
+  echo -e "  - Baïkal CalDAV:        http://${SERVER_IP}:8088"
   echo -e "======================================================================${NC}"
 }
 

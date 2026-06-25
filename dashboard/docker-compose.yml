@@ -43,3 +43,10 @@ services:
       - ${SYSTEM_DATA_DIR:-../appdata}/homepage:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro # Attached to read container/API metrics
       - /:/srv/local:ro # Mount host root for disk space monitoring
+    networks:
+      - default
+      - homeserver_network
+
+networks:
+  homeserver_network:
+    external: true

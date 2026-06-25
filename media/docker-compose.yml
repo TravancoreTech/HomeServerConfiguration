@@ -46,6 +46,9 @@ services:
     volumes:
       - ${SYSTEM_DATA_DIR:-../appdata}/qbittorrent:/config
       - ${MEDIA_DIR:-../data}:/data
+    networks:
+      - default
+      - homeserver_network
 
   radarr:
     container_name: media_radarr
@@ -62,6 +65,9 @@ services:
       - ${MEDIA_DIR:-../data}:/data
     depends_on:
       - qbittorrent
+    networks:
+      - default
+      - homeserver_network
 
   sonarr:
     container_name: media_sonarr
@@ -78,6 +84,9 @@ services:
       - ${MEDIA_DIR:-../data}:/data
     depends_on:
       - qbittorrent
+    networks:
+      - default
+      - homeserver_network
 
   prowlarr:
     container_name: media_prowlarr
@@ -167,3 +176,7 @@ services:
       - YTDL_OPTIONS={"writethumbnail":true,"postprocessors":[{"key":"FFmpegExtractAudio","preferredcodec":"mp3","preferredquality":"320"},{"key":"FFmpegMetadata","add_chapters":true},{"key":"EmbedThumbnail"}]}
     volumes:
       - ${MEDIA_DIR:-../data}/music:/downloads
+
+networks:
+  homeserver_network:
+    external: true

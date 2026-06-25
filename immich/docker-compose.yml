@@ -23,6 +23,9 @@ services:
     depends_on:
       - redis
       - database
+    networks:
+      - default
+      - homeserver_network
     restart: always
     healthcheck:
       disable: false
@@ -62,3 +65,7 @@ services:
 
 volumes:
   immich-model-cache:
+
+networks:
+  homeserver_network:
+    external: true

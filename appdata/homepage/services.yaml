@@ -104,6 +104,18 @@
         container: utility_syncthing
         description: Continuous File Syncing
 
+    - Radicale:
+        icon: radicale.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:5232
+        container: utility_radicale
+        description: CalDAV & CardDAV Server
+
+    - Baikal:
+        icon: baikal.png
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8088
+        container: utility_baikal
+        description: Lightweight CalDAV & CardDAV server
+
 - Utilities & Security:
     - Heimdall:
         icon: heimdall.png

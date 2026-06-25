@@ -48,6 +48,9 @@ services:
       - "3001:3001"
     volumes:
       - ${SYSTEM_DATA_DIR:-../appdata}/uptime-kuma:/app/data
+    networks:
+      - default
+      - homeserver_network
 
   syncthing:
     container_name: utility_syncthing
@@ -108,6 +111,32 @@ services:
       - PAPERLESS_OCR_LANGUAGES=eng
     networks:
       - default
+      - homeserver_network
+
+  radicale:
+    container_name: utility_radicale
+    image: tomsquest/docker-radicale:latest
+    restart: always
+    ports:
+      - "5232:5232"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/radicale:/data
+    environment:
+      - TZ=${TZ:-Etc/UTC}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+
+  baikal:
+    container_name: utility_baikal
+    image: ckulka/baikal:nginx
+    restart: always
+    ports:
+      - "8088:80"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/baikal/config:/var/www/baikal/config
+      - ${SYSTEM_DATA_DIR:-../appdata}/baikal/Specific:/var/www/baikal/Specific
+    environment:
+      - TZ=${TZ:-Etc/UTC}
 
 networks:
   homeserver_network:
