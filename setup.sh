@@ -1064,7 +1064,7 @@ select_services_prompt() {
   local num_raw=${#raw_services[@]}
   
   # Define suites
-  local suites=("immich_suite" "nextcloud_suite" "jellyfin_suite")
+  local suites=("immich_suite" "nextcloud_suite" "jellyfin_suite" "util_suite")
   local num_suites=${#suites[@]}
   
   # Print choices
@@ -1106,7 +1106,9 @@ select_services_prompt() {
         elif [ "$suite_name" = "nextcloud_suite" ]; then
           selected+=("nextcloud-app" "nextcloud-cron" "nextcloud-db")
         elif [ "$suite_name" = "jellyfin_suite" ]; then
-          selected+=("jellyfin" "qbittorrent" "radarr" "sonarr" "prowlarr" "flaresolverr" "jellyseerr" "bazarr" "navidrome" "metube")
+          selected+=("jellyfin" "qbittorrent" "radarr" "sonarr" "prowlarr" "flaresolverr" "jellyseerr" "bazarr" "navidrome" "metube" "media-local-tracker" "torrent-generator")
+        elif [ "$suite_name" = "util_suite" ]; then
+          selected+=("vaultwarden" "stirling-pdf" "it-tools" "uptime-kuma" "syncthing" "pairdrop" "paperless-redis" "paperless-web" "radicale" "baikal" "cronicle" "ofelia")
         fi
       fi
     else
