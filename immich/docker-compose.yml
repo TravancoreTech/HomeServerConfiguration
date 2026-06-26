@@ -14,7 +14,7 @@ services:
       service: intel-gpu
     volumes:
       - ${UPLOAD_LOCATION:-../data/photos}:/data
-      - /mnt/hdd/PhotoBackup:/mnt/PhotoBackup:ro  # Read-only photo backup mount
+      - ${PHOTO_BACKUP_LOCATION:-../data/photos}:/mnt/PhotoBackup:ro  # Read-only photo backup mount (set PHOTO_BACKUP_LOCATION in .env)
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
