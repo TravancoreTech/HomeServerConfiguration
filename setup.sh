@@ -578,22 +578,24 @@ check_dependencies() {
   echo -e "${GREEN}✔ Docker Compose is installed: $(docker compose version)${NC}"
 }
 
-echo -e "${BLUE}======================================================================${NC}"
-echo -e "${GREEN}          HOMESERVER ONE-CLICK DOCKER INSTALlATION & SETUP${NC}"
-echo -e "${BLUE}======================================================================${NC}"
+if [ $# -eq 0 ]; then
+  echo -e "${BLUE}======================================================================${NC}"
+  echo -e "${GREEN}          HOMESERVER ONE-CLICK DOCKER INSTALlATION & SETUP${NC}"
+  echo -e "${BLUE}======================================================================${NC}"
 
-# Check if script is run as root (needed for automatic Docker installation)
-if [ "$EUID" -ne 0 ]; then
-  echo -e "${RED}Error: Please run this script with sudo or as root to handle installation and system checks.${NC}"
-  echo -e "Usage: sudo ./setup.sh"
-  exit 1
+  # Check if script is run as root (needed for automatic Docker installation)
+  if [ "$EUID" -ne 0 ] && [ "$(uname)" != "Darwin" ]; then
+    echo -e "${RED}Error: Please run this script with sudo or as root to handle installation and system checks.${NC}"
+    echo -e "Usage: sudo ./setup.sh"
+    exit 1
+  fi
+
+  # ------------------------------------------------------------------------------
+  # 1. CHECK & INSTALL DOCKER DEPENDENCIES
+  # ------------------------------------------------------------------------------
+  echo -e "\n${BLUE}[1/4] Checking system dependencies...${NC}"
+  check_dependencies
 fi
-
-# ------------------------------------------------------------------------------
-# 1. CHECK & INSTALL DOCKER DEPENDENCIES
-# ------------------------------------------------------------------------------
-echo -e "\n${BLUE}[1/4] Checking system dependencies...${NC}"
-check_dependencies
 
 # Define stack files in strict dependency order (Utility starts Redis for Nextcloud)
 COMPOSE_FILES=(
@@ -611,13 +613,82 @@ restore_ownership
 # ------------------------------------------------------------------------------
 # DOCKER COMPOSE CONFIGURATION RESOLUTION
 # ------------------------------------------------------------------------------
+generate_compose_overrides() {
+  # 1. Jellyfin overrides
+  local jellyfin_override="media/docker-compose.override.yml"
+  rm -f "$jellyfin_override"
+  if [ -n "${JELLYFIN_EXTRA_MEDIA_DIRS:-}" ]; then
+    echo "services:" > "$jellyfin_override"
+    echo "  jellyfin:" >> "$jellyfin_override"
+    echo "    volumes:" >> "$jellyfin_override"
+    local idx=1
+    IFS=',' read -ra DIRS <<< "$JELLYFIN_EXTRA_MEDIA_DIRS"
+    for dir in "${DIRS[@]}"; do
+      dir=$(echo "$dir" | xargs)
+      if [ -n "$dir" ]; then
+        echo "      - \"${dir}:/media_extra_${idx}\"" >> "$jellyfin_override"
+        idx=$((idx + 1))
+      fi
+    done
+  fi
+
+  # 2. Immich overrides
+  local immich_override="immich/docker-compose.override.yml"
+  rm -f "$immich_override"
+  if [ -n "${IMMICH_EXTRA_BACKUP_DIRS:-}" ]; then
+    echo "services:" > "$immich_override"
+    echo "  immich-server:" >> "$immich_override"
+    echo "    volumes:" >> "$immich_override"
+    local idx=1
+    IFS=',' read -ra DIRS <<< "$IMMICH_EXTRA_BACKUP_DIRS"
+    for dir in "${DIRS[@]}"; do
+      dir=$(echo "$dir" | xargs)
+      if [ -n "$dir" ]; then
+        echo "      - \"${dir}:/mnt/PhotoBackup_extra_${idx}:ro\"" >> "$immich_override"
+        idx=$((idx + 1))
+      fi
+    done
+  fi
+
+  # 3. Nextcloud overrides
+  local nextcloud_override="nextcloud/docker-compose.override.yml"
+  rm -f "$nextcloud_override"
+  if [ -n "${NEXTCLOUD_EXTRA_DATA_DIRS:-}" ]; then
+    echo "services:" > "$nextcloud_override"
+    echo "  nextcloud-app:" >> "$nextcloud_override"
+    echo "    volumes:" >> "$nextcloud_override"
+    local idx=1
+    IFS=',' read -ra DIRS <<< "$NEXTCLOUD_EXTRA_DATA_DIRS"
+    for dir in "${DIRS[@]}"; do
+      dir=$(echo "$dir" | xargs)
+      if [ -n "$dir" ]; then
+        echo "      - \"${dir}:/var/www/html/data/extra_${idx}\"" >> "$nextcloud_override"
+        idx=$((idx + 1))
+      fi
+    done
+  fi
+}
+
 build_compose_args() {
+  if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+  fi
+
+  generate_compose_overrides
+
   COMPOSE_ARGS="--project-directory ."
   local found_files=0
   for file in "${COMPOSE_FILES[@]}"; do
     if [ -f "$file" ]; then
       COMPOSE_ARGS="$COMPOSE_ARGS -f $file"
       found_files=$((found_files + 1))
+      
+      local override_file="${file%.yml}.override.yml"
+      if [ -f "$override_file" ]; then
+        COMPOSE_ARGS="$COMPOSE_ARGS -f $override_file"
+      fi
     fi
   done
   if [ "$found_files" -eq 0 ]; then
@@ -642,112 +713,184 @@ prompt_and_generate_configs() {
     detected_ip="192.168.1.100"
   fi
 
-  echo -e "\nAuto-detected server local IP: ${YELLOW}${detected_ip}${NC}"
-  read -rp "Press Enter to use this IP, or type your server's local IP/domain: " USER_IP
-  SERVER_IP="${USER_IP:-$detected_ip}"
+  if [ -n "${SERVER_IP:-}" ]; then
+    echo -e "${GREEN}✔ Reusing existing SERVER_IP: ${SERVER_IP}${NC}"
+  else
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      SERVER_IP="$detected_ip"
+    else
+      echo -e "\nAuto-detected server local IP: ${YELLOW}${detected_ip}${NC}"
+      read -rp "Press Enter to use this IP, or type your server's local IP/domain: " USER_IP
+      SERVER_IP="${USER_IP:-$detected_ip}"
+    fi
+  fi
 
   # Timezone Prompt
   if [ -n "${TZ:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Timezone: ${TZ}${NC}"
   else
-    read -rp "Enter system timezone [default: Asia/Kolkata]: " USER_TZ
-    TZ="${USER_TZ:-Asia/Kolkata}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      TZ="Asia/Kolkata"
+    else
+      read -rp "Enter system timezone [default: Asia/Kolkata]: " USER_TZ
+      TZ="${USER_TZ:-Asia/Kolkata}"
+    fi
   fi
 
   # PUID Prompt
   if [ -n "${PUID:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing PUID: ${PUID}${NC}"
   else
-    read -rp "Enter system PUID [default: 1000]: " USER_PUID
-    PUID="${USER_PUID:-1000}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      PUID="1000"
+    else
+      read -rp "Enter system PUID [default: 1000]: " USER_PUID
+      PUID="${USER_PUID:-1000}"
+    fi
   fi
 
   # PGID Prompt
   if [ -n "${PGID:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing PGID: ${PGID}${NC}"
   else
-    read -rp "Enter system PGID [default: 1000]: " USER_PGID
-    PGID="${USER_PGID:-1000}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      PGID="1000"
+    else
+      read -rp "Enter system PGID [default: 1000]: " USER_PGID
+      PGID="${USER_PGID:-1000}"
+    fi
   fi
 
   # Appdata Directory
   if [ -n "${SYSTEM_DATA_DIR:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Appdata directory: ${SYSTEM_DATA_DIR}${NC}"
   else
-    read -rp "Enter Appdata directory (SSD/fast storage) [default: ./appdata]: " USER_SYS_DIR
-    SYSTEM_DATA_DIR="${USER_SYS_DIR:-./appdata}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      SYSTEM_DATA_DIR="./appdata"
+    else
+      read -rp "Enter Appdata directory (SSD/fast storage) [default: ./appdata]: " USER_SYS_DIR
+      SYSTEM_DATA_DIR="${USER_SYS_DIR:-./appdata}"
+    fi
   fi
 
   # Media Directory
   if [ -n "${MEDIA_DIR:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing media directory: ${MEDIA_DIR}${NC}"
   else
-    read -rp "Enter Media directory (HDD/mass storage) [default: /mnt/hdd6t/media]: " USER_MEDIA_DIR
-    MEDIA_DIR="${USER_MEDIA_DIR:-/mnt/hdd6t/media}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      MEDIA_DIR="./data/media"
+    else
+      read -rp "Enter Media directory (HDD/mass storage) [default: ./data/media]: " USER_MEDIA_DIR
+      MEDIA_DIR="${USER_MEDIA_DIR:-./data/media}"
+    fi
   fi
 
   # Immich photos directory
   if [ -n "${UPLOAD_LOCATION:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Immich photos directory: ${UPLOAD_LOCATION}${NC}"
   else
-    read -rp "Enter Immich photos directory (HDD/mass storage) [default: /mnt/hdd/immich/photos]: " USER_UPLOAD
-    UPLOAD_LOCATION="${USER_UPLOAD:-/mnt/hdd/immich/photos}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      UPLOAD_LOCATION="./data/immich/photos"
+    else
+      read -rp "Enter Immich photos directory (HDD/mass storage) [default: ./data/immich/photos]: " USER_UPLOAD
+      UPLOAD_LOCATION="${USER_UPLOAD:-./data/immich/photos}"
+    fi
+  fi
+
+  # Immich photo backup mount
+  if [ -n "${PHOTO_BACKUP_LOCATION:-}" ]; then
+    echo -e "${GREEN}✔ Reusing existing Immich photo backup path: ${PHOTO_BACKUP_LOCATION}${NC}"
+  else
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      PHOTO_BACKUP_LOCATION="./data/PhotoBackup"
+    else
+      read -rp "Enter Immich photo backup path (HDD/mass storage) [default: ./data/PhotoBackup]: " USER_PHOTO_BACKUP
+      PHOTO_BACKUP_LOCATION="${USER_PHOTO_BACKUP:-./data/PhotoBackup}"
+    fi
   fi
 
   # Immich DB directory
   if [ -n "${DB_DATA_LOCATION:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Immich DB directory: ${DB_DATA_LOCATION}${NC}"
   else
-    read -rp "Enter Immich database directory (SSD/fast storage) [default: ./appdata/immich/postgres]: " USER_DB_LOC
-    DB_DATA_LOCATION="${USER_DB_LOC:-./appdata/immich/postgres}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      DB_DATA_LOCATION="./appdata/immich/postgres"
+    else
+      read -rp "Enter Immich database directory (SSD/fast storage) [default: ./appdata/immich/postgres]: " USER_DB_LOC
+      DB_DATA_LOCATION="${USER_DB_LOC:-./appdata/immich/postgres}"
+    fi
   fi
 
   # Immich DB user
   if [ -n "${DB_USERNAME:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Immich DB user: ${DB_USERNAME}${NC}"
   else
-    read -rp "Enter Immich database username [default: postgres]: " USER_DB_USER
-    DB_USERNAME="${USER_DB_USER:-postgres}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      DB_USERNAME="postgres"
+    else
+      read -rp "Enter Immich database username [default: postgres]: " USER_DB_USER
+      DB_USERNAME="${USER_DB_USER:-postgres}"
+    fi
   fi
 
   # Immich DB name
   if [ -n "${DB_DATABASE_NAME:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Immich DB name: ${DB_DATABASE_NAME}${NC}"
   else
-    read -rp "Enter Immich database name [default: immich]: " USER_DB_NAME
-    DB_DATABASE_NAME="${USER_DB_NAME:-immich}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      DB_DATABASE_NAME="immich"
+    else
+      read -rp "Enter Immich database name [default: immich]: " USER_DB_NAME
+      DB_DATABASE_NAME="${USER_DB_NAME:-immich}"
+    fi
   fi
 
   # Nextcloud data directory
   if [ -n "${NEXTCLOUD_DATA_LOCATION:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Nextcloud data directory: ${NEXTCLOUD_DATA_LOCATION}${NC}"
   else
-    read -rp "Enter Nextcloud data directory (HDD/mass storage) [default: /mnt/hdd/nextcloud/data]: " USER_NC_DATA
-    NEXTCLOUD_DATA_LOCATION="${USER_NC_DATA:-/mnt/hdd/nextcloud/data}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      NEXTCLOUD_DATA_LOCATION="./data/nextcloud/data"
+    else
+      read -rp "Enter Nextcloud data directory (HDD/mass storage) [default: ./data/nextcloud/data]: " USER_NC_DATA
+      NEXTCLOUD_DATA_LOCATION="${USER_NC_DATA:-./data/nextcloud/data}"
+    fi
   fi
 
   # Nextcloud DB directory
   if [ -n "${NEXTCLOUD_DB_LOCATION:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Nextcloud DB directory: ${NEXTCLOUD_DB_LOCATION}${NC}"
   else
-    read -rp "Enter Nextcloud database directory (SSD/fast storage) [default: ./appdata/nextcloud/postgres]: " USER_NC_DB
-    NEXTCLOUD_DB_LOCATION="${USER_NC_DB:-./appdata/nextcloud/postgres}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      NEXTCLOUD_DB_LOCATION="./appdata/nextcloud/postgres"
+    else
+      read -rp "Enter Nextcloud database directory (SSD/fast storage) [default: ./appdata/nextcloud/postgres]: " USER_NC_DB
+      NEXTCLOUD_DB_LOCATION="${USER_NC_DB:-./appdata/nextcloud/postgres}"
+    fi
   fi
 
   # Nextcloud DB name
   if [ -n "${POSTGRES_DB:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Nextcloud DB name: ${POSTGRES_DB}${NC}"
   else
-    read -rp "Enter Nextcloud database name [default: nextcloud]: " USER_NC_POSTGRES_DB
-    POSTGRES_DB="${USER_NC_POSTGRES_DB:-nextcloud}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      POSTGRES_DB="nextcloud"
+    else
+      read -rp "Enter Nextcloud database name [default: nextcloud]: " USER_NC_POSTGRES_DB
+      POSTGRES_DB="${USER_NC_POSTGRES_DB:-nextcloud}"
+    fi
   fi
 
   # Nextcloud DB user
   if [ -n "${POSTGRES_USER:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Nextcloud DB user: ${POSTGRES_USER}${NC}"
   else
-    read -rp "Enter Nextcloud database username [default: nextcloud]: " USER_NC_POSTGRES_USER
-    POSTGRES_USER="${USER_NC_POSTGRES_USER:-nextcloud}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      POSTGRES_USER="nextcloud"
+    else
+      read -rp "Enter Nextcloud database username [default: nextcloud]: " USER_NC_POSTGRES_USER
+      POSTGRES_USER="${USER_NC_POSTGRES_USER:-nextcloud}"
+    fi
   fi
 
   # Immich Password Prompt
@@ -755,11 +898,15 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing database password for Immich.${NC}"
     IMMICH_DB_PASS="$DB_PASSWORD"
   else
-    IMMICH_DB_PASS=""
-    while [ -z "$IMMICH_DB_PASS" ]; do
-      read -s -rp "Enter database password for Immich (cannot be empty): " IMMICH_DB_PASS
-      echo ""
-    done
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      IMMICH_DB_PASS=$(openssl rand -hex 16 2>/dev/null || echo "immich_pass_123")
+    else
+      IMMICH_DB_PASS=""
+      while [ -z "$IMMICH_DB_PASS" ]; do
+        read -s -rp "Enter database password for Immich (cannot be empty): " IMMICH_DB_PASS
+        echo ""
+      done
+    fi
   fi
 
   # Nextcloud Password Prompt
@@ -767,11 +914,15 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing database password for Nextcloud.${NC}"
     NEXTCLOUD_DB_PASS="$POSTGRES_PASSWORD"
   else
-    NEXTCLOUD_DB_PASS=""
-    while [ -z "$NEXTCLOUD_DB_PASS" ]; do
-      read -s -rp "Enter database password for Nextcloud (cannot be empty): " NEXTCLOUD_DB_PASS
-      echo ""
-    done
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      NEXTCLOUD_DB_PASS=$(openssl rand -hex 16 2>/dev/null || echo "nextcloud_pass_123")
+    else
+      NEXTCLOUD_DB_PASS=""
+      while [ -z "$NEXTCLOUD_DB_PASS" ]; do
+        read -s -rp "Enter database password for Nextcloud (cannot be empty): " NEXTCLOUD_DB_PASS
+        echo ""
+      done
+    fi
   fi
   POSTGRES_PASSWORD="$NEXTCLOUD_DB_PASS"
 
@@ -780,28 +931,76 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing secret key for Paperless-ngx.${NC}"
     PAPERLESS_SECRET="$PAPERLESS_SECRET_KEY"
   else
-    PAPERLESS_SECRET=""
-    while [ -z "$PAPERLESS_SECRET" ]; do
-      read -s -rp "Enter secret key for Paperless-ngx (cannot be empty): " PAPERLESS_SECRET
-      echo ""
-    done
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      PAPERLESS_SECRET=$(openssl rand -hex 32 2>/dev/null || echo "paperless_secret_123_random_chars")
+    else
+      PAPERLESS_SECRET=""
+      while [ -z "$PAPERLESS_SECRET" ]; do
+        read -s -rp "Enter secret key for Paperless-ngx (cannot be empty): " PAPERLESS_SECRET
+        echo ""
+      done
+    fi
   fi
 
   # GitHub repo prompt
   if [ -n "${GITHUB_REPO:-}" ] && [ "$GITHUB_REPO" != "username/repo-name" ]; then
     echo -e "${GREEN}✔ Reusing existing GitHub repository: ${GITHUB_REPO}${NC}"
   else
-    read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
-    GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      GITHUB_REPO="arunkarshan/HomeServerConfiguration"
+    else
+      read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
+      GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
+    fi
   fi
 
   # GitHub token prompt
   if [ -n "${GITHUB_TOKEN:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing GitHub token.${NC}"
   else
-    read -s -rp "Enter GitHub Personal Access Token (optional, press Enter to skip for public repos): " USER_TOKEN
-    echo ""
-    GITHUB_TOKEN="${USER_TOKEN:-}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      GITHUB_TOKEN=""
+    else
+      read -s -rp "Enter GitHub Personal Access Token (optional, press Enter to skip for public repos): " USER_TOKEN
+      echo ""
+      GITHUB_TOKEN="${USER_TOKEN:-}"
+    fi
+  fi
+
+  # Tailscale Auth Key prompt
+  if [ -n "${TS_AUTHKEY:-}" ]; then
+    echo -e "${GREEN}✔ Reusing existing Tailscale Auth Key.${NC}"
+  else
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      TS_AUTHKEY=""
+    else
+      read -rp "Enter Tailscale Auth Key (optional, e.g. tskey-auth-...): " USER_TS_KEY
+      TS_AUTHKEY="${USER_TS_KEY:-}"
+    fi
+  fi
+
+  # Storage Drive Mounting prompt
+  if [ -n "${CONFIGURE_DRIVE_MOUNTS:-}" ]; then
+    echo -e "${GREEN}✔ Reusing existing Storage Mounts configuration: ${CONFIGURE_DRIVE_MOUNTS}${NC}"
+  else
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      CONFIGURE_DRIVE_MOUNTS="false"
+      DRIVE_MOUNT_POINTS=""
+      DRIVE_SIZES=""
+    else
+      read -rp "Do you want to configure auto-mounting of external storage drives in /etc/fstab? (y/n) [default: n]: " USER_MOUNT_CONF
+      if [[ "$USER_MOUNT_CONF" =~ ^[Yy]$ ]]; then
+        CONFIGURE_DRIVE_MOUNTS="true"
+        read -rp "Enter drive mount paths (space-separated, e.g. /mnt/hdd /mnt/hdd6t): " USER_MOUNT_PATHS
+        DRIVE_MOUNT_POINTS="${USER_MOUNT_PATHS:-/mnt/hdd /mnt/hdd6t}"
+        read -rp "Enter drive sizes/identifiers matching df (space-separated, e.g. 465.8G 5.5T): " USER_DRIVE_SIZES
+        DRIVE_SIZES="${USER_DRIVE_SIZES:-465.8G 5.5T}"
+      else
+        CONFIGURE_DRIVE_MOUNTS="false"
+        DRIVE_MOUNT_POINTS=""
+        DRIVE_SIZES=""
+      fi
+    fi
   fi
 
   # Versions and Ports defaults
@@ -840,6 +1039,7 @@ NEXTCLOUD_DB_LOCATION=${NEXTCLOUD_DB_LOCATION}
 # Mass Storage (HDD) - Media, Downloads, Photos, and Cloud Files
 MEDIA_DIR=${MEDIA_DIR}
 UPLOAD_LOCATION=${UPLOAD_LOCATION}
+PHOTO_BACKUP_LOCATION=${PHOTO_BACKUP_LOCATION}
 NEXTCLOUD_DATA_LOCATION=${NEXTCLOUD_DATA_LOCATION}
 
 # Immich Configuration
@@ -872,6 +1072,14 @@ HOMEPAGE_VAR_QBITTORRENT_PASSWORD=${HOMEPAGE_VAR_QBITTORRENT_PASSWORD:-YOUR_QBIT
 HOMEPAGE_VAR_PAPERLESS_USERNAME=${HOMEPAGE_VAR_PAPERLESS_USERNAME:-YOUR_PAPERLESS_USERNAME}
 HOMEPAGE_VAR_PAPERLESS_PASSWORD=${HOMEPAGE_VAR_PAPERLESS_PASSWORD:-YOUR_PAPERLESS_PASSWORD}
 HOMEPAGE_VAR_IMMICH_API_KEY=${HOMEPAGE_VAR_IMMICH_API_KEY:-YOUR_IMMICH_API_KEY}
+
+# Tailscale VPN Settings
+TS_AUTHKEY=${TS_AUTHKEY}
+
+# Storage Drive Mounting
+CONFIGURE_DRIVE_MOUNTS=${CONFIGURE_DRIVE_MOUNTS}
+DRIVE_MOUNT_POINTS="${DRIVE_MOUNT_POINTS}"
+DRIVE_SIZES="${DRIVE_SIZES}"
 EOF
   echo -e "${GREEN}✔ Configured root global .env file.${NC}"
 
@@ -880,6 +1088,7 @@ EOF
   cat << EOF > immich/.env
 IMMICH_VERSION=${IMMICH_VERSION}
 UPLOAD_LOCATION=${UPLOAD_LOCATION}
+PHOTO_BACKUP_LOCATION=${PHOTO_BACKUP_LOCATION}
 DB_DATA_LOCATION=../appdata/immich/postgres
 DB_PASSWORD=${IMMICH_DB_PASS}
 DB_USERNAME=${DB_USERNAME}
@@ -910,6 +1119,7 @@ MEDIA_DIR=${MEDIA_DIR}
 PAPERLESS_PORT=${PAPERLESS_PORT}
 PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}
 PAPERLESS_TIME_ZONE=${PAPERLESS_TIME_ZONE}
+TS_AUTHKEY=${TS_AUTHKEY}
 EOF
   echo -e "${GREEN}✔ Configured utility/.env file.${NC}"
 
@@ -1532,8 +1742,14 @@ action_docker_prune() {
   echo -e "  - All unused build caches"
   echo -e "  - All unused volumes (only volumes not used by any container)"
   echo ""
-  read -rp "Are you sure you want to run garbage collection? (y/n) [default: n]: " PRUNE_CONFIRM
-  PRUNE_CONFIRM="${PRUNE_CONFIRM:-n}"
+  local PRUNE_CONFIRM
+  if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+    PRUNE_CONFIRM="y"
+    echo -e "Non-interactive mode: Automatically confirming garbage collection."
+  else
+    read -rp "Are you sure you want to run garbage collection? (y/n) [default: n]: " PRUNE_CONFIRM
+    PRUNE_CONFIRM="${PRUNE_CONFIRM:-n}"
+  fi
   if [[ ! "$PRUNE_CONFIRM" =~ ^[Yy]$ ]]; then
     echo -e "Aborted."
     return 0
@@ -1689,8 +1905,14 @@ action_system_maintenance() {
     return 1
   fi
 
-  read -rp "Start updating host system packages? (y/n) [default: y]: " UPDATE_CONFIRM
-  UPDATE_CONFIRM="${UPDATE_CONFIRM:-y}"
+  local UPDATE_CONFIRM
+  if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+    UPDATE_CONFIRM="y"
+    echo -e "Non-interactive mode: Automatically confirming system package updates."
+  else
+    read -rp "Start updating host system packages? (y/n) [default: y]: " UPDATE_CONFIRM
+    UPDATE_CONFIRM="${UPDATE_CONFIRM:-y}"
+  fi
   if [[ ! "$UPDATE_CONFIRM" =~ ^[Yy]$ ]]; then
     echo -e "Aborted package updates."
   else
@@ -1742,14 +1964,18 @@ action_system_maintenance() {
     default_reboot="y"
   fi
 
-  read -rp "Would you like to reboot the host machine now? (y/n) [default: $default_reboot]: " REBOOT_CHOICE
-  REBOOT_CHOICE="${REBOOT_CHOICE:-$default_reboot}"
-  if [[ "$REBOOT_CHOICE" =~ ^[Yy]$ ]]; then
-    echo -e "${RED}Rebooting the host system now... Goodbye!${NC}"
-    sleep 2
-    reboot
+  if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+    echo -e "Reboot check completed. Reboot needed: $reboot_needed. Skipping reboot in non-interactive mode."
   else
-    echo -e "Reboot skipped. Returning to main menu."
+    read -rp "Would you like to reboot the host machine now? (y/n) [default: $default_reboot]: " REBOOT_CHOICE
+    REBOOT_CHOICE="${REBOOT_CHOICE:-$default_reboot}"
+    if [[ "$REBOOT_CHOICE" =~ ^[Yy]$ ]]; then
+      echo -e "${RED}Rebooting the host system now... Goodbye!${NC}"
+      sleep 2
+      reboot
+    else
+      echo -e "Reboot skipped. Returning to main menu."
+    fi
   fi
 }
 
@@ -1807,71 +2033,820 @@ configure_mount_fstab() {
 
 # Ensure required storage drives are mounted and configured to auto-mount on startup
 ensure_mounts() {
-  if [ "$EUID" -eq 0 ]; then
-    # 1. Verify and configure auto-mount in /etc/fstab if missing
-    if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]/mnt/hdd([[:space:]]|$)"; then
-      configure_mount_fstab "/mnt/hdd" "465.8G" || true
-    fi
-    if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]/mnt/hdd6t([[:space:]]|$)"; then
-      configure_mount_fstab "/mnt/hdd6t" "5.5T" || true
-    fi
-
-    # 2. Verify active mounting and mount immediately if offline
-    if ! grep -qs " /mnt/hdd " /proc/mounts; then
-      echo -e "${YELLOW}Warning: /mnt/hdd is not mounted. Attempting to mount...${NC}"
-      mount /mnt/hdd &>/dev/null || true
-    fi
-    if ! grep -qs " /mnt/hdd6t " /proc/mounts; then
-      echo -e "${YELLOW}Warning: /mnt/hdd6t is not mounted. Attempting to mount...${NC}"
-      mount /mnt/hdd6t &>/dev/null || true
-    fi
+  if [ "${CONFIGURE_DRIVE_MOUNTS:-false}" = "true" ] && [ "$EUID" -eq 0 ]; then
+    # Parse space-separated mount points and sizes
+    local mps=($DRIVE_MOUNT_POINTS)
+    local sizes=($DRIVE_SIZES)
+    local count=${#mps[@]}
+    
+    for ((i=0; i<count; i++)); do
+      local mp="${mps[i]}"
+      local size="${sizes[i]:-}"
+      
+      # 1. Verify and configure auto-mount in /etc/fstab if missing
+      if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]${mp}([[:space:]]|$)"; then
+        if [ -n "$size" ]; then
+          configure_mount_fstab "$mp" "$size" || true
+        fi
+      fi
+      
+      # 2. Verify active mounting and mount immediately if offline
+      if ! grep -qs " ${mp} " /proc/mounts; then
+        echo -e "${YELLOW}Warning: ${mp} is not mounted. Attempting to mount...${NC}"
+        mount "$mp" &>/dev/null || true
+      fi
+    done
   fi
 }
 
-# Print mount status and fstab auto-mount configuration info
 print_mount_vitals() {
-  local hdd_mounted="${RED}Not Mounted${NC}"
-  local hdd_auto="${RED}No Auto-mount${NC}"
-  local hdd6t_mounted="${RED}Not Mounted${NC}"
-  local hdd6t_auto="${RED}No Auto-mount${NC}"
-
-  # Check /mnt/hdd
-  if grep -qs " /mnt/hdd " /proc/mounts; then
-    hdd_mounted="${GREEN}Mounted${NC}"
+  if [ "${CONFIGURE_DRIVE_MOUNTS:-false}" = "true" ]; then
+    echo -e "  Storage Mounts:"
+    local mps=($DRIVE_MOUNT_POINTS)
+    local count=${#mps[@]}
+    
+    for ((i=0; i<count; i++)); do
+      local mp="${mps[i]}"
+      local mounted="${RED}Not Mounted${NC}"
+      local auto_cfg="${RED}No Auto-mount${NC}"
+      
+      if grep -qs " ${mp} " /proc/mounts; then
+        mounted="${GREEN}Mounted${NC}"
+      fi
+      if grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]${mp}([[:space:]]|$)"; then
+        if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E "[[:space:]]${mp}([[:space:]]|$)" | grep -q "noauto"; then
+          auto_cfg="${GREEN}Auto-mount Configured${NC}"
+        fi
+      fi
+      echo -e "    - ${mp}: [${mounted}] [${auto_cfg}]"
+    done
+  else
+    echo -e "  Storage Mounts: ${YELLOW}Auto-mounting not configured (Portable Mode)${NC}"
   fi
-  if grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]/mnt/hdd([[:space:]]|$)"; then
-    if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E "[[:space:]]/mnt/hdd([[:space:]]|$)" | grep -q "noauto"; then
-      hdd_auto="${GREEN}Auto-mount Configured${NC}"
+}
+
+# ------------------------------------------------------------------------------
+# PORTAL ACTION 16.5: NON-INTERACTIVE RESTART SERVICES
+# ------------------------------------------------------------------------------
+action_restart_services_noninteractive() {
+  local target_services_arg="$1"
+  local selected_services=()
+  if [ "$target_services_arg" = "all" ] || [ -z "$target_services_arg" ]; then
+    selected_services=($(docker compose $COMPOSE_ARGS config --services | sort))
+  else
+    IFS=',' read -ra ADDR <<< "$target_services_arg"
+    for svc in "${ADDR[@]}"; do
+      svc=$(echo "$svc" | xargs)
+      # Expand suites if needed
+      if [ "$svc" = "immich_suite" ]; then
+        selected_services+=("immich-server" "immich-machine-learning" "redis" "database")
+      elif [ "$svc" = "nextcloud_suite" ]; then
+        selected_services+=("nextcloud-app" "nextcloud-cron" "nextcloud-db")
+      elif [ "$svc" = "jellyfin_suite" ]; then
+        selected_services+=("jellyfin" "qbittorrent" "radarr" "sonarr" "prowlarr" "flaresolverr" "jellyseerr" "bazarr" "navidrome" "metube" "media-local-tracker" "torrent-generator")
+      elif [ "$svc" = "util_suite" ]; then
+        selected_services+=("vaultwarden" "stirling-pdf" "it-tools" "uptime-kuma" "syncthing" "pairdrop" "paperless-redis" "paperless-web" "radicale" "baikal" "cronicle" "ofelia" "tailscale")
+      else
+        selected_services+=("$svc")
+      fi
+    done
+  fi
+
+  echo -e "\nRestarting services: ${GREEN}${selected_services[*]}${NC}"
+  docker compose $COMPOSE_ARGS stop "${selected_services[@]}"
+  docker compose $COMPOSE_ARGS up -d "${selected_services[@]}"
+  echo -e "${GREEN}✔ Services restarted successfully!${NC}"
+  restore_ownership
+}
+
+# ------------------------------------------------------------------------------
+# PORTAL ACTION 16: NUKE SELECTED SERVICES
+# ------------------------------------------------------------------------------
+action_nuke_selected() {
+  local target_services_arg="$1"
+  echo -e "\n${RED}⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️${NC}"
+  echo -e "${RED}⚠️ DANGER: THIS WILL NUKE AND ERASE SELECTED DATABASES AND CONFIGURATIONS! ⚠️${NC}"
+  echo -e "${RED}⚠️ This permanently deletes configurations/databases for: ${target_services_arg}${NC}"
+  echo -e "${RED}⚠️ Your raw media/photos inside external mounts will NOT be touched. ⚠️${NC}"
+  echo -e "${RED}⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️ ⚠️⚠️⚠️${NC}"
+
+  local CONFIRM_NUKE=""
+  if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+    CONFIRM_NUKE="yes"
+  else
+    read -rp "Are you absolutely sure you want to proceed? (type 'yes' to confirm): " CONFIRM_NUKE
+  fi
+
+  if [ "$CONFIRM_NUKE" != "yes" ]; then
+    echo -e "${YELLOW}Nuke operation cancelled.${NC}"
+    return
+  fi
+
+  # Determine which services to nuke
+  local selected_services=()
+  if [ "$target_services_arg" = "all" ] || [ -z "$target_services_arg" ]; then
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      selected_services=($(docker compose $COMPOSE_ARGS config --services | sort))
+    else
+      echo -e "\nWould you like to nuke all services or select specific services?"
+      read -rp "Enter 'all' or 'select' [default: all]: " nuke_choice
+      nuke_choice="${nuke_choice:-all}"
+      if [[ "$nuke_choice" =~ ^[Ss]elect$ ]]; then
+        local selected_list
+        selected_list=$(select_services_prompt "Enter the numbers of the services/groups you want to nuke (comma-separated): ")
+        selected_services=($selected_list)
+      else
+        selected_services=($(docker compose $COMPOSE_ARGS config --services | sort))
+      fi
+    fi
+  else
+    # Parse comma separated services
+    IFS=',' read -ra ADDR <<< "$target_services_arg"
+    for svc in "${ADDR[@]}"; do
+      svc=$(echo "$svc" | xargs)
+      # If it's a suite group name, expand it
+      if [ "$svc" = "immich_suite" ]; then
+        selected_services+=("immich-server" "immich-machine-learning" "redis" "database")
+      elif [ "$svc" = "nextcloud_suite" ]; then
+        selected_services+=("nextcloud-app" "nextcloud-cron" "nextcloud-db")
+      elif [ "$svc" = "jellyfin_suite" ]; then
+        selected_services+=("jellyfin" "qbittorrent" "radarr" "sonarr" "prowlarr" "flaresolverr" "jellyseerr" "bazarr" "navidrome" "metube" "media-local-tracker" "torrent-generator")
+      elif [ "$svc" = "util_suite" ]; then
+        selected_services+=("vaultwarden" "stirling-pdf" "it-tools" "uptime-kuma" "syncthing" "pairdrop" "paperless-redis" "paperless-web" "radicale" "baikal" "cronicle" "ofelia" "tailscale")
+      else
+        selected_services+=("$svc")
+      fi
+    done
+  fi
+
+  if [ ${#selected_services[@]} -eq 0 ]; then
+    echo -e "${RED}No valid services selected for nuking.${NC}"
+    return 1
+  fi
+
+  echo -e "${RED}Stopping selected containers and removing volumes...${NC}"
+  docker compose $COMPOSE_ARGS rm -f -s -v "${selected_services[@]}" || true
+
+  echo -e "${RED}Deleting appdata configuration directories for selected services...${NC}"
+  for service in "${selected_services[@]}"; do
+    case "$service" in
+      heimdall) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/heimdall" ;;
+      homepage) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/homepage" ;;
+      jellyfin) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/jellyfin" ;;
+      qbittorrent) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/qbittorrent" ;;
+      radarr) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/radarr" ;;
+      sonarr) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/sonarr" ;;
+      prowlarr) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/prowlarr" ;;
+      jellyseerr) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/jellyseerr" ;;
+      bazarr) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/bazarr" ;;
+      navidrome) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/navidrome" ;;
+      metube) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/metube" ;;
+      torrent-generator) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/torrent-generator" ;;
+      nextcloud-app|nextcloud-cron|nextcloud-db)
+        rm -rf "${NEXTCLOUD_DB_LOCATION:-./appdata/nextcloud/postgres}"
+        if [ "$service" = "nextcloud-app" ]; then
+          rm -rf "${NEXTCLOUD_DATA_LOCATION:-./data/nextcloud}"
+        fi
+        ;;
+      immich-server|immich-machine-learning|redis|database)
+        rm -rf "${DB_DATA_LOCATION:-./appdata/immich/postgres}"
+        ;;
+      vaultwarden) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/vaultwarden" ;;
+      stirling-pdf) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/stirling-pdf" ;;
+      uptime-kuma) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/uptime-kuma" ;;
+      syncthing) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/syncthing" ;;
+      paperless-redis|paperless-web)
+        rm -rf "${SYSTEM_DATA_DIR:-./appdata}/paperless"
+        ;;
+      radicale) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/radicale" ;;
+      baikal) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/baikal" ;;
+      cronicle) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/cronicle" ;;
+      tailscale) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/tailscale" ;;
+      filebrowser) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/filebrowser" ;;
+      kopia) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/kopia" ;;
+      backrest) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/backrest" ;;
+    esac
+  done
+
+  # If we nuked everything, we can also delete the env files
+  local total_services=($(docker compose $COMPOSE_ARGS config --services | sort))
+  if [ ${#selected_services[@]} -eq ${#total_services[@]} ]; then
+    echo -e "${RED}All services nuked. Removing env configurations...${NC}"
+    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
+      rm -f immich/.env nextcloud/.env utility/.env media/.env storage/.env
+    else
+      rm -f .env immich/.env nextcloud/.env utility/.env media/.env storage/.env
     fi
   fi
 
-  # Check /mnt/hdd6t
-  if grep -qs " /mnt/hdd6t " /proc/mounts; then
-    hdd6t_mounted="${GREEN}Mounted${NC}"
+  echo -e "\n${BLUE}Syncing latest configurations...${NC}"
+  sync_from_github_silent
+
+  # Re-run config wizard only if running interactively and we nuked all,
+  # or if env files were deleted and don't exist.
+  if [ ! -f .env ]; then
+    echo -e "\n${BLUE}Starting configuration wizard...${NC}"
+    prompt_and_generate_configs
   fi
-  if grep -v "^#" /etc/fstab 2>/dev/null | grep -E -q "[[:space:]]/mnt/hdd6t([[:space:]]|$)"; then
-    if ! grep -v "^#" /etc/fstab 2>/dev/null | grep -E "[[:space:]]/mnt/hdd6t([[:space:]]|$)" | grep -q "noauto"; then
-      hdd6t_auto="${GREEN}Auto-mount Configured${NC}"
+
+  build_compose_args
+
+  # Re-deploy selected services
+  echo -e "${GREEN}Deploying fresh instances of nuked services...${NC}"
+  for service in "${selected_services[@]}"; do
+    echo -e "Pulling image for: ${BLUE}$service${NC}..."
+    local retry=0
+    local success=false
+    while [ $retry -lt 3 ] && [ "$success" = false ]; do
+      if docker compose $COMPOSE_ARGS pull "$service"; then
+        success=true
+      else
+        retry=$((retry + 1))
+        echo -e "${YELLOW}Pull failed. Retrying in 5 seconds... ($retry/3)${NC}"
+        sleep 5
+      fi
+    done
+  done
+
+  echo -e "${GREEN}Starting nuked services...${NC}"
+  docker compose $COMPOSE_ARGS up -d "${selected_services[@]}"
+
+  # Run post-install configuration if these services were recreated
+  if [[ " ${selected_services[*]} " =~ " sonarr " || " ${selected_services[*]} " =~ " radarr " || " ${selected_services[*]} " =~ " prowlarr " ]]; then
+    if [ -f "./configure_services.py" ]; then
+      echo -e "\nRunning API setups..."
+      python3 ./configure_services.py --services "$(echo "${selected_services[*]}" | tr ' ' ',')" || true
     fi
   fi
 
-  echo -e "  Storage Mounts:"
-  echo -e "    - /mnt/hdd:   [${hdd_mounted}] [${hdd_auto}]"
-  echo -e "    - /mnt/hdd6t: [${hdd6t_mounted}] [${hdd6t_auto}]"
+  echo -e "${GREEN}✔ Selected services nuked and reinstalled successfully!${NC}"
+  restore_ownership
+}
+
+# ------------------------------------------------------------------------------
+# PORTAL ACTION 17: NON-INTERACTIVE UPDATE CONFIG & DEPLOY SELECTIVE SERVICES
+# ------------------------------------------------------------------------------
+action_update_config_noninteractive() {
+  local target_services_arg="$1"
+  echo -e "\nUpdating configuration from Git repository..."
+  sync_from_github_silent
+  build_compose_args
+
+  if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+  fi
+
+  local selected_services=()
+  if [ "$target_services_arg" = "all" ] || [ -z "$target_services_arg" ]; then
+    selected_services=($(docker compose $COMPOSE_ARGS config --services | sort))
+  else
+    # Parse comma separated list
+    IFS=',' read -ra ADDR <<< "$target_services_arg"
+    for svc in "${ADDR[@]}"; do
+      svc=$(echo "$svc" | xargs)
+      # Expand suite if name matches
+      if [ "$svc" = "immich_suite" ]; then
+        selected_services+=("immich-server" "immich-machine-learning" "redis" "database")
+      elif [ "$svc" = "nextcloud_suite" ]; then
+        selected_services+=("nextcloud-app" "nextcloud-cron" "nextcloud-db")
+      elif [ "$svc" = "jellyfin_suite" ]; then
+        selected_services+=("jellyfin" "qbittorrent" "radarr" "sonarr" "prowlarr" "flaresolverr" "jellyseerr" "bazarr" "navidrome" "metube" "media-local-tracker" "torrent-generator")
+      elif [ "$svc" = "util_suite" ]; then
+        selected_services+=("vaultwarden" "stirling-pdf" "it-tools" "uptime-kuma" "syncthing" "pairdrop" "paperless-redis" "paperless-web" "radicale" "baikal" "cronicle" "ofelia" "tailscale")
+      else
+        selected_services+=("$svc")
+      fi
+    done
+  fi
+
+  echo -e "Updating services: ${GREEN}${selected_services[*]}${NC}"
+
+  # Pull and start
+  for service in "${selected_services[@]}"; do
+    echo -e "Pulling image for: ${BLUE}$service${NC}..."
+    docker compose $COMPOSE_ARGS pull "$service" || true
+  done
+
+  echo -e "${BLUE}Bringing services up...${NC}"
+  docker compose $COMPOSE_ARGS up -d "${selected_services[@]}"
+
+  # Configure Homepage widgets
+  if [ -f "./configure_homepage.sh" ]; then
+    chmod +x ./configure_homepage.sh
+    ./configure_homepage.sh || true
+  fi
+
+  # Auto-reconfigure media if they are in the list
+  if [[ " ${selected_services[*]} " =~ " sonarr " || " ${selected_services[*]} " =~ " radarr " || " ${selected_services[*]} " =~ " prowlarr " ]]; then
+    if [ -f "./configure_services.py" ]; then
+      chmod +x ./configure_services.py
+      python3 ./configure_services.py --services "$(echo "${selected_services[*]}" | tr ' ' ',')" || true
+    fi
+  fi
+
+  restore_ownership
+}
+
+# ------------------------------------------------------------------------------
+# PORTAL ACTION 18: NON-INTERACTIVE FORCE RECONFIGURE
+# ------------------------------------------------------------------------------
+action_reconfigure_noninteractive() {
+  local target_services_arg="$1"
+  echo -e "\nReconfiguring media services..."
+
+  local selected_list=()
+  if [ "$target_services_arg" = "all" ] || [ -z "$target_services_arg" ]; then
+    selected_list=("prowlarr" "sonarr" "radarr")
+  else
+    IFS=',' read -ra ADDR <<< "$target_services_arg"
+    for choice in "${ADDR[@]}"; do
+      choice=$(echo "$choice" | xargs)
+      if [[ "$choice" == "prowlarr" || "$choice" == "sonarr" || "$choice" == "radarr" ]]; then
+        selected_list+=("$choice")
+      fi
+    done
+  fi
+
+  local joined_selected
+  joined_selected=$(local IFS=,; echo "${selected_list[*]}")
+
+  if [ -z "$joined_selected" ]; then
+    echo -e "${RED}No valid media services selected for reconfiguration.${NC}"
+    return 1
+  fi
+
+  echo -e "Triggering reconfiguration for: ${GREEN}${joined_selected}${NC}"
+
+  if [ -f "./configure_services.py" ]; then
+    chmod +x ./configure_services.py
+    python3 ./configure_services.py --services "$joined_selected" || true
+  else
+    echo -e "${RED}Error: configure_services.py not found!${NC}"
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# PORTAL ACTION 19: NON-INTERACTIVE TAILSCALE DEPLOY
+# ------------------------------------------------------------------------------
+action_setup_tailscale_noninteractive() {
+  echo -e "\n${BLUE}=== Configure Secure Remote Access (Tailscale VPN) ===${NC}"
+  if [ -z "${TS_AUTHKEY:-}" ]; then
+    echo -e "${YELLOW}Warning: TS_AUTHKEY is not set in your environment configuration.${NC}"
+    echo -e "If you want containerized Tailscale to auto-connect, please configure TS_AUTHKEY."
+  else
+    echo -e "${GREEN}TS_AUTHKEY is set. Starting containerized Tailscale VPN...${NC}"
+  fi
+
+  docker compose $COMPOSE_ARGS up -d tailscale
+  echo -e "${GREEN}Tailscale container started!${NC}"
+  echo -e "Checking container status..."
+  sleep 3
+  docker exec utility_tailscale tailscale status || true
+}
+
+# ------------------------------------------------------------------------------
+# PORTAL ACTION 20: SAMBA MANAGEMENT OPTIONS
+# ------------------------------------------------------------------------------
+action_samba_info() {
+  local installed="false"
+  if command -v smbd &>/dev/null; then
+    installed="true"
+  fi
+  local active="false"
+  if pgrep smbd &>/dev/null || systemctl is-active smbd &>/dev/null; then
+    active="true"
+  fi
+  
+  local users_json="[]"
+  if [ "$installed" = "true" ]; then
+    local users=()
+    while IFS=: read -r username _; do
+      if [ -n "$username" ]; then
+        users+=("\"$username\"")
+      fi
+    done < <(pdbedit -L 2>/dev/null)
+    
+    if [ ${#users[@]} -gt 0 ]; then
+      local IFS=","
+      users_json="[${users[*]}]"
+    fi
+  fi
+
+  local shares_json="[]"
+  if [ "$installed" = "true" ] && [ -f /etc/samba/smb.conf ]; then
+    shares_json=$(python3 -c "
+import sys, json
+shares = []
+current = None
+try:
+    with open('/etc/samba/smb.conf', 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith(';'):
+                continue
+            if line.startswith('[') and line.endswith(']'):
+                name = line[1:-1].strip()
+                if name not in ['global', 'homes', 'printers', 'print$']:
+                    current = {
+                        'name': name,
+                        'path': '',
+                        'valid_users': '',
+                        'guest_ok': 'no',
+                        'read_only': 'no'
+                    }
+                    shares.append(current)
+                else:
+                    current = None
+            elif current:
+                if '=' in line:
+                    parts = line.split('=', 1)
+                    k = parts[0].strip().lower()
+                    v = parts[1].strip()
+                    if k == 'path':
+                        current['path'] = v
+                    elif k in ['valid users', 'valid_users']:
+                        current['valid_users'] = v
+                    elif k in ['guest ok', 'guest_ok', 'public']:
+                        current['guest_ok'] = v
+                    elif k in ['read only', 'read_only', 'writable', 'writeable']:
+                        if k in ['writable', 'writeable']:
+                            current['read_only'] = 'no' if v.lower() in ['yes', 'true', '1'] else 'yes'
+                        else:
+                            current['read_only'] = v
+except Exception as e:
+    pass
+print(json.dumps(shares))
+" 2>/dev/null || echo "[]")
+  fi
+
+  cat <<EOF
+{
+  "installed": $installed,
+  "active": $active,
+  "users": $users_json,
+  "shares": $shares_json
+}
+EOF
+}
+
+action_samba_add_user() {
+  local username="$1"
+  local password="$2"
+  if [ -z "$username" ] || [ -z "$password" ]; then
+    echo -e "${RED}Error: Username and password are required.${NC}"
+    return 1
+  fi
+  
+  if ! id "$username" &>/dev/null; then
+    echo -e "Creating system user '$username'..."
+    useradd -M -s /usr/sbin/nologin "$username"
+  fi
+  
+  echo -e "Setting Samba password for '$username'..."
+  printf "%s\n%s\n" "$password" "$password" | smbpasswd -a -s "$username"
+  echo -e "${GREEN}✔ User '$username' added successfully to Samba!${NC}"
+}
+
+action_samba_remove_user() {
+  local username="$1"
+  if [ -z "$username" ]; then
+    echo -e "${RED}Error: Username is required.${NC}"
+    return 1
+  fi
+  
+  echo -e "Removing Samba credentials for '$username'..."
+  smbpasswd -x "$username"
+  
+  if id "$username" &>/dev/null; then
+    echo -e "Deleting system user '$username'..."
+    userdel "$username" 2>/dev/null || true
+  fi
+  echo -e "${GREEN}✔ User '$username' removed successfully!${NC}"
+}
+
+action_samba_add_share() {
+  local name="$1"
+  local path="$2"
+  local valid_users="$3"
+  local guest_ok="${4:-no}"
+  local read_only="${5:-no}"
+  
+  if [ -z "$name" ] || [ -z "$path" ]; then
+    echo -e "${RED}Error: Share name and path are required.${NC}"
+    return 1
+  fi
+  
+  name=$(echo "$name" | tr -d '[]')
+  
+  if [ ! -d "$path" ]; then
+    echo -e "Creating shared folder: $path..."
+    mkdir -p "$path"
+    chmod 775 "$path"
+  fi
+  
+  action_samba_remove_share "$name" &>/dev/null
+  
+  echo -e "Appending share '$name' config to smb.conf..."
+  cat <<EOF >> /etc/samba/smb.conf
+
+[$name]
+   path = $path
+   browseable = yes
+   read only = $read_only
+   guest ok = $guest_ok
+   valid users = $valid_users
+EOF
+  
+  echo -e "Restarting Samba daemon..."
+  systemctl restart smbd || service smbd restart || rc-service smbd restart || true
+  echo -e "${GREEN}✔ Share '$name' added successfully!${NC}"
+}
+
+action_samba_remove_share() {
+  local name="$1"
+  if [ -z "$name" ]; then
+    echo -e "${RED}Error: Share name is required.${NC}"
+    return 1
+  fi
+  
+  echo -e "Removing share '$name' config from smb.conf..."
+  python3 -c "
+import sys
+name = sys.argv[1]
+lines = []
+inside_target = False
+try:
+    with open('/etc/samba/smb.conf', 'r') as f:
+        for line in f:
+            stripped = line.strip()
+            if stripped.startswith('[') and stripped.endswith(']'):
+                sec = stripped[1:-1].strip()
+                if sec == name:
+                    inside_target = True
+                    continue
+                else:
+                    inside_target = False
+            if inside_target:
+                continue
+            lines.append(line)
+    with open('/etc/samba/smb.conf', 'w') as f:
+        f.writelines(lines)
+    print('Success')
+except Exception as e:
+    print(f'Error: {e}')
+" "$name"
+  
+  echo -e "Restarting Samba daemon..."
+  systemctl restart smbd || service smbd restart || rc-service smbd restart || true
+  echo -e "${GREEN}✔ Share '$name' removed successfully!${NC}"
+}
+
+# ------------------------------------------------------------------------------
+# PORTAL ACTION 21: NETPLAN STATIC IP & DHCP CONFIGURATION
+# ------------------------------------------------------------------------------
+action_netplan_info() {
+  local installed="false"
+  if command -v netplan &>/dev/null; then
+    installed="true"
+  fi
+
+  local interfaces_json="[]"
+  local interfaces=()
+  if [ -d /sys/class/net ]; then
+    for dev in /sys/class/net/*; do
+      [ -e "$dev" ] || continue
+      name=$(basename "$dev")
+      if [[ "$name" != "lo" && "$name" != docker* && "$name" != veth* && "$name" != br-* && "$name" != tailscale* ]]; then
+        interfaces+=("\"$name\"")
+      fi
+    done
+  else
+    # Mock fallback for non-Linux hosts (e.g. Darwin macOS development)
+    interfaces+=("\"eth0\"")
+    interfaces+=("\"enp3s0\"")
+  fi
+
+  if [ ${#interfaces[@]} -gt 0 ]; then
+    local IFS=","
+    interfaces_json="[${interfaces[*]}]"
+  fi
+
+  local current_config="null"
+  if [ -d /etc/netplan ]; then
+    current_config=$(python3 -c "
+import sys, json, glob
+config = {
+    'interface': '',
+    'dhcp': True,
+    'address': '',
+    'gateway': '',
+    'dns': []
+}
+files = glob.glob('/etc/netplan/*.yaml') + glob.glob('/etc/netplan/*.yml')
+if files:
+    try:
+        with open(files[0], 'r') as f:
+            lines = f.readlines()
+            current_iface = ''
+            in_ethernets = False
+            in_nameservers = False
+            for line in lines:
+                stripped = line.strip()
+                if not stripped or stripped.startswith('#'):
+                    continue
+                indent = len(line) - len(line.lstrip())
+                if stripped.startswith('ethernets:'):
+                    in_ethernets = True
+                    continue
+                if in_ethernets:
+                    if indent == 0 and not stripped.startswith('ethernets:'):
+                        in_ethernets = False
+                        continue
+                    if indent == 4 or (indent == 2 and not stripped.endswith(':') and ':' in stripped):
+                        if stripped.endswith(':'):
+                            current_iface = stripped[:-1].strip()
+                            config['interface'] = current_iface
+                            continue
+                    if current_iface and indent >= 6:
+                        if stripped.startswith('dhcp4:'):
+                            val = stripped.split(':', 1)[1].strip().lower()
+                            config['dhcp'] = val in ['true', 'yes', '1']
+                        elif stripped.startswith('addresses:'):
+                            parts = stripped.split(':', 1)[1].strip()
+                            if parts.startswith('[') and parts.endswith(']'):
+                                addr = parts[1:-1].strip().split(',')[0].strip()
+                                config['address'] = addr
+                        elif stripped.startswith('-') and len(lines) > 0:
+                            config['address'] = stripped[1:].strip()
+                        elif stripped.startswith('gateway4:'):
+                            config['gateway'] = stripped.split(':', 1)[1].strip()
+                        elif stripped.startswith('via:'):
+                            config['gateway'] = stripped.split(':', 1)[1].strip()
+                        elif stripped.startswith('nameservers:'):
+                            in_nameservers = True
+                        elif in_nameservers:
+                            if indent < 8:
+                                in_nameservers = False
+                            elif stripped.startswith('addresses:'):
+                                parts = stripped.split(':', 1)[1].strip()
+                                if parts.startswith('[') and parts.endswith(']'):
+                                    config['dns'] = [x.strip() for x in parts[1:-1].split(',')]
+    except Exception as e:
+        pass
+print(json.dumps(config))
+" 2>/dev/null || echo "null")
+  else
+    # Mock fallback for non-Linux hosts
+    current_config="{\"interface\": \"eth0\", \"dhcp\": true, \"address\": \"192.168.1.150/24\", \"gateway\": \"192.168.1.1\", \"dns\": [\"8.8.8.8\", \"1.1.1.1\"]}"
+  fi
+
+  cat <<EOF
+{
+  "installed": $installed,
+  "interfaces": $interfaces_json,
+  "current": $current_config
+}
+EOF
+}
+
+action_set_static_ip() {
+  local interface="$1"
+  local ip_cidr="$2"
+  local gateway="$3"
+  local dns1="$4"
+  local dns2="$5"
+
+  if [ -z "$interface" ] || [ -z "$ip_cidr" ] || [ -z "$gateway" ] || [ -z "$dns1" ]; then
+    echo -e "${RED}Error: Interface, IP/CIDR, Gateway, and Primary DNS are required.${NC}"
+    return 1
+  fi
+
+  if ! command -v netplan &>/dev/null; then
+    echo -e "${YELLOW}Warning: netplan utility not found on the host system.${NC}"
+    if [ "$(uname)" = "Darwin" ]; then
+      echo -e "[DEV MODE] Writing simulated Netplan configuration for $interface..."
+      echo -e "IP Address: $ip_cidr"
+      echo -e "Gateway: $gateway"
+      echo -e "DNS: $dns1, $dns2"
+      echo -e "${GREEN}✔ Simulated Static IP set successfully!${NC}"
+      return 0
+    else
+      echo -e "${RED}Error: netplan is not installed. Static IP configuration requires Netplan on Ubuntu/Debian.${NC}"
+      return 1
+    fi
+  fi
+
+  echo -e "Backing up existing Netplan configurations..."
+  mkdir -p /etc/netplan/backup/
+  cp -f /etc/netplan/*.yaml /etc/netplan/backup/ 2>/dev/null || true
+  cp -f /etc/netplan/*.yml /etc/netplan/backup/ 2>/dev/null || true
+
+  rm -f /etc/netplan/*.yaml /etc/netplan/*.yml
+
+  local netplan_file="/etc/netplan/01-netcfg.yaml"
+  echo -e "Writing static IP configuration to $netplan_file..."
+  cat <<EOF > "$netplan_file"
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    $interface:
+      dhcp4: no
+      addresses:
+        - $ip_cidr
+      routes:
+        - to: default
+          via: $gateway
+      nameservers:
+        addresses:
+          - $dns1
+EOF
+
+  if [ -n "$dns2" ]; then
+    cat <<EOF >> "$netplan_file"
+          - $dns2
+EOF
+  fi
+
+  chmod 600 "$netplan_file"
+
+  echo -e "Applying netplan configuration..."
+  if netplan apply; then
+    echo -e "${GREEN}✔ Static IP configured successfully!${NC}"
+    return 0
+  else
+    echo -e "${RED}Error: Failed to apply Netplan configuration.${NC}"
+    echo -e "Restoring backup configurations..."
+    cp -f /etc/netplan/backup/* /etc/netplan/ 2>/dev/null || true
+    netplan apply
+    return 1
+  fi
+}
+
+action_set_dhcp() {
+  local interface="$1"
+  if [ -z "$interface" ]; then
+    echo -e "${RED}Error: Interface is required.${NC}"
+    return 1
+  fi
+
+  if ! command -v netplan &>/dev/null; then
+    echo -e "${YELLOW}Warning: netplan utility not found on the host system.${NC}"
+    if [ "$(uname)" = "Darwin" ]; then
+      echo -e "[DEV MODE] Writing simulated Netplan DHCP configuration for $interface..."
+      echo -e "${GREEN}✔ Simulated DHCP set successfully!${NC}"
+      return 0
+    else
+      echo -e "${RED}Error: netplan is not installed. DHCP configuration requires Netplan on Ubuntu/Debian.${NC}"
+      return 1
+    fi
+  fi
+
+  echo -e "Backing up existing Netplan configurations..."
+  mkdir -p /etc/netplan/backup/
+  cp -f /etc/netplan/*.yaml /etc/netplan/backup/ 2>/dev/null || true
+  cp -f /etc/netplan/*.yml /etc/netplan/backup/ 2>/dev/null || true
+
+  rm -f /etc/netplan/*.yaml /etc/netplan/*.yml
+
+  local netplan_file="/etc/netplan/01-netcfg.yaml"
+  echo -e "Writing DHCP configuration to $netplan_file..."
+  cat <<EOF > "$netplan_file"
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    $interface:
+      dhcp4: yes
+EOF
+
+  chmod 600 "$netplan_file"
+
+  echo -e "Applying netplan configuration..."
+  if netplan apply; then
+    echo -e "${GREEN}✔ DHCP configured successfully!${NC}"
+    return 0
+  else
+    echo -e "${RED}Error: Failed to apply Netplan configuration.${NC}"
+    echo -e "Restoring backup configurations..."
+    cp -f /etc/netplan/backup/* /etc/netplan/ 2>/dev/null || true
+    netplan apply
+    return 1
+  fi
 }
 
 # ------------------------------------------------------------------------------
 # PORTAL INTERACTIVE MAIN MENU LOOP
 # ------------------------------------------------------------------------------
 main_menu() {
-  # Ensure bridge network exists at startup
   if ! docker network inspect homeserver_network &>/dev/null; then
     echo -e "Creating shared global bridge network: ${BLUE}homeserver_network${NC}..."
     docker network create homeserver_network
   fi
 
   while true; do
-    # Ensure mounts are active
     ensure_mounts
 
     echo -e "\n${BLUE}======================================================================${NC}"
@@ -1922,24 +2897,21 @@ main_menu() {
 # MAIN SCRIPT ENTRY POINT
 # ==============================================================================
 
-# 1. Root Permission Check
-if [ "$EUID" -ne 0 ]; then
-  echo -e "${RED}Error: Please run this script with sudo or as root to handle installation and system checks.${NC}"
-  echo -e "Usage: sudo ./setup.sh"
-  exit 1
+if [ "$(uname)" != "Darwin" ]; then
+  if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}Error: Please run this script with sudo or as root to handle installation and system checks.${NC}"
+    echo -e "Usage: sudo ./setup.sh"
+    exit 1
+  fi
+  check_dependencies
 fi
 
-# 2. Check system dependencies (Docker & Compose)
-check_dependencies
-
-# 3. Source environment if it exists early
 if [ -f .env ]; then
   set -a
   source .env
   set +a
 fi
 
-# 4. Build compose args and verify compose files are present
 if ! build_compose_args; then
   echo -e "${YELLOW}No Docker Compose configuration files found in the current directory.${NC}"
   echo -e "Automatically downloading latest configurations from GitHub first..."
@@ -1947,12 +2919,88 @@ if ! build_compose_args; then
   build_compose_args
 fi
 
-# 5. If environment file does not exist, run configuration prompts first
 if [ ! -f .env ]; then
   echo -e "${YELLOW}No environment config found. Initializing configuration wizard...${NC}"
   prompt_and_generate_configs
 fi
 
-# 6. Launch portal main menu
+# Check if CLI arguments were passed
+if [ $# -gt 0 ]; then
+  export NON_INTERACTIVE="true"
+  case "$1" in
+    --sync)
+      action_sync_latest
+      ;;
+    --nuke)
+      action_nuke_selected "$2"
+      ;;
+    --update)
+      action_update_config_noninteractive "$2"
+      ;;
+    --reconfigure)
+      action_reconfigure_noninteractive "$2"
+      ;;
+    --restart)
+      action_restart_services_noninteractive "$2"
+      ;;
+    --prune)
+      action_docker_prune
+      ;;
+    --homepage)
+      action_update_homepage
+      ;;
+    --backup)
+      action_backup_configs
+      ;;
+    --tailscale)
+      action_setup_tailscale_noninteractive
+      ;;
+    --install-samba)
+      action_install_samba
+      ;;
+    --sys-maintenance)
+      action_system_maintenance
+      ;;
+    --git-push)
+      action_git_push
+      ;;
+    --check-updates)
+      action_check_updates
+      ;;
+    --samba-info)
+      action_samba_info
+      ;;
+    --samba-add-user)
+      action_samba_add_user "$2" "$3"
+      ;;
+    --samba-remove-user)
+      action_samba_remove_user "$2"
+      ;;
+    --samba-add-share)
+      action_samba_add_share "$2" "$3" "$4" "$5" "$6"
+      ;;
+    --samba-remove-share)
+      action_samba_remove_share "$2"
+      ;;
+    --netplan-info)
+      action_netplan_info
+      ;;
+    --set-static-ip)
+      action_set_static_ip "$2" "$3" "$4" "$5" "$6"
+      ;;
+    --set-dhcp)
+      action_set_dhcp "$2"
+      ;;
+    --install-docker)
+      check_dependencies
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+  exit 0
+fi
+
 main_menu
 
