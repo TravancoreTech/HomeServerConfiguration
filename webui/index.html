@@ -96,15 +96,16 @@
         </div>
       </div>
       
-      <!-- Containers vitals status lists -->
-      <div class="stack-status-panel">
+      <!-- Containers vitals status summary -->
+      <div class="stack-status-panel" id="sidebar-status-panel" style="cursor: pointer;" onclick="triggerJourney('docker')">
         <div class="section-title">
-          <span>Active Stack</span>
-          <span class="status-count" id="active-cnt">0</span>
+          <span>System Status</span>
         </div>
-        <div class="containers-list" id="containers-list-target">
-          <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1rem;">
-            Loading containers...
+        <div id="sidebar-status-card" style="padding: 0.75rem 1rem; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; transition: var(--transition); user-select: none;">
+          <span id="sidebar-status-dot" class="status-dot up"></span>
+          <div style="display: flex; flex-direction: column; min-width: 0;">
+            <span id="sidebar-status-title" style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary);">All Good</span>
+            <span id="sidebar-status-desc" style="font-size: 0.72rem; color: var(--text-muted);">Loading system status...</span>
           </div>
         </div>
       </div>
@@ -118,6 +119,10 @@
             <button class="menu-item active" onclick="triggerJourney('dashboard')" id="btn-dashboard">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
               Overview Dashboard
+            </button>
+            <button class="menu-item" onclick="triggerJourney('docker')" id="btn-docker">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+              Docker Containers
             </button>
             <button class="menu-item" onclick="triggerJourney('install')" id="btn-install">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
@@ -269,9 +274,9 @@
           
           <div class="dashboard-metrics-grid">
             <div class="metric-card">
-              <div class="metric-title">Services Status</div>
-              <div class="metric-value" id="stats-total">0</div>
-              <div class="metric-detail" id="stats-running">0 running, 0 stopped</div>
+              <div class="metric-title">Docker Daemon</div>
+              <div class="metric-value" id="stats-daemon-status">Online</div>
+              <div class="metric-detail" id="stats-daemon-desc">Service running</div>
             </div>
             
             <div class="metric-card">
@@ -286,25 +291,44 @@
             </div>
           </div>
 
-          <!-- Docker Containers Status Card -->
+          <!-- Docker Ecosystem Overview Widget -->
           <div class="card" style="margin-top: 1.5rem;">
-            <div class="card-header" style="margin-bottom: 0.75rem; cursor: pointer; user-select: none;" onclick="toggleContainersCollapsible()">
-              <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <h2>Docker Containers Status</h2>
-                <span id="docker-daemon-badge" class="container-status-badge badge-up">Daemon Online</span>
-              </div>
-              <span id="containers-toggle-arrow" style="font-size: 0.95rem; color: var(--text-secondary); transition: var(--transition);">▼</span>
+            <div class="card-header" style="margin-bottom: 0.75rem;">
+              <h2>Docker Service Status Overview</h2>
             </div>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 1rem;">
-              Real-time operational status of all configured services. Click "View Log" to inspect live logs.
-            </p>
             
-            <div id="dashboard-containers-collapse-wrapper" style="max-height: 420px; overflow-y: auto; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-right: 0.25rem;">
-              <div class="dashboard-containers-grid" id="dashboard-containers-target" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
-                <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem;">
-                  Loading docker containers...
-                </div>
+            <!-- Grid displaying aggregate container counts -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; margin-top: 1rem; margin-bottom: 1.5rem;">
+              <div style="padding: 1rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 10px; text-align: center;">
+                <div style="font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Total Services</div>
+                <div id="widget-total-count" style="font-size: 1.6rem; font-weight: 700; color: var(--text-primary); margin-top: 0.25rem;">0</div>
               </div>
+              <div style="padding: 1rem; background: rgba(16,185,129,0.03); border: 1px solid rgba(16,185,129,0.15); border-radius: 10px; text-align: center;">
+                <div style="font-size: 0.78rem; color: var(--accent-green); text-transform: uppercase; font-weight: 600;">Running</div>
+                <div id="widget-running-count" style="font-size: 1.6rem; font-weight: 700; color: var(--accent-green); margin-top: 0.25rem;">0</div>
+              </div>
+              <div style="padding: 1rem; background: rgba(244,63,94,0.03); border: 1px solid rgba(244,63,94,0.15); border-radius: 10px; text-align: center;">
+                <div style="font-size: 0.78rem; color: var(--warning-banner-text); text-transform: uppercase; font-weight: 600;">Stopped</div>
+                <div id="widget-stopped-count" style="font-size: 1.6rem; font-weight: 700; color: var(--warning-banner-text); margin-top: 0.25rem;">0</div>
+              </div>
+              <div style="padding: 1rem; background: rgba(239,68,68,0.03); border: 1px solid rgba(239,68,68,0.15); border-radius: 10px; text-align: center;">
+                <div style="font-size: 0.78rem; color: var(--accent-red); text-transform: uppercase; font-weight: 600;">In Error</div>
+                <div id="widget-error-count" style="font-size: 1.6rem; font-weight: 700; color: var(--accent-red); margin-top: 0.25rem;">0</div>
+              </div>
+            </div>
+
+            <!-- Dynamic System Alerts & Notices Bulletin -->
+            <div id="dashboard-notices-bulletin" class="warning-banner" style="background: rgba(255,255,255,0.01); border-color: var(--border-color); color: var(--text-secondary); margin-bottom: 1.5rem;">
+              <h3 id="bulletin-header" style="color: var(--text-primary);">📰 Status Bulletin</h3>
+              <div id="bulletin-content" style="margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.6;">
+                Analyzing server cluster status...
+              </div>
+            </div>
+
+            <div class="btn-actions-footer" style="margin-top: 0;">
+              <button class="btn btn-primary" onclick="triggerJourney('docker')">
+                <span>🐳 Manage Containers & View Logs</span>
+              </button>
             </div>
           </div>
 
@@ -397,6 +421,95 @@
             <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
               Select a task from the left menu to begin. Each task guides you through the necessary parameters, options, and checklists before initiating execution in the log console.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- JOURNEY: Detailed Docker Container Management -->
+      <section id="journey-docker" class="journey-pane">
+        <div class="card">
+          <div class="card-header" style="margin-bottom: 0.75rem;">
+            <div>
+              <h2>Docker Containers Ecosystem</h2>
+              <div class="card-subtitle">Complete operational status and detailed architecture logs for all services</div>
+            </div>
+            <span id="docker-page-daemon-badge" class="container-status-badge badge-up">Daemon Online</span>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 1.5rem;">
+            Select a service card below to inspect architecture layout, linked containers, compose scripts, and volume mount paths.
+          </p>
+
+          <div class="dashboard-containers-grid" id="docker-page-containers-target" style="margin-bottom: 1rem;">
+            <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem;">
+              Loading docker containers...
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- JOURNEY: Detailed Container Metadata & Architecture Info -->
+      <section id="journey-docker-detail" class="journey-pane">
+        <div class="card">
+          <div style="margin-bottom: 1.5rem;">
+            <a href="javascript:void(0)" onclick="triggerJourney('docker')" style="color: var(--accent-indigo-text); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+              ← Back to Containers List
+            </a>
+          </div>
+
+          <div class="card-header" style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span id="detail-icon" style="font-size: 2.2rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 12px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; user-select: none;">🎬</span>
+              <div>
+                <h2 id="detail-service-name" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">Jellyfin Media Server</h2>
+                <div id="detail-container-name" style="font-size: 0.82rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 0.15rem;">media_jellyfin</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span id="detail-status-badge" class="container-status-badge badge-up">Running</span>
+              <span id="detail-status-dot" class="status-dot up"></span>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 2rem; align-items: start;">
+            <!-- Column 1: Info and Mounts -->
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
+                <h3 style="font-size: 0.95rem; color: var(--accent-indigo-text); font-weight: 600; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">Deployment Info</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem;">
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Suite Group:</span>
+                    <span id="detail-group" style="font-weight: 600; color: var(--text-primary);">Media Suite</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Docker Image:</span>
+                    <span id="detail-image" style="font-weight: 500; font-family: var(--font-mono); color: var(--text-highlight);">jellyfin/jellyfin:latest</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
+                <h3 style="font-size: 0.95rem; color: var(--accent-blue); font-weight: 600; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">Connected Volumes & Paths</h3>
+                <div id="detail-mounts-list" style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.82rem;">
+                  <!-- Dynamically generated mount info -->
+                </div>
+              </div>
+
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
+                <h3 style="font-size: 0.95rem; color: var(--accent-purple); font-weight: 600; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">Linked & Sub-Services</h3>
+                <div id="detail-links-list" style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.82rem;">
+                  <!-- Linked services info -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Column 2: Docker Compose Code -->
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="font-size: 0.95rem; color: var(--text-primary); font-weight: 600;">Docker Compose Configuration</h3>
+                <button class="badge-btn" onclick="copyDetailCompose()">📋 Copy Snippet</button>
+              </div>
+              <pre id="detail-compose-code" style="background: #030712; padding: 1.25rem; border: 1px solid var(--border-color); border-radius: 8px; font-family: var(--font-mono); font-size: 0.8rem; color: #a5b4fc; overflow-x: auto; max-height: 480px; white-space: pre; line-height: 1.5;"></pre>
+            </div>
           </div>
         </div>
       </section>

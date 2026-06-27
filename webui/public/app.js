@@ -111,6 +111,11 @@
         loadAppConfigState();
       }
 
+      // Load Docker containers list if needed
+      if (paneId === 'docker') {
+        fetchStatus();
+      }
+
       // Reset docker-install console state on re-entry
       if (paneId === 'docker-install') {
         const statusEl = document.getElementById('docker-install-status');
@@ -371,140 +376,197 @@
     }
 
     // Fetch container status and render statuses in sidebar & dashboard
-     async function fetchStatus() {
+    async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
 
         // If the server returned an error (e.g. Docker socket permission denied),
         // treat it as daemon-offline — never show the first-time banner.
         if (!res.ok) {
-          const daemonBadge = document.getElementById('docker-daemon-badge');
-          if (daemonBadge) {
-            daemonBadge.className = 'container-status-badge badge-down';
-            daemonBadge.textContent = 'Daemon Offline';
-          }
-          const dbGrid = document.getElementById('dashboard-containers-target');
-          if (dbGrid) dbGrid.innerHTML = '<div style="text-align: center; color: var(--accent-red); font-size: 0.85rem; padding: 1.5rem; font-weight: 500;">⚠️ Docker Daemon is Offline or Unreachable.</div>';
-          document.getElementById('first-time-setup-banner').style.display = 'none';
+          updateStatusOffline();
           return;
         }
 
         const data = await res.json();
-        const list = document.getElementById('containers-list-target');
-        const activeCountEl = document.getElementById('active-cnt');
-        const dbGrid = document.getElementById('dashboard-containers-target');
-        const daemonBadge = document.getElementById('docker-daemon-badge');
+        const dockerPageGrid = document.getElementById('docker-page-containers-target');
+        const firstTimeBanner = document.getElementById('first-time-setup-banner');
+
+        if (dockerPageGrid) dockerPageGrid.innerHTML = '';
         
-        list.innerHTML = '';
-        if (dbGrid) dbGrid.innerHTML = '';
-        
+        // Update Daemon online tags
+        const daemonBadge = document.getElementById('docker-page-daemon-badge');
         if (daemonBadge) {
           daemonBadge.className = 'container-status-badge badge-up';
           daemonBadge.textContent = 'Daemon Online';
         }
+        document.getElementById('stats-daemon-status').textContent = 'Online';
+        document.getElementById('stats-daemon-desc').textContent = 'Daemon running';
 
         if (!data.containers || Object.keys(data.containers).length === 0) {
-          list.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1rem;">No services deployed.</div>';
-          if (dbGrid) dbGrid.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem;">No containers found.</div>';
-          activeCountEl.textContent = '0';
-          document.getElementById('stats-total').textContent = '0';
-          document.getElementById('stats-running').textContent = '0 running';
-          document.getElementById('first-time-setup-banner').style.display = 'block';
+          if (dockerPageGrid) dockerPageGrid.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem;">No containers found.</div>';
+          document.getElementById('widget-total-count').textContent = '0';
+          document.getElementById('widget-running-count').textContent = '0';
+          document.getElementById('widget-stopped-count').textContent = '0';
+          document.getElementById('widget-error-count').textContent = '0';
+          document.getElementById('bulletin-content').innerHTML = 'No service containers deployed yet.';
+          updateSidebarStatus('All Good', '0/0 running', 'up');
+          if (firstTimeBanner) firstTimeBanner.style.display = 'block';
           return;
         }
 
+        let total = 0;
         let running = 0;
         let stopped = 0;
+        let errors = 0;
         let vpnState = 'Offline';
+        const stoppedList = [];
+        const errorList = [];
 
         Object.entries(data.containers).sort().forEach(([name, status]) => {
-          const isUp = status.toLowerCase().includes('up') || status.toLowerCase().includes('running');
+          total++;
+          const statusLower = status.toLowerCase();
+          const isUp = statusLower.includes('up') || statusLower.includes('running');
+          
+          let isError = false;
+          if (statusLower.includes('unhealthy') || statusLower.includes('dead') || (statusLower.includes('exited') && !statusLower.includes('exited (0)'))) {
+            isError = true;
+          }
+
           if (isUp) {
             running++;
             if (name.includes('tailscale')) vpnState = 'Active';
+          } else if (isError) {
+            errors++;
+            errorList.push(name);
           } else {
             stopped++;
+            stoppedList.push(name);
           }
 
           const details = getServiceDetails(name);
 
-          // Render in Left Sidebar
-          const card = document.createElement('div');
-          card.className = 'container-item';
-          card.innerHTML = `
-            <div class="container-info">
-              <span class="status-dot ${isUp ? 'up' : 'down'}"></span>
-              <span style="cursor: pointer;" onclick="triggerLogs('${name}')" title="Click to view logs">${details.name}</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              ${isUp ? `<span class="term-link" onclick="triggerLogs('${name}')" style="font-size: 0.75rem; text-decoration: underline; font-weight: 500;">Logs</span>` : ''}
-              <span class="container-status-badge ${isUp ? 'badge-up' : 'badge-down'}">${isUp ? 'Running' : 'Stopped'}</span>
-            </div>
-          `;
-          list.appendChild(card);
-
-          // Render in Dashboard Grid
-          if (dbGrid) {
+          // Render in Docker Containers Detailed Page Grid
+          if (dockerPageGrid) {
             const dbCard = document.createElement('div');
             dbCard.className = 'dashboard-container-card';
-            dbCard.style.cssText = 'display: flex; flex-direction: row; align-items: flex-start; padding: 1.25rem; gap: 1rem; border-radius: 12px; min-height: auto;';
+            dbCard.style.cssText = 'display: flex; flex-direction: row; align-items: flex-start; padding: 1.25rem; gap: 1rem; border-radius: 12px; min-height: auto; cursor: pointer;';
+            dbCard.onclick = (e) => {
+              // Prevent clicking on Logs link from triggering container details page change
+              if (e.target.tagName.toLowerCase() !== 'a') {
+                showContainerDetails(name, status, isUp, details);
+              }
+            };
             dbCard.innerHTML = `
               <div class="service-card-icon" style="font-size: 1.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex-shrink: 0; user-select: none;">
                 ${details.icon}
               </div>
               <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
-                  <span class="dashboard-container-name" style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;" onclick="triggerLogs('${name}')">${details.name}</span>
-                  <span class="status-dot ${isUp ? 'up' : 'down'}" style="flex-shrink: 0;"></span>
+                  <span class="dashboard-container-name" style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${details.name}</span>
+                  <span class="status-dot ${isUp ? 'up' : (isError ? 'down' : 'down')}" style="background-color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; box-shadow: 0 0 6px ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; flex-shrink: 0;"></span>
                 </div>
                 <span style="color: var(--text-muted); font-size: 0.75rem; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; margin-bottom: 0.5rem;" title="${name}">${name}</span>
                 <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem;">
-                  <span style="font-weight: 600; color: ${isUp ? 'var(--accent-green)' : 'var(--accent-red)'};">${isUp ? 'Running' : 'Stopped'}</span>
+                  <span style="font-weight: 600; color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')};">${isUp ? 'Running' : (isError ? 'Error' : 'Stopped')}</span>
                   <a href="javascript:void(0)" onclick="triggerLogs('${name}')" style="color: var(--accent-indigo-text); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
                     View Log ↗
                   </a>
                 </div>
               </div>
             `;
-            dbGrid.appendChild(dbCard);
+            dockerPageGrid.appendChild(dbCard);
           }
         });
 
-        activeCountEl.textContent = running;
-        document.getElementById('stats-total').textContent = running + stopped;
-        document.getElementById('stats-running').textContent = `${running} running, ${stopped} stopped`;
+        // Update home metrics
+        document.getElementById('widget-total-count').textContent = total;
+        document.getElementById('widget-running-count').textContent = running;
+        document.getElementById('widget-stopped-count').textContent = stopped;
+        document.getElementById('widget-error-count').textContent = errors;
         document.getElementById('stats-vpn').textContent = vpnState;
-        
+
         const vpnStatsText = document.getElementById('stats-vpn');
         if (vpnStatsText) {
-          if (vpnState === 'Active') {
-            vpnStatsText.style.color = 'var(--accent-green)';
-          } else {
-            vpnStatsText.style.color = 'var(--accent-red)';
-          }
+          vpnStatsText.style.color = (vpnState === 'Active') ? 'var(--accent-green)' : 'var(--accent-red)';
         }
 
-        // Show/hide first-time banner based on deployed services
-        if (running + stopped > 0) {
-          document.getElementById('first-time-setup-banner').style.display = 'none';
+        // Update notice board / bulletin
+        const bulletinContent = document.getElementById('bulletin-content');
+        const bulletinHeader = document.getElementById('bulletin-header');
+        const bulletinCard = document.getElementById('dashboard-notices-bulletin');
+        
+        if (errors > 0) {
+          bulletinCard.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+          bulletinCard.style.background = 'rgba(239, 68, 68, 0.02)';
+          bulletinHeader.style.color = 'var(--accent-red)';
+          bulletinHeader.innerHTML = '⚠️ System Error Alert';
+          bulletinContent.innerHTML = `Critical services are in error state! Fix immediately:<br><strong style="color: var(--accent-red);">${errorList.join(', ')}</strong>`;
+          updateSidebarStatus('Error', `${errors} failing`, 'down');
+        } else if (stopped > 0) {
+          bulletinCard.style.borderColor = 'rgba(245, 158, 11, 0.2)';
+          bulletinCard.style.background = 'rgba(245, 158, 11, 0.02)';
+          bulletinHeader.style.color = 'var(--accent-orange)';
+          bulletinHeader.innerHTML = '⚠️ Service Notices';
+          bulletinContent.innerHTML = `Some services are currently stopped:<br><strong style="color: var(--accent-orange);">${stoppedList.join(', ')}</strong>`;
+          updateSidebarStatus('Warning', `${stopped} stopped`, 'down'); // yellow class fallback
+          document.getElementById('sidebar-status-dot').style.backgroundColor = 'var(--accent-orange)';
+          document.getElementById('sidebar-status-dot').style.boxShadow = '0 0 6px var(--accent-orange)';
         } else {
-          document.getElementById('first-time-setup-banner').style.display = 'block';
+          bulletinCard.style.borderColor = 'var(--border-color)';
+          bulletinCard.style.background = 'rgba(255,255,255,0.01)';
+          bulletinHeader.style.color = 'var(--text-primary)';
+          bulletinHeader.innerHTML = '📰 System Status';
+          bulletinContent.innerHTML = 'All deployed services are running smoothly. System healthy!';
+          updateSidebarStatus('All Good', `${running}/${total} running`, 'up');
         }
+
+        if (firstTimeBanner) firstTimeBanner.style.display = 'none';
+
       } catch (err) {
         console.error('Failed to query stack status:', err);
-        // On a network/fetch error, show daemon offline — never the first-time banner.
-        document.getElementById('first-time-setup-banner').style.display = 'none';
-        const daemonBadge = document.getElementById('docker-daemon-badge');
-        if (daemonBadge) {
-          daemonBadge.className = 'container-status-badge badge-down';
-          daemonBadge.textContent = 'Daemon Offline';
-        }
-        const dbGrid = document.getElementById('dashboard-containers-target');
-        if (dbGrid) {
-          dbGrid.innerHTML = '<div style="text-align: center; color: var(--accent-red); font-size: 0.85rem; padding: 1.5rem; font-weight: 500;">⚠️ Docker Daemon is Offline or Unreachable.</div>';
-        }
+        updateStatusOffline();
       }
     }
+
+    function updateStatusOffline() {
+      const firstTimeBanner = document.getElementById('first-time-setup-banner');
+      if (firstTimeBanner) firstTimeBanner.style.display = 'none';
+      
+      const daemonBadge = document.getElementById('docker-page-daemon-badge');
+      if (daemonBadge) {
+        daemonBadge.className = 'container-status-badge badge-down';
+        daemonBadge.textContent = 'Daemon Offline';
+      }
+
+      document.getElementById('stats-daemon-status').textContent = 'Offline';
+      document.getElementById('stats-daemon-desc').textContent = 'Daemon unreachable';
+      document.getElementById('widget-total-count').textContent = '-';
+      document.getElementById('widget-running-count').textContent = '-';
+      document.getElementById('widget-stopped-count').textContent = '-';
+      document.getElementById('widget-error-count').textContent = '-';
+      
+      const bulletinContent = document.getElementById('bulletin-content');
+      if (bulletinContent) {
+        bulletinContent.innerHTML = '<span style="color: var(--accent-red);">⚠️ Docker daemon is offline or unreachable. Check your systemd docker socket.</span>';
+      }
+      updateSidebarStatus('Error', 'Daemon offline', 'down');
+    }
+
+    function updateSidebarStatus(title, desc, stateClass) {
+      const dot = document.getElementById('sidebar-status-dot');
+      const titleEl = document.getElementById('sidebar-status-title');
+      const descEl = document.getElementById('sidebar-status-desc');
+      
+      if (dot && titleEl && descEl) {
+        dot.className = `status-dot ${stateClass}`;
+        // reset custom colors from warning check
+        dot.style.backgroundColor = '';
+        dot.style.boxShadow = '';
+        titleEl.textContent = title;
+        descEl.textContent = desc;
+      }
+    }
+
 
     // Container Logs Streaming Functions
     function triggerLogs(containerName) {
@@ -1783,4 +1845,256 @@
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
       return { name: cleanName, icon: '📦' };
+    }
+
+    // Detailed metadata maps for geek-appealing container inspection (SOLID/SRP layout)
+    const CONTAINER_METADATA_MAP = {
+      jellyfin: {
+        image: 'jellyfin/jellyfin:latest',
+        group: 'Media Suite',
+        mounts: [
+          { host: 'MEDIA_DIR', container: '/media', desc: 'Primary movies, series, and music directory' },
+          { host: 'SYSTEM_DATA_DIR/jellyfin/config', container: '/config', desc: 'Configuration and plugins' },
+          { host: 'SYSTEM_DATA_DIR/jellyfin/cache', container: '/cache', desc: 'Transcoding and cover art cache' }
+        ],
+        links: ['media_qbittorrent', 'media_radarr', 'media_sonarr'],
+        compose: `jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: media_jellyfin
+    user: "\${PUID}:\${PGID}"
+    network_mode: host
+    volumes:
+      - \${SYSTEM_DATA_DIR}/jellyfin/config:/config
+      - \${SYSTEM_DATA_DIR}/jellyfin/cache:/cache
+      - \${MEDIA_DIR}:/media
+    restart: unless-stopped`
+      },
+      qbittorrent: {
+        image: 'lscr.io/linuxserver/qbittorrent:latest',
+        group: 'Media Suite',
+        mounts: [
+          { host: 'MEDIA_DIR/downloads', container: '/downloads', desc: 'Active torrent downloads directory' },
+          { host: 'SYSTEM_DATA_DIR/qbittorrent', container: '/config', desc: 'Application settings and state' }
+        ],
+        links: ['media_prowlarr', 'media_radarr', 'media_sonarr'],
+        compose: `qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: media_qbittorrent
+    environment:
+      - PUID=\${PUID}
+      - PGID=\${PGID}
+      - TZ=\${TZ}
+    volumes:
+      - \${SYSTEM_DATA_DIR}/qbittorrent:/config
+      - \${MEDIA_DIR}/downloads:/downloads
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped`
+      },
+      nextcloud: {
+        image: 'nextcloud:apache',
+        group: 'Cloud Hub Suite',
+        mounts: [
+          { host: 'NEXTCLOUD_DATA_LOCATION', container: '/var/www/html/data', desc: 'Primary cloud uploads repository' },
+          { host: 'SYSTEM_DATA_DIR/nextcloud/config', container: '/var/www/html/config', desc: 'System environment overrides' }
+        ],
+        links: ['nextcloud_db', 'nextcloud_cron', 'redis'],
+        compose: `nextcloud-app:
+    image: nextcloud:apache
+    container_name: nextcloud_app
+    restart: always
+    ports:
+      - 8080:80
+    volumes:
+      - \${SYSTEM_DATA_DIR}/nextcloud/config:/var/www/html/config
+      - \${NEXTCLOUD_DATA_LOCATION}:/var/www/html/data
+    environment:
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=\${NEXTCLOUD_DB_PASSWORD}
+      - MYSQL_HOST=nextcloud_db
+    depends_on:
+      - nextcloud_db`
+      },
+      immich: {
+        image: 'ghcr.io/immich-app/immich-server:release',
+        group: 'Cloud Hub Suite',
+        mounts: [
+          { host: 'UPLOAD_LOCATION', container: '/usr/src/app/upload', desc: 'Photos and videos library uploads' },
+          { host: 'PHOTO_BACKUP_LOCATION', container: '/mnt/PhotoBackup', desc: 'External reference photobacks (read-only)' }
+        ],
+        links: ['immich_machine_learning', 'redis', 'database'],
+        compose: `immich-server:
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: immich_server
+    volumes:
+      - \${UPLOAD_LOCATION}:/usr/src/app/upload
+      - \${PHOTO_BACKUP_LOCATION}:/mnt/PhotoBackup:ro
+    ports:
+      - 2283:2283
+    environment:
+      - DB_HOSTNAME=database
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=\${POSTGRES_DB_PASSWORD}
+      - REDIS_HOSTNAME=redis
+    restart: always
+    depends_on:
+      - database
+      - redis`
+      },
+      vaultwarden: {
+        image: 'vaultwarden/server:latest',
+        group: 'Utility Suite',
+        mounts: [
+          { host: 'SYSTEM_DATA_DIR/vaultwarden', container: '/data', desc: 'Vault credential files and logs' }
+        ],
+        links: [],
+        compose: `vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: utility_vaultwarden
+    volumes:
+      - \${SYSTEM_DATA_DIR}/vaultwarden:/data
+    ports:
+      - 8081:80
+    restart: unless-stopped`
+      },
+      tailscale: {
+        image: 'tailscale/tailscale:latest',
+        group: 'Utility Suite',
+        mounts: [
+          { host: '/dev/net/tun', container: '/dev/net/tun', desc: 'Tunnel network kernel driver' },
+          { host: 'SYSTEM_DATA_DIR/tailscale', container: '/var/lib/tailscale', desc: 'VPN auth states and keys' }
+        ],
+        links: [],
+        compose: `tailscale:
+    image: tailscale/tailscale:latest
+    container_name: utility_tailscale
+    network_mode: host
+    capabilities:
+      - NET_ADMIN
+    volumes:
+      - /dev/net/tun:/dev/net/tun
+      - \${SYSTEM_DATA_DIR}/tailscale:/var/lib/tailscale
+    environment:
+      - TS_AUTHKEY=\${TS_AUTHKEY}
+    restart: unless-stopped`
+      }
+    };
+
+    let currentDetailCompose = '';
+
+    function showContainerDetails(name, status, isUp, details) {
+      triggerJourney('docker-detail');
+      
+      let key = '';
+      const lower = name.toLowerCase();
+      if (lower.includes('jellyfin')) key = 'jellyfin';
+      else if (lower.includes('qbittorrent')) key = 'qbittorrent';
+      else if (lower.includes('nextcloud')) key = 'nextcloud';
+      else if (lower.includes('immich')) key = 'immich';
+      else if (lower.includes('vaultwarden')) key = 'vaultwarden';
+      else if (lower.includes('tailscale')) key = 'tailscale';
+
+      let meta = CONTAINER_METADATA_MAP[key];
+      if (!meta) {
+        let groupName = 'System Service';
+        if (SUITE_GROUPS.media.some(k => lower.includes(k))) groupName = 'Media Suite';
+        else if (SUITE_GROUPS.cloud.some(k => lower.includes(k))) groupName = 'Cloud Hub Suite';
+        else if (SUITE_GROUPS.utility.some(k => lower.includes(k))) groupName = 'Utility Suite';
+
+        meta = {
+          image: `lscr.io/linuxserver/${key || name.replace(/^(media_|utility_|cloud_)/, '')}:latest`,
+          group: groupName,
+          mounts: [
+            { host: `SYSTEM_DATA_DIR/${name}`, container: '/config', desc: 'Application configurations state' }
+          ],
+          links: [],
+          compose: `${name.replace(/^(media_|utility_|cloud_)/, '')}:
+    image: lscr.io/linuxserver/${key || name.replace(/^(media_|utility_|cloud_)/, '')}:latest
+    container_name: ${name}
+    environment:
+      - PUID=\${PUID}
+      - PGID=\${PGID}
+    volumes:
+      - \${SYSTEM_DATA_DIR}/${name}:/config
+    restart: unless-stopped`
+        };
+      }
+
+      // Populate layout
+      document.getElementById('detail-icon').textContent = details.icon;
+      document.getElementById('detail-service-name').textContent = details.name;
+      document.getElementById('detail-container-name').textContent = name;
+      
+      const badge = document.getElementById('detail-status-badge');
+      const dot = document.getElementById('detail-status-dot');
+      const statusLower = status.toLowerCase();
+      const isError = statusLower.includes('unhealthy') || statusLower.includes('dead') || (statusLower.includes('exited') && !statusLower.includes('exited (0)'));
+      
+      badge.textContent = isUp ? 'Running' : (isError ? 'Error' : 'Stopped');
+      badge.className = `container-status-badge ${isUp ? 'badge-up' : (isError ? 'badge-down' : 'badge-down')}`;
+      if (isUp) {
+        badge.style.background = 'rgba(16, 185, 129, 0.1)';
+        badge.style.color = 'var(--accent-green)';
+        dot.className = 'status-dot up';
+        dot.style.backgroundColor = 'var(--accent-green)';
+        dot.style.boxShadow = '0 0 6px var(--accent-green)';
+      } else if (isError) {
+        badge.style.background = 'rgba(239, 68, 68, 0.1)';
+        badge.style.color = 'var(--accent-red)';
+        dot.className = 'status-dot down';
+        dot.style.backgroundColor = 'var(--accent-red)';
+        dot.style.boxShadow = '0 0 6px var(--accent-red)';
+      } else {
+        badge.style.background = 'rgba(245, 158, 11, 0.1)';
+        badge.style.color = 'var(--accent-orange)';
+        dot.className = 'status-dot down';
+        dot.style.backgroundColor = 'var(--accent-orange)';
+        dot.style.boxShadow = '0 0 6px var(--accent-orange)';
+      }
+
+      document.getElementById('detail-group').textContent = meta.group;
+      document.getElementById('detail-image').textContent = meta.image;
+
+      // Populate Mounts
+      const mountsList = document.getElementById('detail-mounts-list');
+      mountsList.innerHTML = '';
+      if (meta.mounts.length === 0) {
+        mountsList.innerHTML = '<span style="color: var(--text-muted);">No volume mounts configured.</span>';
+      } else {
+        meta.mounts.forEach(m => {
+          const div = document.createElement('div');
+          div.style.cssText = 'padding: 0.5rem; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03);';
+          div.innerHTML = `
+            <div style="font-family: var(--font-mono); font-weight: 600; color: var(--text-primary);">${m.host} <span style="color: var(--accent-blue);">→</span> ${m.container}</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.15rem;">${m.desc}</div>
+          `;
+          mountsList.appendChild(div);
+        });
+      }
+
+      // Populate Links
+      const linksList = document.getElementById('detail-links-list');
+      linksList.innerHTML = '';
+      if (meta.links.length === 0) {
+        linksList.innerHTML = '<span style="color: var(--text-muted);">No linked containers.</span>';
+      } else {
+        meta.links.forEach(l => {
+          const div = document.createElement('div');
+          div.style.cssText = 'padding: 0.4rem 0.6rem; border-radius: 6px; background: rgba(168,85,247,0.04); border: 1px solid rgba(168,85,247,0.15); display: inline-block; font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-indigo-text); margin-right: 0.5rem; margin-bottom: 0.5rem;';
+          div.textContent = l;
+          linksList.appendChild(div);
+        });
+      }
+
+      // Populate Compose code block
+      currentDetailCompose = meta.compose;
+      document.getElementById('detail-compose-code').textContent = meta.compose;
+    }
+
+    function copyDetailCompose() {
+      navigator.clipboard.writeText(currentDetailCompose);
+      alert('Docker Compose code block copied to clipboard!');
     }
