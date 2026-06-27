@@ -1129,7 +1129,72 @@
   </style>
 </head>
 <body>
-  
+
+  <!-- ===== RECONNECT OVERLAY (shown while server restarts) ===== -->
+  <div id="restart-overlay" style="
+    display: none;
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(10, 10, 18, 0.92);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    font-family: 'Inter', 'Outfit', system-ui, sans-serif;
+  ">
+    <!-- Spinner ring -->
+    <div style="position: relative; width: 80px; height: 80px;">
+      <div style="
+        position: absolute; inset: 0;
+        border-radius: 50%;
+        border: 3px solid rgba(255,255,255,0.06);
+      "></div>
+      <div id="restart-spinner" style="
+        position: absolute; inset: 0;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        border-top-color: #f87171;
+        animation: spin 0.9s linear infinite;
+      "></div>
+      <div style="
+        position: absolute; inset: 10px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        border-top-color: rgba(248,113,113,0.4);
+        animation: spin 1.4s linear infinite reverse;
+      "></div>
+      <!-- Server icon in the center -->
+      <div style="
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem;
+      ">🔁</div>
+    </div>
+
+    <div style="text-align: center;">
+      <div style="color: #f1f5f9; font-size: 1.25rem; font-weight: 600; margin-bottom: 0.4rem;">Restarting Portal Server</div>
+      <div id="restart-status-text" style="color: #94a3b8; font-size: 0.9rem;">Sending restart signal…</div>
+    </div>
+
+    <!-- Progress dots -->
+    <div style="display: flex; gap: 0.5rem;">
+      <div class="restart-dot" style="width:8px;height:8px;border-radius:50%;background:#f87171;animation:dot-pulse 1.4s 0s ease-in-out infinite;"></div>
+      <div class="restart-dot" style="width:8px;height:8px;border-radius:50%;background:#f87171;animation:dot-pulse 1.4s 0.2s ease-in-out infinite;"></div>
+      <div class="restart-dot" style="width:8px;height:8px;border-radius:50%;background:#f87171;animation:dot-pulse 1.4s 0.4s ease-in-out infinite;"></div>
+    </div>
+
+    <div style="color: #475569; font-size: 0.78rem; margin-top: 0.5rem;">The page will reload automatically when the server is back online.</div>
+  </div>
+
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes dot-pulse {
+      0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1.15); }
+    }
+  </style>
+
   <div class="app-container">
     
     <!-- LEFT SIDEBAR: Dashboard Summary & Action Menu -->
@@ -1257,7 +1322,42 @@
         </div>
 
       </nav>
-      
+
+      <!-- Restart Portal Server button pinned at sidebar bottom -->
+      <div style="padding: 1rem 1rem 1.25rem; border-top: 1px solid var(--border-color); margin-top: auto;">
+        <button
+          id="btn-restart-server"
+          onclick="restartPortalServer()"
+          style="
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.6rem 0.9rem;
+            background: rgba(239,68,68,0.07);
+            border: 1px solid rgba(239,68,68,0.25);
+            border-radius: 10px;
+            color: #f87171;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s, transform 0.15s;
+            font-family: inherit;
+          "
+          onmouseover="this.style.background='rgba(239,68,68,0.15)';this.style.borderColor='rgba(239,68,68,0.45)';"
+          onmouseout="this.style.background='rgba(239,68,68,0.07)';this.style.borderColor='rgba(239,68,68,0.25)';"
+          title="Restart the Portal WebUI server process"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6"/>
+            <path d="M2.5 12a10 10 0 0 1 18.04-5.95L21.5 8"/>
+            <path d="M2.5 22v-6h6"/>
+            <path d="M21.5 12a10 10 0 0 1-18.04 5.95L2.5 16"/>
+          </svg>
+          Restart Portal Server
+        </button>
+      </div>
+
     </aside>
 
     <!-- RIGHT MAIN WORKSPACE: Guided journeys based on menu selection -->
@@ -1660,7 +1760,7 @@
                   </div>
                   <div class="form-group">
                     <label for="smb_valid_users">Valid Users (Space separated)</label>
-                    <input type="text" id="smb_valid_users" placeholder="e.g. johnsmith">
+                    <input type="text" id="smb_valid_users" placeholder="e.g. john, jane">
                   </div>
                   <div class="form-group">
                     <label for="smb_read_only">Access Permission</label>
@@ -3159,9 +3259,24 @@
     }
 
     // Fetch container status and render statuses in sidebar & dashboard
-    async function fetchStatus() {
+     async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
+
+        // If the server returned an error (e.g. Docker socket permission denied),
+        // treat it as daemon-offline — never show the first-time banner.
+        if (!res.ok) {
+          const daemonBadge = document.getElementById('docker-daemon-badge');
+          if (daemonBadge) {
+            daemonBadge.className = 'container-status-badge badge-down';
+            daemonBadge.textContent = 'Daemon Offline';
+          }
+          const dbGrid = document.getElementById('dashboard-containers-target');
+          if (dbGrid) dbGrid.innerHTML = '<div style="text-align: center; color: var(--accent-red); font-size: 0.85rem; padding: 1.5rem; font-weight: 500;">⚠️ Docker Daemon is Offline or Unreachable.</div>';
+          document.getElementById('first-time-setup-banner').style.display = 'none';
+          return;
+        }
+
         const data = await res.json();
         const list = document.getElementById('containers-list-target');
         const activeCountEl = document.getElementById('active-cnt');
@@ -3256,6 +3371,8 @@
         }
       } catch (err) {
         console.error('Failed to query stack status:', err);
+        // On a network/fetch error, show daemon offline — never the first-time banner.
+        document.getElementById('first-time-setup-banner').style.display = 'none';
         const daemonBadge = document.getElementById('docker-daemon-badge');
         if (daemonBadge) {
           daemonBadge.className = 'container-status-badge badge-down';
@@ -4425,6 +4542,56 @@
     
     // Poll containers status updates
     setInterval(fetchStatus, 15000);
+
+    // ---- Restart Portal Server ----
+    async function restartPortalServer() {
+      const confirmed = confirm(
+        '⚠️  Restart the Portal WebUI server?\n\nThe page will go offline briefly and reconnect automatically once the server is back up.'
+      );
+      if (!confirmed) return;
+
+      const overlay = document.getElementById('restart-overlay');
+      const statusText = document.getElementById('restart-status-text');
+      const btn = document.getElementById('btn-restart-server');
+
+      // Show overlay
+      overlay.style.display = 'flex';
+      if (btn) btn.disabled = true;
+      statusText.textContent = 'Sending restart signal…';
+
+      try {
+        await fetch('/api/restart-server', { method: 'POST' });
+      } catch (_) {
+        // The server may close the connection before a response; that's fine.
+      }
+
+      statusText.textContent = 'Server is restarting — waiting for it to come back online…';
+
+      // Poll /api/status until the server responds again, then reload.
+      let attempts = 0;
+      const maxAttempts = 60; // 60 × 2s = 2 min timeout
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const r = await fetch('/api/status', { cache: 'no-store' });
+          if (r.ok) {
+            clearInterval(poll);
+            statusText.textContent = 'Server is back! Reloading…';
+            setTimeout(() => window.location.reload(), 800);
+          }
+        } catch (_) {
+          // Server still down — keep polling
+          statusText.textContent = `Waiting for server… (${attempts * 2}s elapsed)`;
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(poll);
+          statusText.textContent = 'Server did not respond in time. Please refresh manually.';
+          const spinner = document.getElementById('restart-spinner');
+          if (spinner) spinner.style.borderTopColor = '#facc15';
+          if (btn) btn.disabled = false;
+        }
+      }, 2000);
+    }
   </script>
 </body>
 </html>

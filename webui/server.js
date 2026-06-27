@@ -5,12 +5,22 @@ const { spawn, exec } = require('child_process');
 
 const isMac = process.platform === 'darwin';
 
+// Augment PATH to include /usr/sbin and /sbin so that Ubuntu system binaries
+// like `netplan` (at /usr/sbin/netplan) are discoverable even when the server
+// is launched via systemd or another service manager that strips those dirs.
+const baseEnv = {
+  ...process.env,
+  PATH: [process.env.PATH, '/usr/sbin', '/usr/bin', '/sbin', '/bin'].filter(Boolean).join(':')
+};
+
 // Helper to spawn setup.sh script (bypasses sudo on macOS for dev environments)
 function spawnSetup(args, options = {}) {
   const scriptPath = path.join(__dirname, '../setup.sh');
   const cmd = isMac ? 'bash' : 'sudo';
   const spawnArgs = isMac ? [scriptPath, ...args] : ['bash', scriptPath, ...args];
-  return spawn(cmd, spawnArgs, options);
+  // Merge base env (with augmented PATH) into any caller-supplied env
+  const mergedEnv = options.env ? { ...baseEnv, ...options.env } : baseEnv;
+  return spawn(cmd, spawnArgs, { ...options, env: mergedEnv });
 }
 
 const PORT = 8888;
@@ -85,8 +95,11 @@ const server = http.createServer((req, res) => {
       res.end(jsonString({ containers }));
       return;
     }
-    // Run docker ps -a to see container states
-    exec('docker ps -a --format "{{.Names}}:{{.State}}"', (err, stdout, stderr) => {
+    // Run docker ps -a to see container states.
+    // Use sudo on Linux so the node process can reach the Docker socket even
+    // when it is not a member of the docker group (common in systemd services).
+    const dockerCmd = isMac ? 'docker' : 'sudo docker';
+    exec(`${dockerCmd} ps -a --format "{{.Names}}:{{.State}}"`, (err, stdout, stderr) => {
       if (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(jsonString({ error: err.message }));
@@ -376,9 +389,62 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+
+  // API: Restart the WebUI server process
+  // Detects if running under a known systemd service; falls back to a
+  // self-restart via a detached shell that re-launches this script.
+  if (req.url === '/api/restart-server' && req.method === 'POST') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, message: 'Restarting server...' }));
+
+    // Give the HTTP response a moment to flush to the client before we exit.
+    setTimeout(() => {
+      if (isMac) {
+        // Dev mode: just exit; the developer can restart manually.
+        process.exit(0);
+        return;
+      }
+
+      // Try well-known systemd service names first.
+      const serviceNames = ['homeserver-webui', 'homeserver', 'webui', 'homeserver-portal'];
+      let found = false;
+      let checked = 0;
+
+      serviceNames.forEach(svc => {
+        exec(`systemctl is-active --quiet ${svc}`, (err) => {
+          checked++;
+          if (!found && !err) {
+            found = true;
+            // Restart via systemd so the process manager handles clean restart.
+            exec(`systemctl restart ${svc}`, (restartErr) => {
+              if (restartErr) {
+                console.error(`[restart] systemctl restart ${svc} failed:`, restartErr.message);
+                process.exit(1);
+              }
+            });
+          } else if (checked === serviceNames.length && !found) {
+            // No systemd service found — self-restart: spawn a detached shell
+            // that kills this process and re-launches it after a short delay.
+            const scriptPath = path.join(__dirname, 'server.js');
+            const restartCmd = `sleep 1 && kill ${process.pid} ; sleep 1 && node ${scriptPath} &`;
+            const shell = spawn('bash', ['-c', restartCmd], {
+              detached: true,
+              stdio: 'ignore',
+              env: baseEnv
+            });
+            shell.unref();
+          }
+        });
+      });
+    }, 500);
+
+    return;
+  }
+
   // 404
   res.writeHead(404);
   res.end('Not Found');
+
 });
 
 function jsonString(obj) {

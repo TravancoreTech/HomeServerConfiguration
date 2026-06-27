@@ -2608,7 +2608,13 @@ except Exception as e:
 # ------------------------------------------------------------------------------
 action_netplan_info() {
   local installed="false"
-  if command -v netplan &>/dev/null; then
+  # Check via PATH first, then fall back to known absolute locations.
+  # /usr/sbin/netplan may be absent from PATH when the server is launched via
+  # systemd or another service manager that provides a restricted environment.
+  if command -v netplan &>/dev/null || \
+     [ -x /usr/sbin/netplan ] || \
+     [ -x /sbin/netplan ] || \
+     [ -x /usr/bin/netplan ]; then
     installed="true"
   fi
 
