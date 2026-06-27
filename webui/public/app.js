@@ -426,13 +426,15 @@
             stopped++;
           }
 
+          const details = getServiceDetails(name);
+
           // Render in Left Sidebar
           const card = document.createElement('div');
           card.className = 'container-item';
           card.innerHTML = `
             <div class="container-info">
               <span class="status-dot ${isUp ? 'up' : 'down'}"></span>
-              <span style="cursor: pointer;" onclick="triggerLogs('${name}')" title="Click to view logs">${name}</span>
+              <span style="cursor: pointer;" onclick="triggerLogs('${name}')" title="Click to view logs">${details.name}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               ${isUp ? `<span class="term-link" onclick="triggerLogs('${name}')" style="font-size: 0.75rem; text-decoration: underline; font-weight: 500;">Logs</span>` : ''}
@@ -445,16 +447,23 @@
           if (dbGrid) {
             const dbCard = document.createElement('div');
             dbCard.className = 'dashboard-container-card';
+            dbCard.style.cssText = 'display: flex; flex-direction: row; align-items: flex-start; padding: 1.25rem; gap: 1rem; border-radius: 12px; min-height: auto;';
             dbCard.innerHTML = `
-              <div class="dashboard-container-header">
-                <span class="dashboard-container-name" style="cursor: pointer;" onclick="triggerLogs('${name}')" title="View container logs">${name}</span>
-                <span class="status-dot ${isUp ? 'up' : 'down'}"></span>
+              <div class="service-card-icon" style="font-size: 1.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex-shrink: 0; user-select: none;">
+                ${details.icon}
               </div>
-              <div class="dashboard-container-footer">
-                <span class="container-status-badge ${isUp ? 'badge-up' : 'badge-down'}">${isUp ? 'Running' : 'Stopped'}</span>
-                <button class="btn btn-secondary" onclick="triggerLogs('${name}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-color: var(--border-color); background: rgba(255,255,255,0.03);">
-                  📄 View Logs
-                </button>
+              <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                  <span class="dashboard-container-name" style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;" onclick="triggerLogs('${name}')">${details.name}</span>
+                  <span class="status-dot ${isUp ? 'up' : 'down'}" style="flex-shrink: 0;"></span>
+                </div>
+                <span style="color: var(--text-muted); font-size: 0.75rem; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; margin-bottom: 0.5rem;" title="${name}">${name}</span>
+                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem;">
+                  <span style="font-weight: 600; color: ${isUp ? 'var(--accent-green)' : 'var(--accent-red)'};">${isUp ? 'Running' : 'Stopped'}</span>
+                  <a href="javascript:void(0)" onclick="triggerLogs('${name}')" style="color: var(--accent-indigo-text); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                    View Log ↗
+                  </a>
+                </div>
               </div>
             `;
             dbGrid.appendChild(dbCard);
@@ -1702,4 +1711,76 @@
           if (btn) btn.disabled = false;
         }
       }, 2000);
+    }
+
+    // Toggle collapsible container card display in dashboard
+    let containersCollapsed = false;
+    function toggleContainersCollapsible() {
+      const wrapper = document.getElementById('dashboard-containers-collapse-wrapper');
+      const arrow = document.getElementById('containers-toggle-arrow');
+      containersCollapsed = !containersCollapsed;
+      if (containersCollapsed) {
+        wrapper.style.maxHeight = '0px';
+        wrapper.style.overflow = 'hidden';
+        arrow.style.transform = 'rotate(-90deg)';
+      } else {
+        wrapper.style.maxHeight = '420px';
+        wrapper.style.overflowY = 'auto';
+        arrow.style.transform = 'rotate(0deg)';
+      }
+    }
+
+    // Maps system container name to user-friendly service details (SRP mapping)
+    function getServiceDetails(name) {
+      const lower = name.toLowerCase();
+      
+      const mapping = [
+        { keys: ['jellyfin'], name: 'Jellyfin Media Server', icon: '🎬' },
+        { keys: ['qbittorrent'], name: 'qBittorrent Client', icon: '📥' },
+        { keys: ['radarr'], name: 'Radarr Movies', icon: '🎥' },
+        { keys: ['sonarr'], name: 'Sonarr TV Shows', icon: '📺' },
+        { keys: ['prowlarr'], name: 'Prowlarr Indexers', icon: '🔍' },
+        { keys: ['flaresolverr'], name: 'FlareSolverr Bypass', icon: '🕵️' },
+        { keys: ['jellyseerr'], name: 'Jellyseerr Requests', icon: '🎫' },
+        { keys: ['bazarr'], name: 'Bazarr Subtitles', icon: '✍️' },
+        { keys: ['navidrome'], name: 'Navidrome Music', icon: '🎵' },
+        { keys: ['metube'], name: 'MeTube Downloader', icon: '🎥' },
+        { keys: ['nextcloud-app', 'nextcloud_app'], name: 'Nextcloud Cloud Hub', icon: '☁️' },
+        { keys: ['nextcloud-cron', 'nextcloud_cron'], name: 'Nextcloud Cron', icon: '⏱️' },
+        { keys: ['nextcloud-db', 'nextcloud_db'], name: 'Nextcloud Database', icon: '🗄️' },
+        { keys: ['immich-server', 'immich_server'], name: 'Immich Photos', icon: '📸' },
+        { keys: ['immich-machine-learning', 'immich_machine_learning'], name: 'Immich Machine Learning', icon: '🤖' },
+        { keys: ['vaultwarden'], name: 'Vaultwarden Key Pass', icon: '🔑' },
+        { keys: ['tailscale'], name: 'Tailscale VPN', icon: '🛡️' },
+        { keys: ['stirling-pdf', 'stirling_pdf'], name: 'Stirling PDF', icon: '📄' },
+        { keys: ['it-tools'], name: 'IT Tools', icon: '🛠️' },
+        { keys: ['uptime-kuma'], name: 'Uptime Kuma', icon: '📈' },
+        { keys: ['syncthing'], name: 'Syncthing Sync', icon: '🔄' },
+        { keys: ['pairdrop'], name: 'PairDrop File Share', icon: '🎈' },
+        { keys: ['radicale'], name: 'Radicale CalDAV', icon: '📅' },
+        { keys: ['baikal'], name: 'Baikal Contacts', icon: '📅' },
+        { keys: ['cronicle'], name: 'Cronicle Jobs', icon: '⏱️' },
+        { keys: ['ofelia'], name: 'Ofelia Tasks', icon: '⏱️' },
+        { keys: ['paperless-web', 'paperless_web'], name: 'Paperless Documents', icon: '📝' },
+        { keys: ['paperless-redis'], name: 'Paperless Redis', icon: '⚡' },
+        { keys: ['redis'], name: 'Redis Cache', icon: '⚡' },
+        { keys: ['postgres', 'database'], name: 'System Database', icon: '🗄️' }
+      ];
+
+      for (const item of mapping) {
+        if (item.keys.some(k => lower.includes(k))) {
+          return item;
+        }
+      }
+
+      // Default fallback formatting
+      const cleanName = name
+        .replace(/^media[-_]/i, '')
+        .replace(/^utility[-_]/i, '')
+        .replace(/^cloud[-_]/i, '')
+        .replace(/[-_]/g, ' ')
+        .split(' ')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      return { name: cleanName, icon: '📦' };
     }

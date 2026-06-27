@@ -288,17 +288,22 @@
 
           <!-- Docker Containers Status Card -->
           <div class="card" style="margin-top: 1.5rem;">
-            <div class="card-header" style="margin-bottom: 0.75rem;">
-              <h2>Docker Containers Status</h2>
-              <span id="docker-daemon-badge" class="container-status-badge badge-up">Daemon Online</span>
+            <div class="card-header" style="margin-bottom: 0.75rem; cursor: pointer; user-select: none;" onclick="toggleContainersCollapsible()">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <h2>Docker Containers Status</h2>
+                <span id="docker-daemon-badge" class="container-status-badge badge-up">Daemon Online</span>
+              </div>
+              <span id="containers-toggle-arrow" style="font-size: 0.95rem; color: var(--text-secondary); transition: var(--transition);">▼</span>
             </div>
             <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 1rem;">
-              Real-time operational status of all configured services. Click "View Logs" to inspect live logs.
+              Real-time operational status of all configured services. Click "View Log" to inspect live logs.
             </p>
             
-            <div class="dashboard-containers-grid" id="dashboard-containers-target">
-              <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem;">
-                Loading docker containers...
+            <div id="dashboard-containers-collapse-wrapper" style="max-height: 420px; overflow-y: auto; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-right: 0.25rem;">
+              <div class="dashboard-containers-grid" id="dashboard-containers-target" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem;">
+                  Loading docker containers...
+                </div>
               </div>
             </div>
           </div>

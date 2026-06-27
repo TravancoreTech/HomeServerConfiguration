@@ -18,8 +18,9 @@ const baseEnv = {
  */
 function spawnSetup(args, options = {}) {
   const scriptPath = path.join(__dirname, '../../setup.sh');
-  const cmd = isMac ? 'bash' : 'sudo';
-  const spawnArgs = isMac ? [scriptPath, ...args] : ['bash', scriptPath, ...args];
+  const isRoot = process.getuid && process.getuid() === 0;
+  const cmd = (isMac || isRoot) ? 'bash' : 'sudo';
+  const spawnArgs = (isMac || isRoot) ? [scriptPath, ...args] : ['bash', scriptPath, ...args];
   const mergedEnv = options.env ? { ...baseEnv, ...options.env } : baseEnv;
   return spawn(cmd, spawnArgs, { ...options, env: mergedEnv });
 }

@@ -244,13 +244,13 @@
       padding-right: 0.25rem;
     }
 
-    .containers-list::-webkit-scrollbar, .action-groups::-webkit-scrollbar, .terminal-body::-webkit-scrollbar {
+    .containers-list::-webkit-scrollbar, .action-groups::-webkit-scrollbar, .terminal-body::-webkit-scrollbar, #dashboard-containers-collapse-wrapper::-webkit-scrollbar {
       width: 4px;
     }
-    .containers-list::-webkit-scrollbar-track, .action-groups::-webkit-scrollbar-track, .terminal-body::-webkit-scrollbar-track {
+    .containers-list::-webkit-scrollbar-track, .action-groups::-webkit-scrollbar-track, .terminal-body::-webkit-scrollbar-track, #dashboard-containers-collapse-wrapper::-webkit-scrollbar-track {
       background: transparent;
     }
-    .containers-list::-webkit-scrollbar-thumb, .action-groups::-webkit-scrollbar-thumb, .terminal-body::-webkit-scrollbar-thumb {
+    .containers-list::-webkit-scrollbar-thumb, .action-groups::-webkit-scrollbar-thumb, .terminal-body::-webkit-scrollbar-thumb, #dashboard-containers-collapse-wrapper::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.1);
       border-radius: 4px;
     }

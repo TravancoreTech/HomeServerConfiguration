@@ -225,7 +225,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=${REAL_USER}
+User=root
 WorkingDirectory=${INSTALL_DIR}/webui
 ExecStart=/usr/bin/node ${INSTALL_DIR}/webui/server.js
 Restart=on-failure
@@ -235,7 +235,6 @@ StandardError=journal
 SyslogIdentifier=${SERVICE_NAME}
 
 # Security hardening
-NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=${INSTALL_DIR}
 PrivateTmp=true
