@@ -1,0 +1,1705 @@
+    const SERVICES_LIST = [
+      "jellyfin", "qbittorrent", "radarr", "sonarr", "prowlarr", "flaresolverr", 
+      "jellyseerr", "bazarr", "navidrome", "metube", "media-local-tracker", "torrent-generator",
+      "nextcloud-app", "nextcloud-cron", "nextcloud-db",
+      "immich-server", "immich-machine-learning", "redis", "database",
+      "vaultwarden", "stirling-pdf", "it-tools", "uptime-kuma", "syncthing", "pairdrop",
+      "paperless-redis", "paperless-web", "radicale", "baikal", "cronicle", "ofelia", "tailscale"
+    ].sort();
+
+    const SUITE_GROUPS = {
+      media: ["jellyfin", "qbittorrent", "radarr", "sonarr", "prowlarr", "flaresolverr", "jellyseerr", "bazarr", "navidrome", "metube", "media-local-tracker", "torrent-generator"],
+      cloud: ["nextcloud-app", "nextcloud-cron", "nextcloud-db", "immich-server", "immich-machine-learning", "redis", "database"],
+      utility: ["vaultwarden", "stirling-pdf", "it-tools", "uptime-kuma", "syncthing", "pairdrop", "paperless-redis", "paperless-web", "radicale", "baikal", "cronicle", "ofelia", "tailscale"]
+    };
+
+    let cachedConfig = {};
+    let activeSSE = null;
+    let logsSSE = null;
+    let logsPaused = false;
+    let currentLogContainer = '';
+
+    // Move shared config flow to active tab
+    function moveSharedConfig(targetPaneId) {
+      const sharedConfig = document.getElementById('shared-config-flow');
+      const targetContainer = document.getElementById(`${targetPaneId}-config-container`);
+      if (sharedConfig && targetContainer) {
+        targetContainer.appendChild(sharedConfig);
+        sharedConfig.style.display = 'block';
+      }
+    }
+
+    // Dynamic visibility of contextual config panels based on checkbox state
+    function updateContextualConfigVisibility(prefix) {
+      const hasImmich = [
+        "immich-server", "immich-machine-learning", "redis", "database"
+      ].some(svc => {
+        const cb = document.getElementById(`cb-${prefix}-${svc}`);
+        return cb && cb.checked;
+      });
+
+      const hasNextcloud = [
+        "nextcloud-app", "nextcloud-cron", "nextcloud-db"
+      ].some(svc => {
+        const cb = document.getElementById(`cb-${prefix}-${svc}`);
+        return cb && cb.checked;
+      });
+
+      const tailscaleCb = document.getElementById(`cb-${prefix}-tailscale`);
+      const hasTailscale = tailscaleCb && tailscaleCb.checked;
+
+      const immichCard = document.getElementById('context-immich-card');
+      const nextcloudCard = document.getElementById('context-nextcloud-card');
+      const tailscaleCard = document.getElementById('context-tailscale-card');
+
+      if (immichCard) immichCard.style.display = hasImmich ? 'block' : 'none';
+      if (nextcloudCard) nextcloudCard.style.display = hasNextcloud ? 'block' : 'none';
+      if (tailscaleCard) tailscaleCard.style.display = hasTailscale ? 'block' : 'none';
+    }
+
+    // Switch between guided task panels
+    function triggerJourney(paneId) {
+      // Deactivate active menu highlights
+      document.querySelectorAll('.menu-item').forEach(btn => btn.classList.remove('active'));
+      // Hide active panes
+      document.querySelectorAll('.journey-pane').forEach(pane => pane.classList.remove('active'));
+
+      // Highlight target menu button
+      const targetBtn = document.getElementById('btn-' + paneId);
+      if (targetBtn) targetBtn.classList.add('active');
+
+      // Show target panel
+      const targetPane = document.getElementById('journey-' + paneId);
+      if (targetPane) targetPane.classList.add('active');
+
+      // Hide terminal if transitioning back to Dashboard Overview
+      if (paneId === 'dashboard') {
+        document.getElementById('terminal-pane').style.display = 'none';
+      }
+
+      // If switching away from logs, close log stream
+      if (paneId !== 'logs' && logsSSE) {
+        logsSSE.close();
+        logsSSE = null;
+      }
+
+      // Move shared config flow container
+      const sharedConfig = document.getElementById('shared-config-flow');
+      if (sharedConfig) {
+        if (paneId === 'update' || paneId === 'install') {
+          moveSharedConfig(paneId);
+          updateContextualConfigVisibility(paneId);
+        } else {
+          const hiddenHolder = document.getElementById('hidden-config-holder');
+          if (hiddenHolder) hiddenHolder.appendChild(sharedConfig);
+          sharedConfig.style.display = 'none';
+        }
+      }
+
+      // Load Samba State if needed
+      if (paneId === 'samba') {
+        loadSambaState();
+      }
+
+      // Load Netplan State if needed
+      if (paneId === 'netplan') {
+        loadNetplanState();
+      }
+
+      // Load App Configuration State if needed
+      if (paneId === 'app-config') {
+        loadAppConfigState();
+      }
+
+      // Reset docker-install console state on re-entry
+      if (paneId === 'docker-install') {
+        const statusEl = document.getElementById('docker-install-status');
+        if (statusEl) statusEl.textContent = '';
+      }
+    }
+
+    // Toggle forms accordion sections
+    function toggleFormSection(header) {
+      const body = header.nextElementSibling;
+      const arrow = header.querySelector('span:last-child');
+      if (body.style.display === 'none') {
+        body.style.display = 'grid';
+        arrow.textContent = '▾';
+      } else {
+        body.style.display = 'none';
+        arrow.textContent = '▸';
+      }
+    }
+
+    // Toggle mount fields visibility
+    function toggleMountFields(checked) {
+      document.querySelectorAll('.mount-field').forEach(el => {
+        el.style.display = checked ? 'grid' : 'none';
+      });
+    }
+
+    // Toggle dashboard config
+    function toggleDashboardWidgetConfig() {
+      const el = document.getElementById('dashboard-widget-config');
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleVolumeSettingsConfig() {
+      const el = document.getElementById('dashboard-volumes-config');
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function applyCustomVolumeSettings() {
+      const jellyfinExtra = document.getElementById('volume_JELLYFIN_EXTRA_DIR').value.trim();
+      const photoBackup = document.getElementById('volume_PHOTO_BACKUP_LOCATION').value.trim();
+      const uploadLoc = document.getElementById('volume_UPLOAD_LOCATION').value.trim();
+      const nextcloudLoc = document.getElementById('volume_NEXTCLOUD_DATA_LOCATION').value.trim();
+
+      const config = {
+        JELLYFIN_EXTRA_DIR: jellyfinExtra,
+        PHOTO_BACKUP_LOCATION: photoBackup,
+        UPLOAD_LOCATION: uploadLoc,
+        NEXTCLOUD_DATA_LOCATION: nextcloudLoc
+      };
+
+      const servicesToRecreate = [];
+      if (jellyfinExtra !== (cachedConfig.JELLYFIN_EXTRA_DIR || '')) {
+        servicesToRecreate.push('jellyfin');
+      }
+      if (photoBackup !== (cachedConfig.PHOTO_BACKUP_LOCATION || '') || uploadLoc !== (cachedConfig.UPLOAD_LOCATION || '')) {
+        servicesToRecreate.push('immich-server');
+      }
+      if (nextcloudLoc !== (cachedConfig.NEXTCLOUD_DATA_LOCATION || '')) {
+        servicesToRecreate.push('nextcloud-app');
+      }
+
+      if (servicesToRecreate.length > 0) {
+        const confirmMsg = `The following services need to be reconfigured and restarted for paths to take effect: ${servicesToRecreate.join(', ')}. Proceed?`;
+        if (!confirm(confirmMsg)) return;
+      }
+
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        });
+        const data = await res.json();
+        if (data.success) {
+          cachedConfig = { ...cachedConfig, ...config };
+          if (servicesToRecreate.length > 0) {
+            toggleVolumeSettingsConfig();
+            triggerJourney('dashboard');
+            initConsoleLogs(`Reconfiguring services: ${servicesToRecreate.join(', ')}`, `/api/run?action=reconfigure&services=${servicesToRecreate.join(',')}`);
+          } else {
+            alert('Volume settings saved successfully. No container restarts needed.');
+            toggleVolumeSettingsConfig();
+            loadConfig();
+          }
+        } else {
+          alert('Failed to save settings: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error communicating with backend: ' + err.message);
+      }
+    }
+
+    // Checkbox selections helpers
+    function checkAll(val, prefix) {
+      document.querySelectorAll(`.cb-${prefix}`).forEach(cb => cb.checked = val);
+      // Sync group check boxes
+      Object.keys(SUITE_GROUPS).forEach(suiteKey => {
+        const groupCb = document.getElementById(`group-cb-${prefix}-${suiteKey}`);
+        if (groupCb) {
+          groupCb.checked = val;
+          groupCb.indeterminate = false;
+        }
+      });
+      if (prefix === 'update' || prefix === 'install') {
+        updateContextualConfigVisibility(prefix);
+      }
+    }
+
+    // Checkbox suite selection helpers
+    function checkSuite(suiteName, prefix) {
+      checkAll(false, prefix);
+      const list = SUITE_GROUPS[suiteName] || [];
+      list.forEach(svc => {
+        const cb = document.getElementById(`cb-${prefix}-${svc}`);
+        if (cb) cb.checked = true;
+      });
+      // Sync group check boxes
+      Object.keys(SUITE_GROUPS).forEach(suiteKey => {
+        syncGroupCheckboxState(prefix, suiteKey);
+      });
+      if (prefix === 'update' || prefix === 'install') {
+        updateContextualConfigVisibility(prefix);
+      }
+    }
+
+    function toggleGroupCheckBoxes(groupCb, suiteKey, prefix) {
+      const isChecked = groupCb.checked;
+      const services = SUITE_GROUPS[suiteKey] || [];
+      services.forEach(svc => {
+        const cb = document.getElementById(`cb-${prefix}-${svc}`);
+        if (cb) {
+          cb.checked = isChecked;
+        }
+      });
+      if (prefix === 'update' || prefix === 'install') {
+        updateContextualConfigVisibility(prefix);
+      }
+    }
+
+    function syncGroupCheckboxState(prefix, suiteKey) {
+      const services = SUITE_GROUPS[suiteKey] || [];
+      const cbs = services.map(svc => document.getElementById(`cb-${prefix}-${svc}`)).filter(Boolean);
+      const groupCb = document.getElementById(`group-cb-${prefix}-${suiteKey}`);
+      if (groupCb && cbs.length > 0) {
+        const allChecked = cbs.every(cb => cb.checked);
+        const someChecked = cbs.some(cb => cb.checked);
+        groupCb.checked = allChecked;
+        groupCb.indeterminate = someChecked && !allChecked;
+      }
+    }
+
+    function findSuiteKey(serviceName) {
+      for (const [suiteKey, list] of Object.entries(SUITE_GROUPS)) {
+        if (list.includes(serviceName)) return suiteKey;
+      }
+      return null;
+    }
+
+    // Populate the checkbox grids in the UI dynamically with grouping
+    function populateChecklists() {
+      const prefixes = ['update', 'restart', 'install'];
+      const suiteDisplayNames = {
+        media: "🎬 Media Stack Services",
+        cloud: "☁️ Cloud & Backup Services",
+        utility: "🛠️ System Utility Services"
+      };
+
+      prefixes.forEach(prefix => {
+        const target = document.getElementById(`${prefix}-checklist-target`);
+        if (!target) return;
+        target.innerHTML = '';
+
+        for (const [suiteKey, services] of Object.entries(SUITE_GROUPS)) {
+          // Create group container
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'checklist-group';
+          groupDiv.style.marginBottom = '1.25rem';
+
+          // Create group header
+          const header = document.createElement('div');
+          header.className = 'checklist-group-header';
+          header.style.display = 'flex';
+          header.style.alignItems = 'center';
+          header.style.justifyContent = 'space-between';
+          header.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+          header.style.paddingBottom = '0.35rem';
+          header.style.marginBottom = '0.65rem';
+          header.style.marginTop = '0.5rem';
+
+          const titleWrapper = document.createElement('div');
+          titleWrapper.style.display = 'flex';
+          titleWrapper.style.alignItems = 'center';
+          titleWrapper.style.gap = '0.5rem';
+
+          const groupCb = document.createElement('input');
+          groupCb.type = 'checkbox';
+          groupCb.id = `group-cb-${prefix}-${suiteKey}`;
+          groupCb.className = `group-cb-${prefix}`;
+          groupCb.style.width = '15px';
+          groupCb.style.height = '15px';
+          groupCb.style.accentColor = 'var(--accent-indigo)';
+          groupCb.style.cursor = 'pointer';
+          groupCb.addEventListener('change', () => {
+            toggleGroupCheckBoxes(groupCb, suiteKey, prefix);
+          });
+
+          const label = document.createElement('label');
+          label.htmlFor = `group-cb-${prefix}-${suiteKey}`;
+          label.textContent = suiteDisplayNames[suiteKey] || `${suiteKey} Suite`;
+          label.style.fontSize = '0.85rem';
+          label.style.fontWeight = '700';
+          label.style.color = 'var(--text-highlight)';
+          label.style.cursor = 'pointer';
+
+          titleWrapper.appendChild(groupCb);
+          titleWrapper.appendChild(label);
+
+          const countBadge = document.createElement('span');
+          countBadge.textContent = `${services.length} items`;
+          countBadge.style.fontSize = '0.7rem';
+          countBadge.style.color = 'var(--text-muted)';
+          countBadge.style.background = 'rgba(255,255,255,0.04)';
+          countBadge.style.padding = '0.1rem 0.4rem';
+          countBadge.style.borderRadius = '10px';
+
+          header.appendChild(titleWrapper);
+          header.appendChild(countBadge);
+          groupDiv.appendChild(header);
+
+          // Create service grid
+          const grid = document.createElement('div');
+          grid.className = 'checklist-grid';
+
+          services.forEach(svc => {
+            const item = document.createElement('div');
+            item.className = 'check-item';
+            item.innerHTML = `
+              <input type="checkbox" id="cb-${prefix}-${svc}" value="${svc}" class="cb-${prefix}">
+              <label for="cb-${prefix}-${svc}">${svc}</label>
+            `;
+
+            const input = item.querySelector('input');
+            input.addEventListener('change', () => {
+              syncGroupCheckboxState(prefix, suiteKey);
+              if (prefix === 'update' || prefix === 'install') {
+                updateContextualConfigVisibility(prefix);
+              }
+            });
+
+            grid.appendChild(item);
+          });
+
+          groupDiv.appendChild(grid);
+          target.appendChild(groupDiv);
+        }
+      });
+    }
+
+    // Fetch container status and render statuses in sidebar & dashboard
+     async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+
+        // If the server returned an error (e.g. Docker socket permission denied),
+        // treat it as daemon-offline — never show the first-time banner.
+        if (!res.ok) {
+          const daemonBadge = document.getElementById('docker-daemon-badge');
+          if (daemonBadge) {
+            daemonBadge.className = 'container-status-badge badge-down';
+            daemonBadge.textContent = 'Daemon Offline';
+          }
+          const dbGrid = document.getElementById('dashboard-containers-target');
+          if (dbGrid) dbGrid.innerHTML = '<div style="text-align: center; color: var(--accent-red); font-size: 0.85rem; padding: 1.5rem; font-weight: 500;">⚠️ Docker Daemon is Offline or Unreachable.</div>';
+          document.getElementById('first-time-setup-banner').style.display = 'none';
+          return;
+        }
+
+        const data = await res.json();
+        const list = document.getElementById('containers-list-target');
+        const activeCountEl = document.getElementById('active-cnt');
+        const dbGrid = document.getElementById('dashboard-containers-target');
+        const daemonBadge = document.getElementById('docker-daemon-badge');
+        
+        list.innerHTML = '';
+        if (dbGrid) dbGrid.innerHTML = '';
+        
+        if (daemonBadge) {
+          daemonBadge.className = 'container-status-badge badge-up';
+          daemonBadge.textContent = 'Daemon Online';
+        }
+
+        if (!data.containers || Object.keys(data.containers).length === 0) {
+          list.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1rem;">No services deployed.</div>';
+          if (dbGrid) dbGrid.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem;">No containers found.</div>';
+          activeCountEl.textContent = '0';
+          document.getElementById('stats-total').textContent = '0';
+          document.getElementById('stats-running').textContent = '0 running';
+          document.getElementById('first-time-setup-banner').style.display = 'block';
+          return;
+        }
+
+        let running = 0;
+        let stopped = 0;
+        let vpnState = 'Offline';
+
+        Object.entries(data.containers).sort().forEach(([name, status]) => {
+          const isUp = status.toLowerCase().includes('up') || status.toLowerCase().includes('running');
+          if (isUp) {
+            running++;
+            if (name.includes('tailscale')) vpnState = 'Active';
+          } else {
+            stopped++;
+          }
+
+          // Render in Left Sidebar
+          const card = document.createElement('div');
+          card.className = 'container-item';
+          card.innerHTML = `
+            <div class="container-info">
+              <span class="status-dot ${isUp ? 'up' : 'down'}"></span>
+              <span style="cursor: pointer;" onclick="triggerLogs('${name}')" title="Click to view logs">${name}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              ${isUp ? `<span class="term-link" onclick="triggerLogs('${name}')" style="font-size: 0.75rem; text-decoration: underline; font-weight: 500;">Logs</span>` : ''}
+              <span class="container-status-badge ${isUp ? 'badge-up' : 'badge-down'}">${isUp ? 'Running' : 'Stopped'}</span>
+            </div>
+          `;
+          list.appendChild(card);
+
+          // Render in Dashboard Grid
+          if (dbGrid) {
+            const dbCard = document.createElement('div');
+            dbCard.className = 'dashboard-container-card';
+            dbCard.innerHTML = `
+              <div class="dashboard-container-header">
+                <span class="dashboard-container-name" style="cursor: pointer;" onclick="triggerLogs('${name}')" title="View container logs">${name}</span>
+                <span class="status-dot ${isUp ? 'up' : 'down'}"></span>
+              </div>
+              <div class="dashboard-container-footer">
+                <span class="container-status-badge ${isUp ? 'badge-up' : 'badge-down'}">${isUp ? 'Running' : 'Stopped'}</span>
+                <button class="btn btn-secondary" onclick="triggerLogs('${name}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-color: var(--border-color); background: rgba(255,255,255,0.03);">
+                  📄 View Logs
+                </button>
+              </div>
+            `;
+            dbGrid.appendChild(dbCard);
+          }
+        });
+
+        activeCountEl.textContent = running;
+        document.getElementById('stats-total').textContent = running + stopped;
+        document.getElementById('stats-running').textContent = `${running} running, ${stopped} stopped`;
+        document.getElementById('stats-vpn').textContent = vpnState;
+        
+        const vpnStatsText = document.getElementById('stats-vpn');
+        if (vpnStatsText) {
+          if (vpnState === 'Active') {
+            vpnStatsText.style.color = 'var(--accent-green)';
+          } else {
+            vpnStatsText.style.color = 'var(--accent-red)';
+          }
+        }
+
+        // Show/hide first-time banner based on deployed services
+        if (running + stopped > 0) {
+          document.getElementById('first-time-setup-banner').style.display = 'none';
+        } else {
+          document.getElementById('first-time-setup-banner').style.display = 'block';
+        }
+      } catch (err) {
+        console.error('Failed to query stack status:', err);
+        // On a network/fetch error, show daemon offline — never the first-time banner.
+        document.getElementById('first-time-setup-banner').style.display = 'none';
+        const daemonBadge = document.getElementById('docker-daemon-badge');
+        if (daemonBadge) {
+          daemonBadge.className = 'container-status-badge badge-down';
+          daemonBadge.textContent = 'Daemon Offline';
+        }
+        const dbGrid = document.getElementById('dashboard-containers-target');
+        if (dbGrid) {
+          dbGrid.innerHTML = '<div style="text-align: center; color: var(--accent-red); font-size: 0.85rem; padding: 1.5rem; font-weight: 500;">⚠️ Docker Daemon is Offline or Unreachable.</div>';
+        }
+      }
+    }
+
+    // Container Logs Streaming Functions
+    function triggerLogs(containerName) {
+      triggerJourney('logs');
+      initContainerLogs(containerName);
+    }
+
+    function initContainerLogs(containerName) {
+      const terminal = document.getElementById('logs-terminal-body');
+      const titleEl = document.getElementById('logs-header-title');
+      
+      titleEl.textContent = `Logs: ${containerName}`;
+      terminal.innerHTML = `[Connecting to logs stream for ${containerName}...]\n\n`;
+      terminal.scrollTop = terminal.scrollHeight;
+      logsPaused = false;
+      document.getElementById('btn-pause-logs').textContent = 'Pause';
+
+      if (logsSSE) {
+        logsSSE.close();
+      }
+
+      logsSSE = new EventSource(`/api/logs?service=${containerName}`);
+
+      logsSSE.onmessage = function(e) {
+        if (logsPaused) return;
+        const line = e.data;
+        const span = document.createElement('span');
+        span.textContent = line + '\n';
+        terminal.appendChild(span);
+        terminal.scrollTop = terminal.scrollHeight;
+      };
+
+      logsSSE.onerror = function() {
+        const span = document.createElement('span');
+        span.style.color = 'var(--text-muted)';
+        span.textContent = '\n[Log stream disconnected]\n';
+        terminal.appendChild(span);
+        terminal.scrollTop = terminal.scrollHeight;
+        logsSSE.close();
+        logsSSE = null;
+      };
+    }
+
+    function pauseLogs() {
+      logsPaused = !logsPaused;
+      document.getElementById('btn-pause-logs').textContent = logsPaused ? 'Resume' : 'Pause';
+    }
+
+    function clearLogs() {
+      document.getElementById('logs-terminal-body').innerHTML = '[Logs console cleared]\n';
+    }
+
+    // Samba Sharing Operations Functions
+    async function loadSambaState() {
+      try {
+        const res = await fetch('/api/samba');
+        const data = await res.json();
+        
+        const badge = document.getElementById('samba-status-badge');
+        const uninstalledView = document.getElementById('samba-uninstalled-view');
+        const installedView = document.getElementById('samba-installed-view');
+
+        if (data.installed) {
+          badge.innerHTML = '<span class="container-status-badge badge-up">Installed & Active</span>';
+          uninstalledView.style.display = 'none';
+          installedView.style.display = 'block';
+
+          // Render users list
+          const usersTarget = document.getElementById('samba-users-list-target');
+          usersTarget.innerHTML = '';
+          if (!data.users || data.users.length === 0) {
+            usersTarget.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No Samba users configured.</td></tr>';
+          } else {
+            data.users.forEach(username => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td style="font-weight: 500;">${username}</td>
+                <td style="text-align: right;">
+                  <button class="badge-btn" style="background: rgba(244,63,94,0.1); color: var(--warning-banner-text); border-color: rgba(244,63,94,0.2);" onclick="deleteSambaUser('${username}')">Delete</button>
+                </td>
+              `;
+              usersTarget.appendChild(tr);
+            });
+          }
+
+          // Render shares list
+          const sharesTarget = document.getElementById('samba-shares-list-target');
+          sharesTarget.innerHTML = '';
+          if (!data.shares || data.shares.length === 0) {
+            sharesTarget.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No shares configured.</td></tr>';
+          } else {
+            data.shares.forEach(share => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td style="font-weight: 600; color: var(--accent-indigo-text);">[${share.name}]</td>
+                <td style="font-family: var(--font-mono); font-size: 0.8rem;">${share.path}</td>
+                <td>${share.valid_users || '<span style="color: var(--text-muted);">All Users</span>'}</td>
+                <td>${share.guest_ok === 'yes' ? 'Allowed' : 'Denied'}</td>
+                <td>${share.read_only === 'yes' ? 'Read-Only' : 'Read/Write'}</td>
+                <td style="text-align: right;">
+                  <button class="badge-btn" style="background: rgba(244,63,94,0.1); color: var(--warning-banner-text); border-color: rgba(244,63,94,0.2);" onclick="deleteSambaShare('${share.name}')">Delete</button>
+                </td>
+              `;
+              sharesTarget.appendChild(tr);
+            });
+          }
+        } else {
+          badge.innerHTML = '<span class="container-status-badge badge-down">Not Installed</span>';
+          uninstalledView.style.display = 'block';
+          installedView.style.display = 'none';
+        }
+      } catch (err) {
+        console.error('Failed to load Samba state:', err);
+      }
+    }
+
+    function toggleAddSambaUserForm() {
+      const el = document.getElementById('samba-add-user-form');
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleAddSambaShareForm() {
+      const el = document.getElementById('samba-add-share-form');
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function submitAddSambaUser() {
+      const username = document.getElementById('smb_username').value.trim();
+      const password = document.getElementById('smb_password').value.trim();
+      if (!username || !password) {
+        alert('Username and password are required.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/samba/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'add-user', username, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Samba user added successfully.');
+          document.getElementById('smb_username').value = '';
+          document.getElementById('smb_password').value = '';
+          toggleAddSambaUserForm();
+          loadSambaState();
+        } else {
+          alert('Failed to add Samba user: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error communicating with backend.');
+      }
+    }
+
+    async function deleteSambaUser(username) {
+      if (!confirm(`Are you sure you want to delete Samba user '${username}'?`)) return;
+      try {
+        const res = await fetch('/api/samba/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'remove-user', username })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadSambaState();
+        } else {
+          alert('Failed to delete user: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error communicating with backend.');
+      }
+    }
+
+    async function submitAddSambaShare() {
+      const share_name = document.getElementById('smb_share_name').value.trim();
+      const share_path = document.getElementById('smb_share_path').value.trim();
+      const valid_users = document.getElementById('smb_valid_users').value.trim();
+      const read_only = document.getElementById('smb_read_only').value;
+      const guest_ok = document.getElementById('smb_guest_ok').value;
+
+      if (!share_name || !share_path) {
+        alert('Share name and server path are required.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/samba/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'add-share', share_name, share_path, valid_users, guest_ok, read_only })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Shared folder created successfully.');
+          document.getElementById('smb_share_name').value = '';
+          document.getElementById('smb_share_path').value = '';
+          document.getElementById('smb_valid_users').value = '';
+          toggleAddSambaShareForm();
+          loadSambaState();
+        } else {
+          alert('Failed to create share: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error communicating with backend.');
+      }
+    }
+
+    async function deleteSambaShare(share_name) {
+      if (!confirm(`Are you sure you want to delete Samba share '${share_name}'?`)) return;
+      try {
+        const res = await fetch('/api/samba/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'remove-share', share_name })
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadSambaState();
+        } else {
+          alert('Failed to delete share: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error communicating with backend.');
+      }
+    }
+
+    function installSamba() {
+      triggerJourney('dashboard');
+      initConsoleLogs('Installing Samba Share Service', '/api/run?action=samba');
+    }
+
+    // Netplan Network Configuration functions
+    async function loadNetplanState() {
+      try {
+        const res = await fetch('/api/netplan');
+        const data = await res.json();
+
+        // Check if netplan is installed
+        const unsupportedBanner = document.getElementById('netplan-unsupported-banner');
+        if (unsupportedBanner) {
+          unsupportedBanner.style.display = data.installed ? 'none' : 'block';
+        }
+
+        // Populating current settings display
+        const cur = data.current || {};
+        const lblIface = document.getElementById('lbl-netplan-iface');
+        const lblMode = document.getElementById('lbl-netplan-mode');
+        const lblAddress = document.getElementById('lbl-netplan-address');
+        const lblGateway = document.getElementById('lbl-netplan-gateway');
+        const lblDns = document.getElementById('lbl-netplan-dns');
+
+        if (lblIface) lblIface.textContent = cur.interface || '-';
+        if (lblMode) lblMode.textContent = cur.interface ? (cur.dhcp ? 'Dynamic (DHCP)' : 'Static IP') : '-';
+        if (lblAddress) lblAddress.textContent = cur.address || '-';
+        if (lblGateway) lblGateway.textContent = cur.gateway || '-';
+        if (lblDns) lblDns.textContent = (cur.dns && cur.dns.length > 0) ? cur.dns.join(', ') : '-';
+
+        // Populate interface dropdown selector
+        const select = document.getElementById('netplan_iface_select');
+        if (select) {
+          select.innerHTML = '';
+          if (data.interfaces && data.interfaces.length > 0) {
+            data.interfaces.forEach(iface => {
+              const opt = document.createElement('option');
+              opt.value = iface;
+              opt.textContent = iface;
+              if (cur.interface === iface) {
+                opt.selected = true;
+              }
+              select.appendChild(opt);
+            });
+          } else {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'No interfaces found';
+            select.appendChild(opt);
+          }
+        }
+
+        // Populate form inputs if current config matches static mode
+        if (cur.interface) {
+          if (!cur.dhcp) {
+            // Check Static Radio
+            const radStatic = document.querySelector('input[name="netplan_mode"][value="static"]');
+            if (radStatic) {
+              radStatic.checked = true;
+              toggleNetplanFields('static');
+            }
+            const txtIp = document.getElementById('netplan_ip_cidr');
+            const txtGw = document.getElementById('netplan_gateway');
+            const txtDns1 = document.getElementById('netplan_dns1');
+            const txtDns2 = document.getElementById('netplan_dns2');
+
+            if (txtIp) txtIp.value = cur.address || '';
+            if (txtGw) txtGw.value = cur.gateway || '';
+            if (txtDns1) txtDns1.value = (cur.dns && cur.dns[0]) ? cur.dns[0] : '';
+            if (txtDns2) txtDns2.value = (cur.dns && cur.dns[1]) ? cur.dns[1] : '';
+          } else {
+            // Check DHCP Radio
+            const radDhcp = document.querySelector('input[name="netplan_mode"][value="dhcp"]');
+            if (radDhcp) {
+              radDhcp.checked = true;
+              toggleNetplanFields('dhcp');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load Netplan state:', err);
+      }
+    }
+
+    function toggleNetplanFields(mode) {
+      const staticFields = document.getElementById('netplan-static-fields');
+      if (staticFields) {
+        staticFields.style.display = (mode === 'static') ? 'flex' : 'none';
+      }
+    }
+
+    function applyNetplanConfig() {
+      const radChecked = document.querySelector('input[name="netplan_mode"]:checked');
+      const mode = radChecked ? radChecked.value : 'dhcp';
+      const interface_name = document.getElementById('netplan_iface_select').value;
+      
+      if (!interface_name) {
+        alert('Please select a network interface.');
+        return;
+      }
+
+      let queryUrl = '';
+      if (mode === 'dhcp') {
+        queryUrl = `/api/run?action=netplan-dhcp&iface=${encodeURIComponent(interface_name)}`;
+      } else {
+        const ip_cidr = document.getElementById('netplan_ip_cidr').value.trim();
+        const gateway = document.getElementById('netplan_gateway').value.trim();
+        const dns1 = document.getElementById('netplan_dns1').value.trim();
+        const dns2 = document.getElementById('netplan_dns2').value.trim();
+
+        if (!ip_cidr || !gateway || !dns1) {
+          alert('IP Address/Subnet, Gateway, and Primary DNS are required for static IP configuration.');
+          return;
+        }
+
+        if (!ip_cidr.includes('/')) {
+          alert('Subnet CIDR suffix is required (e.g., 192.168.1.100/24).');
+          return;
+        }
+
+        queryUrl = `/api/run?action=netplan-static&iface=${encodeURIComponent(interface_name)}&ip=${encodeURIComponent(ip_cidr)}&gw=${encodeURIComponent(gateway)}&dns1=${encodeURIComponent(dns1)}&dns2=${encodeURIComponent(dns2)}`;
+      }
+
+      const confirmMsg = mode === 'static' 
+        ? "Warning: Applying a static IP can temporarily disconnect the server and close your session. You will need to access the WebUI using the new IP address if it changes. Proceed?"
+        : "Warning: Applying DHCP will reload interfaces. Proceed?";
+      
+      if (!confirm(confirmMsg)) return;
+
+      streamPaneConsole(queryUrl, 'netplan-terminal-body');
+    }
+
+    // Local Terminal Helpers for independent pages
+    function copyPaneConsole(id) {
+      const text = document.getElementById(id).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Console output copied to clipboard.');
+      }).catch(err => {
+        alert('Failed to copy console logs.');
+      });
+    }
+
+    function clearPaneConsole(id) {
+      document.getElementById(id).innerHTML = '[Console cleared]\n';
+    }
+
+    function streamPaneConsole(queryUrl, terminalId) {
+      if (activeSSE) {
+        activeSSE.close();
+      }
+      const terminal = document.getElementById(terminalId);
+      terminal.innerHTML = `[Task Initiated]\nConnecting to server execution stream...\n\n`;
+      terminal.scrollTop = terminal.scrollHeight;
+
+      activeSSE = new EventSource(queryUrl);
+
+      activeSSE.onmessage = function(e) {
+        let line = e.data;
+        
+        let lineClass = '';
+        if (line.includes('[ERROR]') || line.includes('Failed') || line.includes('Error')) {
+          lineClass = 'term-err';
+        } else if (line.includes('✔') || line.includes('successfully') || line.includes('Success')) {
+          lineClass = 'term-ok';
+        } else if (line.includes('Warning') || line.includes('⚠️')) {
+          lineClass = 'term-warn';
+        }
+
+        const span = document.createElement('span');
+        if (lineClass) span.className = lineClass;
+        span.textContent = line + '\n';
+        
+        terminal.appendChild(span);
+        terminal.scrollTop = terminal.scrollHeight;
+      };
+
+      activeSSE.onerror = function() {
+        const span = document.createElement('span');
+        span.style.color = 'var(--text-muted)';
+        span.textContent = '\n[Execution finished. Log stream closed]\n';
+        terminal.appendChild(span);
+        terminal.scrollTop = terminal.scrollHeight;
+        
+        activeSSE.close();
+        activeSSE = null;
+        fetchStatus();
+      };
+    }
+
+    function runPruneGarbage() {
+      streamPaneConsole('/api/run?action=prune', 'prune-terminal-body');
+    }
+
+    function runSystemUpdate() {
+      streamPaneConsole('/api/run?action=maintenance', 'sys-update-terminal-body');
+    }
+
+    // App Configuration Portal functions
+    let activeAppConfigTab = 'jellyfin';
+    const appFolders = { jellyfin: [], immich: [], nextcloud: [] };
+    const appEnvVars = { jellyfin: [], immich: [], nextcloud: [], qbittorrent: [], vaultwarden: [] };
+
+    function switchAppConfigTab(appName) {
+      activeAppConfigTab = appName;
+      // Deactivate all buttons in the tab list
+      document.querySelectorAll('#journey-app-config .checklist-header-actions .badge-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      // Hide all panes
+      document.querySelectorAll('.app-config-tab-pane').forEach(pane => {
+        pane.style.display = 'none';
+      });
+
+      // Activate target button
+      const targetBtn = document.getElementById(`btn-tab-config-${appName}`);
+      if (targetBtn) targetBtn.classList.add('active');
+
+      // Show target pane
+      const targetPane = document.getElementById(`tab-pane-${appName}`);
+      if (targetPane) targetPane.style.display = 'block';
+    }
+
+    function markAppConfigDirty(app) {
+      const notice = document.getElementById(`notice-restart-${app}`);
+      if (notice) notice.style.display = 'flex';
+      const btn = document.getElementById(`btn-restart-${app}`);
+      if (btn) btn.style.display = 'inline-block';
+    }
+
+    function addAppFolder(app, path = '') {
+      appFolders[app].push(path);
+      renderAppFolders(app);
+      markAppConfigDirty(app);
+    }
+
+    function removeAppFolder(app, index) {
+      appFolders[app].splice(index, 1);
+      renderAppFolders(app);
+      markAppConfigDirty(app);
+    }
+
+    function renderAppFolders(app) {
+      const list = document.getElementById(`${app}-folders-list`);
+      if (!list) return;
+      list.innerHTML = '';
+      
+      appFolders[app].forEach((folderPath, index) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '0.5rem';
+        row.style.alignItems = 'center';
+        row.style.marginBottom = '0.25rem';
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = folderPath;
+        input.placeholder = `Folder Path #${index + 1}`;
+        input.style.flex = '1';
+        input.addEventListener('input', (e) => {
+          appFolders[app][index] = e.target.value;
+          markAppConfigDirty(app);
+        });
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'badge-btn';
+        deleteBtn.style.background = 'rgba(244, 63, 94, 0.1)';
+        deleteBtn.style.color = 'var(--warning-banner-text)';
+        deleteBtn.style.borderColor = 'rgba(244, 63, 94, 0.2)';
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.addEventListener('click', () => removeAppFolder(app, index));
+        
+        row.appendChild(input);
+        row.appendChild(deleteBtn);
+        list.appendChild(row);
+      });
+    }
+
+    function addAppEnvVar(app, key = '', val = '') {
+      appEnvVars[app].push({ key, val });
+      renderAppEnvVars(app);
+      markAppConfigDirty(app);
+    }
+
+    function removeAppEnvVar(app, index) {
+      appEnvVars[app].splice(index, 1);
+      renderAppEnvVars(app);
+      markAppConfigDirty(app);
+    }
+
+    function renderAppEnvVars(app) {
+      const list = document.getElementById(`${app}-env-list`);
+      if (!list) return;
+      list.innerHTML = '';
+      
+      appEnvVars[app].forEach((pair, index) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '0.5rem';
+        row.style.alignItems = 'center';
+        row.style.marginBottom = '0.25rem';
+        
+        const keyInput = document.createElement('input');
+        keyInput.type = 'text';
+        keyInput.value = pair.key;
+        keyInput.placeholder = 'VARIABLE_NAME';
+        keyInput.style.flex = '1';
+        keyInput.style.fontFamily = 'monospace';
+        keyInput.addEventListener('input', (e) => {
+          appEnvVars[app][index].key = e.target.value.trim().toUpperCase();
+          markAppConfigDirty(app);
+        });
+        
+        const valInput = document.createElement('input');
+        valInput.type = 'text';
+        valInput.value = pair.val;
+        valInput.placeholder = 'value';
+        valInput.style.flex = '1.5';
+        valInput.addEventListener('input', (e) => {
+          appEnvVars[app][index].val = e.target.value;
+          markAppConfigDirty(app);
+        });
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'badge-btn';
+        deleteBtn.style.background = 'rgba(244, 63, 94, 0.1)';
+        deleteBtn.style.color = 'var(--warning-banner-text)';
+        deleteBtn.style.borderColor = 'rgba(244, 63, 94, 0.2)';
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.addEventListener('click', () => removeAppEnvVar(app, index));
+        
+        row.appendChild(keyInput);
+        row.appendChild(valInput);
+        row.appendChild(deleteBtn);
+        list.appendChild(row);
+      });
+    }
+
+    async function loadAppConfigState() {
+      try {
+        const res = await fetch('/api/config');
+        if (!res.ok) throw new Error('Failed to fetch config');
+        const config = await res.json();
+
+        // Clear builders
+        Object.keys(appFolders).forEach(k => appFolders[k] = []);
+        Object.keys(appEnvVars).forEach(k => appEnvVars[k] = []);
+
+        // Parse folders
+        if (config.MEDIA_DIR) appFolders.jellyfin.push(config.MEDIA_DIR);
+        if (config.JELLYFIN_EXTRA_MEDIA_DIRS) {
+          config.JELLYFIN_EXTRA_MEDIA_DIRS.split(',').forEach(p => { if (p) appFolders.jellyfin.push(p); });
+        }
+        
+        if (config.PHOTO_BACKUP_LOCATION) appFolders.immich.push(config.PHOTO_BACKUP_LOCATION);
+        if (config.IMMICH_EXTRA_BACKUP_DIRS) {
+          config.IMMICH_EXTRA_BACKUP_DIRS.split(',').forEach(p => { if (p) appFolders.immich.push(p); });
+        }
+        
+        if (config.NEXTCLOUD_DATA_LOCATION) appFolders.nextcloud.push(config.NEXTCLOUD_DATA_LOCATION);
+        if (config.NEXTCLOUD_EXTRA_DATA_DIRS) {
+          config.NEXTCLOUD_EXTRA_DATA_DIRS.split(',').forEach(p => { if (p) appFolders.nextcloud.push(p); });
+        }
+
+        // Standard keys list to exclude from custom env vars
+        const standardKeys = new Set([
+          'TZ', 'PUID', 'PGID', 'SYSTEM_DATA_DIR', 'DB_DATA_LOCATION', 'NEXTCLOUD_DB_LOCATION',
+          'GITHUB_REPO', 'GITHUB_TOKEN', 'HOMEPAGE_VAR_QBITTORRENT_PASSWORD', 'HOMEPAGE_VAR_PAPERLESS_USERNAME',
+          'HOMEPAGE_VAR_PAPERLESS_PASSWORD', 'HOMEPAGE_VAR_IMMICH_API_KEY',
+          'MEDIA_DIR', 'JELLYFIN_PORT', 'JELLYFIN_EXTRA_MEDIA_DIRS',
+          'UPLOAD_LOCATION', 'PHOTO_BACKUP_LOCATION', 'IMMICH_PORT', 'IMMICH_EXTRA_BACKUP_DIRS',
+          'NEXTCLOUD_DATA_LOCATION', 'NEXTCLOUD_PORT', 'NEXTCLOUD_EXTRA_DATA_DIRS',
+          'QBITTORRENT_PORT', 'QBITTORRENT_INCOMING_PORT',
+          'VAULTWARDEN_PORT', 'SIGNUPS_ALLOWED'
+        ]);
+
+        // Map custom variables
+        Object.entries(config).forEach(([key, val]) => {
+          if (standardKeys.has(key)) return;
+          
+          if (key.startsWith('JELLYFIN_')) {
+            appEnvVars.jellyfin.push({ key, val });
+          } else if (key.startsWith('IMMICH_')) {
+            appEnvVars.immich.push({ key, val });
+          } else if (key.startsWith('NEXTCLOUD_')) {
+            appEnvVars.nextcloud.push({ key, val });
+          } else if (key.startsWith('QBITTORRENT_')) {
+            appEnvVars.qbittorrent.push({ key, val });
+          } else if (key.startsWith('VAULTWARDEN_')) {
+            appEnvVars.vaultwarden.push({ key, val });
+          }
+        });
+
+        // Populate port and static inputs
+        document.getElementById('input-jellyfin-port').value = config.JELLYFIN_PORT || '';
+        document.getElementById('input-immich-upload-location').value = config.UPLOAD_LOCATION || '';
+        document.getElementById('input-immich-port').value = config.IMMICH_PORT || '';
+        document.getElementById('input-nextcloud-port').value = config.NEXTCLOUD_PORT || '';
+        document.getElementById('input-qbittorrent-port').value = config.QBITTORRENT_PORT || '';
+        document.getElementById('input-qbittorrent-incoming-port').value = config.QBITTORRENT_INCOMING_PORT || '';
+        document.getElementById('input-vaultwarden-port').value = config.VAULTWARDEN_PORT || '';
+        document.getElementById('input-vaultwarden-signup-allowed').value = config.SIGNUPS_ALLOWED !== undefined ? String(config.SIGNUPS_ALLOWED) : 'true';
+
+        // Render builders
+        Object.keys(appFolders).forEach(renderAppFolders);
+        Object.keys(appEnvVars).forEach(renderAppEnvVars);
+
+        // Fetch container statuses
+        const statusRes = await fetch('/api/status');
+        if (!statusRes.ok) throw new Error('Failed to fetch status');
+        const statusData = await statusRes.json();
+        const containers = statusData.containers || {};
+
+        const appContainers = {
+          jellyfin: 'media_jellyfin',
+          immich: 'immich_server',
+          nextcloud: 'nextcloud_app',
+          qbittorrent: 'media_qbittorrent',
+          vaultwarden: 'utility_vaultwarden'
+        };
+
+        for (const [app, containerName] of Object.entries(appContainers)) {
+          const badge = document.getElementById(`badge-status-${app}`);
+          if (badge) {
+            const state = containers[containerName];
+            if (state === 'running') {
+              badge.className = 'container-status-badge badge-up';
+              badge.textContent = 'Running';
+            } else {
+              badge.className = 'container-status-badge badge-down';
+              badge.textContent = state ? state.charAt(0).toUpperCase() + state.slice(1) : 'Stopped';
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading app config state:', err);
+      }
+    }
+
+    async function saveAppConfigOnly(app) {
+      const payload = {};
+
+      if (app === 'jellyfin') {
+        const folders = appFolders.jellyfin;
+        payload.MEDIA_DIR = folders.length > 0 ? folders[0] : '';
+        payload.JELLYFIN_EXTRA_MEDIA_DIRS = folders.length > 1 ? folders.slice(1).join(',') : '';
+        payload.JELLYFIN_PORT = document.getElementById('input-jellyfin-port').value.trim();
+        
+        appEnvVars.jellyfin.forEach(pair => {
+          if (pair.key) payload[pair.key] = pair.val;
+        });
+      } else if (app === 'immich') {
+        const folders = appFolders.immich;
+        payload.PHOTO_BACKUP_LOCATION = folders.length > 0 ? folders[0] : '';
+        payload.IMMICH_EXTRA_BACKUP_DIRS = folders.length > 1 ? folders.slice(1).join(',') : '';
+        payload.UPLOAD_LOCATION = document.getElementById('input-immich-upload-location').value.trim();
+        payload.IMMICH_PORT = document.getElementById('input-immich-port').value.trim();
+        
+        appEnvVars.immich.forEach(pair => {
+          if (pair.key) payload[pair.key] = pair.val;
+        });
+      } else if (app === 'nextcloud') {
+        const folders = appFolders.nextcloud;
+        payload.NEXTCLOUD_DATA_LOCATION = folders.length > 0 ? folders[0] : '';
+        payload.NEXTCLOUD_EXTRA_DATA_DIRS = folders.length > 1 ? folders.slice(1).join(',') : '';
+        payload.NEXTCLOUD_PORT = document.getElementById('input-nextcloud-port').value.trim();
+        
+        appEnvVars.nextcloud.forEach(pair => {
+          if (pair.key) payload[pair.key] = pair.val;
+        });
+      } else if (app === 'qbittorrent') {
+        payload.QBITTORRENT_PORT = document.getElementById('input-qbittorrent-port').value.trim();
+        payload.QBITTORRENT_INCOMING_PORT = document.getElementById('input-qbittorrent-incoming-port').value.trim();
+        
+        appEnvVars.qbittorrent.forEach(pair => {
+          if (pair.key) payload[pair.key] = pair.val;
+        });
+      } else if (app === 'vaultwarden') {
+        payload.VAULTWARDEN_PORT = document.getElementById('input-vaultwarden-port').value.trim();
+        payload.SIGNUPS_ALLOWED = document.getElementById('input-vaultwarden-signup-allowed').value;
+        
+        appEnvVars.vaultwarden.forEach(pair => {
+          if (pair.key) payload[pair.key] = pair.val;
+        });
+      }
+
+      try {
+        const saveRes = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!saveRes.ok) throw new Error('Failed to save configuration.');
+        const saveResult = await saveRes.json();
+        if (!saveResult.success) throw new Error('Save configuration returned success=false.');
+
+        alert('Configuration saved to .env successfully! Please click the red "Restart Service" button to apply these changes on the host.');
+      } catch (err) {
+        alert('Error saving config: ' + err.message);
+      }
+    }
+
+    function restartAppService(app) {
+      let serviceToRestart = '';
+      let displayTitle = '';
+
+      if (app === 'jellyfin') {
+        serviceToRestart = 'jellyfin';
+        displayTitle = 'Restarting Jellyfin Player';
+      } else if (app === 'immich') {
+        serviceToRestart = 'immich_suite';
+        displayTitle = 'Restarting Immich Photos Stack';
+      } else if (app === 'nextcloud') {
+        serviceToRestart = 'nextcloud_suite';
+        displayTitle = 'Restarting Nextcloud Cloud Stack';
+      } else if (app === 'qbittorrent') {
+        serviceToRestart = 'qbittorrent';
+        displayTitle = 'Restarting qBittorrent Downloader';
+      } else if (app === 'vaultwarden') {
+        serviceToRestart = 'vaultwarden';
+        displayTitle = 'Restarting Vaultwarden Password Vault';
+      }
+
+      if (!serviceToRestart) return;
+
+      // Hide restart warnings
+      const notice = document.getElementById(`notice-restart-${app}`);
+      if (notice) notice.style.display = 'none';
+      const btn = document.getElementById(`btn-restart-${app}`);
+      if (btn) btn.style.display = 'none';
+
+      triggerJourney('dashboard');
+      initConsoleLogs(displayTitle, `/api/run?action=restart&services=${serviceToRestart}`);
+    }
+
+    // App Setups & Usage Manual Tab Switching
+    function showUsageTab(tabName) {
+      document.querySelectorAll('.usage-tab-pane').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('#journey-usage .checklist-header-actions .badge-btn').forEach(btn => btn.classList.remove('active'));
+
+      const targetPane = document.getElementById(`usage-tab-${tabName}`);
+      if (targetPane) targetPane.style.display = 'block';
+
+      const targetBtn = document.getElementById(`btn-tab-${tabName}`);
+      if (targetBtn) targetBtn.classList.add('active');
+    }
+
+    // Docker Engine Installation
+    let dockerInstallSSE = null;
+    function runDockerInstall() {
+      const btn = document.getElementById('btn-run-docker-install');
+      const statusEl = document.getElementById('docker-install-status');
+      const consoleWrap = document.getElementById('docker-install-console');
+      const output = document.getElementById('docker-install-output');
+
+      if (dockerInstallSSE) {
+        dockerInstallSSE.close();
+        dockerInstallSSE = null;
+      }
+
+      btn.disabled = true;
+      statusEl.textContent = 'Installing…';
+      consoleWrap.style.display = 'block';
+      output.textContent = '';
+
+      dockerInstallSSE = new EventSource('/api/run?action=install-docker');
+
+      dockerInstallSSE.onmessage = function(e) {
+        const line = e.data;
+        output.textContent += line + '\n';
+        output.scrollTop = output.scrollHeight;
+
+        if (line.includes('✔') || line.includes('successfully') || line.includes('Success')) {
+          statusEl.style.color = 'var(--accent-green)';
+          statusEl.textContent = '✔ Docker installed successfully';
+        } else if (line.includes('[ERROR]') || line.includes('Error') || line.includes('Failed')) {
+          statusEl.style.color = 'var(--accent-red)';
+          statusEl.textContent = '✗ Error encountered — see output';
+        }
+      };
+
+      dockerInstallSSE.onerror = function() {
+        btn.disabled = false;
+        if (!statusEl.textContent.startsWith('✔') && !statusEl.textContent.startsWith('✗')) {
+          statusEl.style.color = 'var(--text-muted)';
+          statusEl.textContent = 'Stream closed.';
+        }
+        dockerInstallSSE.close();
+        dockerInstallSSE = null;
+      };
+    }
+
+    // Load configs and populate form fields
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        cachedConfig = data;
+
+        // Populate shared wizard elements
+        Object.entries(data).forEach(([key, val]) => {
+          const input = document.getElementById(key);
+          if (input) {
+            if (input.type === 'checkbox') {
+              input.checked = val === 'true';
+            } else {
+              input.value = val;
+            }
+          }
+        });
+
+        // Handle auto mount initial toggles
+        const isAutoMount = data.CONFIGURE_DRIVE_MOUNTS === 'true';
+        document.getElementById('chk-auto-mount').checked = isAutoMount;
+        toggleMountFields(isAutoMount);
+
+        // Render mounting stat on dashboard
+        document.getElementById('stats-mount').textContent = isAutoMount ? 'Host Mounts' : 'Portable';
+        
+        // Populate specific page elements
+        if (data.TS_AUTHKEY) {
+          document.getElementById('tailscale_TS_AUTHKEY').value = data.TS_AUTHKEY;
+          document.getElementById('ts-authkey-display').value = '••••••••••••••••';
+        } else {
+          document.getElementById('ts-authkey-display').value = 'Not configured';
+        }
+
+        if (data.HOMEPAGE_VAR_QBITTORRENT_PASSWORD) {
+          document.getElementById('homepage_QBITTORRENT_PASSWORD').value = data.HOMEPAGE_VAR_QBITTORRENT_PASSWORD;
+        }
+        if (data.HOMEPAGE_VAR_PAPERLESS_USERNAME) {
+          document.getElementById('homepage_PAPERLESS_USERNAME').value = data.HOMEPAGE_VAR_PAPERLESS_USERNAME;
+        }
+        if (data.HOMEPAGE_VAR_PAPERLESS_PASSWORD) {
+          document.getElementById('homepage_PAPERLESS_PASSWORD').value = data.HOMEPAGE_VAR_PAPERLESS_PASSWORD;
+        }
+        if (data.HOMEPAGE_VAR_IMMICH_API_KEY) {
+          document.getElementById('homepage_IMMICH_API_KEY').value = data.HOMEPAGE_VAR_IMMICH_API_KEY;
+        }
+
+        const repoVal = data.GITHUB_REPO || localStorage.getItem('GITHUB_REPO') || '';
+        document.getElementById('git_push_REPO').value = repoVal;
+        document.getElementById('git_sync_REPO').value = repoVal;
+
+        const tokenVal = data.GITHUB_TOKEN || localStorage.getItem('GITHUB_TOKEN') || '';
+        document.getElementById('git_push_TOKEN').value = tokenVal;
+        document.getElementById('git_sync_TOKEN').value = tokenVal;
+
+        // Populate volume config settings
+        if (data.JELLYFIN_EXTRA_DIR) {
+          document.getElementById('volume_JELLYFIN_EXTRA_DIR').value = data.JELLYFIN_EXTRA_DIR;
+        }
+        if (data.PHOTO_BACKUP_LOCATION) {
+          document.getElementById('volume_PHOTO_BACKUP_LOCATION').value = data.PHOTO_BACKUP_LOCATION;
+        }
+        if (data.UPLOAD_LOCATION) {
+          document.getElementById('volume_UPLOAD_LOCATION').value = data.UPLOAD_LOCATION;
+        }
+        if (data.NEXTCLOUD_DATA_LOCATION) {
+          document.getElementById('volume_NEXTCLOUD_DATA_LOCATION').value = data.NEXTCLOUD_DATA_LOCATION;
+        }
+      } catch (err) {
+        console.error('Failed to load configurations:', err);
+      }
+    }
+
+    // Save wizard configuration changes dynamically based on active journey pane
+    async function saveConfigForJourney(journeyId) {
+      const config = {};
+      
+      if (journeyId === 'update' || journeyId === 'install') {
+        config['SERVER_IP'] = document.getElementById('SERVER_IP').value;
+        config['TZ'] = document.getElementById('TZ').value;
+        config['PUID'] = document.getElementById('PUID').value;
+        config['PGID'] = document.getElementById('PGID').value;
+        config['SYSTEM_DATA_DIR'] = document.getElementById('SYSTEM_DATA_DIR').value;
+        config['MEDIA_DIR'] = document.getElementById('MEDIA_DIR').value;
+        config['CONFIGURE_DRIVE_MOUNTS'] = document.getElementById('chk-auto-mount').checked ? 'true' : 'false';
+        config['DRIVE_MOUNT_POINTS'] = document.getElementById('DRIVE_MOUNT_POINTS').value;
+        config['DRIVE_SIZES'] = document.getElementById('DRIVE_SIZES').value;
+        config['UPLOAD_LOCATION'] = document.getElementById('UPLOAD_LOCATION').value;
+        config['PHOTO_BACKUP_LOCATION'] = document.getElementById('PHOTO_BACKUP_LOCATION').value;
+        config['NEXTCLOUD_DATA_LOCATION'] = document.getElementById('NEXTCLOUD_DATA_LOCATION').value;
+        config['TS_AUTHKEY'] = document.getElementById('TS_AUTHKEY').value;
+      } else if (journeyId === 'tailscale') {
+        config['TS_AUTHKEY'] = document.getElementById('tailscale_TS_AUTHKEY').value;
+      } else if (journeyId === 'homepage') {
+        config['HOMEPAGE_VAR_QBITTORRENT_PASSWORD'] = document.getElementById('homepage_QBITTORRENT_PASSWORD').value;
+        config['HOMEPAGE_VAR_PAPERLESS_USERNAME'] = document.getElementById('homepage_PAPERLESS_USERNAME').value;
+        config['HOMEPAGE_VAR_PAPERLESS_PASSWORD'] = document.getElementById('homepage_PAPERLESS_PASSWORD').value;
+        config['HOMEPAGE_VAR_IMMICH_API_KEY'] = document.getElementById('homepage_IMMICH_API_KEY').value;
+      } else if (journeyId === 'git-push') {
+        config['GITHUB_REPO'] = document.getElementById('git_push_REPO').value;
+        config['GITHUB_TOKEN'] = document.getElementById('git_push_TOKEN').value;
+      } else if (journeyId === 'git-sync') {
+        config['GITHUB_REPO'] = document.getElementById('git_sync_REPO').value;
+        config['GITHUB_TOKEN'] = document.getElementById('git_sync_TOKEN').value;
+      }
+
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        });
+        const data = await res.json();
+        if (data.success) {
+          loadConfig();
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.error('Error saving configs:', err);
+        return false;
+      }
+    }
+
+    // Trigger selective checklist actions (Update, Restart, Install/Nuke)
+    async function runSelectiveAction(action) {
+      const selected = [];
+      const prefix = action === 'nuke' || action === 'install' ? 'install' : action;
+      document.querySelectorAll(`.cb-${prefix}:checked`).forEach(cb => {
+        selected.push(cb.value);
+      });
+
+      if (selected.length === 0) {
+        alert('Please check at least one service to perform this action.');
+        return;
+      }
+
+      if (action === 'install') {
+        const confirmMsg = '⚠️ WARNING: Proceeding will erase all databases and configurations for the checked services. This action CANNOT be undone.\n\nAre you sure you want to proceed?';
+        if (!confirm(confirmMsg)) return;
+      }
+
+      // Auto-save the config first
+      const saved = await saveConfigForJourney(prefix);
+      if (!saved) {
+        alert('Failed to save configuration settings. Aborting task execution.');
+        return;
+      }
+
+      // Transition and launch SSE logs
+      const title = `${action === 'install' ? 'Install' : action.charAt(0).toUpperCase() + action.slice(1)} Task Running`;
+      const sseAction = action === 'install' ? 'nuke' : action;
+      initConsoleLogs(title, `/api/run?action=${sseAction}&services=${selected.join(',')}`);
+    }
+
+    // Trigger configured single-command tasks (tailscale, homepage, git-push, sync)
+    async function runConfiguredAction(action, title) {
+      let journeyId = action;
+      if (action === 'git-push') journeyId = 'git-push';
+      if (action === 'sync') journeyId = 'git-sync';
+      
+      const saved = await saveConfigForJourney(journeyId);
+      if (!saved) {
+        alert('Failed to save configuration settings. Aborting task execution.');
+        return;
+      }
+
+      initConsoleLogs(title || `${action} running`, `/api/run?action=${action}`);
+    }
+
+    // Trigger direct single-command tasks (backup, prune, maintenance, etc.)
+    function runDirectAction(action, title) {
+      initConsoleLogs(title || `${action} running`, `/api/run?action=${action}`);
+    }
+
+    // Initialize Log Console Stream (SSE)
+    function initConsoleLogs(title, queryUrl) {
+      document.getElementById('terminal-pane').style.display = 'block';
+      const terminal = document.getElementById('terminal-body');
+      const titleEl = document.getElementById('terminal-title-text');
+      
+      titleEl.textContent = title;
+      terminal.innerHTML = `[Task Initiated: ${title.toUpperCase()}]\nConnecting to server execution stream...\n\n`;
+      terminal.scrollTop = terminal.scrollHeight;
+
+      if (activeSSE) {
+        activeSSE.close();
+      }
+
+      activeSSE = new EventSource(queryUrl);
+
+      activeSSE.onmessage = function(e) {
+        let line = e.data;
+        
+        let lineClass = '';
+        if (line.includes('[ERROR]') || line.includes('Failed') || line.includes('Error')) {
+          lineClass = 'term-err';
+        } else if (line.includes('✔') || line.includes('successfully') || line.includes('Success')) {
+          lineClass = 'term-ok';
+        } else if (line.includes('Warning') || line.includes('⚠️')) {
+          lineClass = 'term-warn';
+        }
+
+        const span = document.createElement('span');
+        if (lineClass) span.className = lineClass;
+        span.textContent = line + '\n';
+        
+        terminal.appendChild(span);
+        terminal.scrollTop = terminal.scrollHeight;
+      };
+
+      activeSSE.onerror = function() {
+        const span = document.createElement('span');
+        span.style.color = 'var(--text-muted)';
+        span.textContent = '\n[Execution finished. Log stream closed]\n';
+        terminal.appendChild(span);
+        terminal.scrollTop = terminal.scrollHeight;
+        
+        activeSSE.close();
+        activeSSE = null;
+        fetchStatus();
+      };
+    }
+
+    // Terminal helper actions
+    function clearConsoleOutput() {
+      document.getElementById('terminal-body').innerHTML = '[Console cleared]\n';
+    }
+
+    // Copy Console logs to clipboard
+    function copyConsoleOutput() {
+      const text = document.getElementById('terminal-body').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Console output copied to clipboard.');
+      }).catch(err => {
+        alert('Failed to copy console logs.');
+      });
+    }
+
+    // Light & Dark Theme Controller
+    function initTheme() {
+      const savedTheme = localStorage.getItem('theme') || 'auto';
+      applyTheme(savedTheme);
+      
+      // Listen to system theme changes in auto mode
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        const curr = localStorage.getItem('theme') || 'auto';
+        if (curr === 'auto') {
+          applyTheme('auto');
+        }
+      });
+    }
+
+    function applyTheme(theme) {
+      const root = document.documentElement;
+      const btn = document.getElementById('theme-toggle-btn');
+      
+      root.classList.remove('theme-light', 'theme-dark');
+
+      if (theme === 'auto') {
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        root.classList.add(systemDark ? 'theme-dark' : 'theme-light');
+        if (btn) {
+          btn.textContent = '🌓';
+          btn.title = 'Theme: Auto (System)';
+        }
+      } else if (theme === 'dark') {
+        root.classList.add('theme-dark');
+        if (btn) {
+          btn.textContent = '🌙';
+          btn.title = 'Theme: Dark';
+        }
+      } else {
+        root.classList.add('theme-light');
+        if (btn) {
+          btn.textContent = '☀️';
+          btn.title = 'Theme: Light';
+        }
+      }
+    }
+
+    function toggleTheme() {
+      const currentTheme = localStorage.getItem('theme') || 'auto';
+      let nextTheme = 'auto';
+
+      if (currentTheme === 'auto') {
+        nextTheme = 'dark';
+      } else if (currentTheme === 'dark') {
+        nextTheme = 'light';
+      } else {
+        nextTheme = 'auto';
+      }
+
+      localStorage.setItem('theme', nextTheme);
+      applyTheme(nextTheme);
+    }
+
+    // Initialize Page
+    initTheme();
+    populateChecklists();
+    fetchStatus();
+    loadConfig();
+
+    // Sync and cache Git configurations in localStorage
+    const setupGitSyncListeners = () => {
+      const syncRepo = document.getElementById('git_sync_REPO');
+      const syncToken = document.getElementById('git_sync_TOKEN');
+      const pushRepo = document.getElementById('git_push_REPO');
+      const pushToken = document.getElementById('git_push_TOKEN');
+
+      if (syncRepo && pushRepo) {
+        syncRepo.addEventListener('input', (e) => {
+          localStorage.setItem('GITHUB_REPO', e.target.value);
+          pushRepo.value = e.target.value;
+        });
+        pushRepo.addEventListener('input', (e) => {
+          localStorage.setItem('GITHUB_REPO', e.target.value);
+          syncRepo.value = e.target.value;
+        });
+      }
+
+      if (syncToken && pushToken) {
+        syncToken.addEventListener('input', (e) => {
+          localStorage.setItem('GITHUB_TOKEN', e.target.value);
+          pushToken.value = e.target.value;
+        });
+        pushToken.addEventListener('input', (e) => {
+          localStorage.setItem('GITHUB_TOKEN', e.target.value);
+          syncToken.value = e.target.value;
+        });
+      }
+    };
+    setupGitSyncListeners();
+    
+    // Poll containers status updates
+    setInterval(fetchStatus, 15000);
+
+    // ---- Restart Portal Server ----
+    async function restartPortalServer() {
+      const confirmed = confirm(
+        '⚠️  Restart the Portal WebUI server?\n\nThe page will go offline briefly and reconnect automatically once the server is back up.'
+      );
+      if (!confirmed) return;
+
+      const overlay = document.getElementById('restart-overlay');
+      const statusText = document.getElementById('restart-status-text');
+      const btn = document.getElementById('btn-restart-server');
+
+      // Show overlay
+      overlay.style.display = 'flex';
+      if (btn) btn.disabled = true;
+      statusText.textContent = 'Sending restart signal…';
+
+      try {
+        await fetch('/api/restart-server', { method: 'POST' });
+      } catch (_) {
+        // The server may close the connection before a response; that's fine.
+      }
+
+      statusText.textContent = 'Server is restarting — waiting for it to come back online…';
+
+      // Poll /api/status until the server responds again, then reload.
+      let attempts = 0;
+      const maxAttempts = 60; // 60 × 2s = 2 min timeout
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const r = await fetch('/api/status', { cache: 'no-store' });
+          if (r.ok) {
+            clearInterval(poll);
+            statusText.textContent = 'Server is back! Reloading…';
+            setTimeout(() => window.location.reload(), 800);
+          }
+        } catch (_) {
+          // Server still down — keep polling
+          statusText.textContent = `Waiting for server… (${attempts * 2}s elapsed)`;
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(poll);
+          statusText.textContent = 'Server did not respond in time. Please refresh manually.';
+          const spinner = document.getElementById('restart-spinner');
+          if (spinner) spinner.style.borderTopColor = '#facc15';
+          if (btn) btn.disabled = false;
+        }
+      }, 2000);
+    }
