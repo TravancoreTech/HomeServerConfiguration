@@ -120,6 +120,10 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
               Overview Dashboard
             </button>
+            <button class="menu-item" onclick="triggerJourney('system')" id="btn-system">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
+              System Administration
+            </button>
             <button class="menu-item" onclick="triggerJourney('docker')" id="btn-docker">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
               Docker Containers
@@ -154,10 +158,6 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               Configure Samba Share
             </button>
-            <button class="menu-item" onclick="triggerJourney('netplan')" id="btn-netplan">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
-              Configure Static IP
-            </button>
             <button class="menu-item" onclick="triggerJourney('app-config')" id="btn-app-config">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
               Configure Apps
@@ -168,10 +168,6 @@
         <div>
           <div class="menu-category-title">System & Storage</div>
           <div class="menu-list">
-            <button class="menu-item" onclick="runDirectAction('backup', 'Backing up Server Configurations')" id="btn-backup">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path></svg>
-              Backup Configurations
-            </button>
             <button class="menu-item" onclick="triggerJourney('git-push')" id="btn-git-push">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"></path></svg>
               Push Configs to Git
@@ -179,14 +175,6 @@
             <button class="menu-item" onclick="triggerJourney('git-sync')" id="btn-git-sync">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
               Fetch Configs from Git
-            </button>
-            <button class="menu-item" onclick="triggerJourney('prune')" id="btn-prune">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
-              Prune Docker Garbage
-            </button>
-            <button class="menu-item" onclick="triggerJourney('sys-update')" id="btn-sys-update">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-              OS Update & Maintenance
             </button>
           </div>
         </div>
@@ -288,6 +276,35 @@
             <div class="metric-card">
               <div class="metric-title">Auto-mount (Storage)</div>
               <div class="metric-value" id="stats-mount">Portable</div>
+            </div>
+          </div>
+
+          <!-- Clickable Host System Vitals Nutshell Card -->
+          <div class="card" style="margin-top: 1.5rem; cursor: pointer; border-color: rgba(99, 102, 241, 0.15); background: rgba(99, 102, 241, 0.01); transition: border-color 0.2s, box-shadow 0.2s;" 
+               onclick="triggerJourney('system')"
+               onmouseover="this.style.borderColor='var(--accent-indigo)';this.style.boxShadow='0 0 12px rgba(99, 102, 241, 0.15)';"
+               onmouseout="this.style.borderColor='rgba(99, 102, 241, 0.15)';this.style.boxShadow='none';">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.1rem;">🖥️</span>
+                <h2 style="font-size: 0.95rem; font-weight: 700; text-transform: uppercase; tracking-wider; color: var(--text-primary);">Host System Vitals</h2>
+              </div>
+              <span style="font-size: 0.75rem; color: var(--accent-indigo-text); font-weight: 600;">Inspect Health Metrics ➔</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center; padding-top: 0.25rem;">
+              <div style="padding: 0.5rem 0; border-right: 1px solid var(--border-color);">
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">CPU Load</div>
+                <div id="vitals-cpu-val" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">0%</div>
+              </div>
+              <div style="padding: 0.5rem 0; border-right: 1px solid var(--border-color);">
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">Memory Usage</div>
+                <div id="vitals-ram-val" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">0%</div>
+              </div>
+              <div style="padding: 0.5rem 0;">
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">CPU Temperature</div>
+                <div id="vitals-temp-val" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">0°C</div>
+              </div>
             </div>
           </div>
 
@@ -1277,235 +1294,318 @@
       </section>
 
       <!-- JOURNEY: Configure Netplan Static IP -->
-      <section id="journey-netplan" class="journey-pane">
+      <!-- JOURNEY: Consolidated System Administration & Diagnostics -->
+      <section id="journey-system" class="journey-pane">
         <div class="card">
-          <div class="card-header">
+          <div class="card-header" style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
             <div>
-              <h2>Static IP Configuration (Netplan)</h2>
-              <div class="card-subtitle">Set static network IP details or enable DHCP for host network interfaces</div>
+              <h2>System Administration Portal</h2>
+              <div class="card-subtitle">Monitor server statistics, configure network settings, manage power schedules, and run OS updates</div>
             </div>
           </div>
 
-          <!-- Netplan not supported state -->
-          <div id="netplan-unsupported-banner" class="warning-banner" style="display: none; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: var(--warning-banner-text); margin-bottom: 1.5rem;">
-            <h3 style="color: var(--accent-red);">⚠️ Netplan Not Supported</h3>
-            <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
-              Netplan command utility is not installed or supported on this host. This feature is tailored for system deployments using Netplan (typically Ubuntu/Debian).
+          <!-- Tabs Selector for System Sub-actions -->
+          <div class="checklist-header-actions" style="margin-bottom: 1.5rem; justify-content: flex-start; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="badge-btn active sys-tab-btn" id="sys-tab-btn-vitals" onclick="switchSystemTab('vitals')">📊 Health & Storage</button>
+            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-power" onclick="switchSystemTab('power')">⏱️ Power Scheduler</button>
+            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-network" onclick="switchSystemTab('network')">🌐 Network Configuration</button>
+            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-maintenance" onclick="switchSystemTab('maintenance')">⚙️ Host Maintenance</button>
+          </div>
+
+          <!-- SYSTEM SUB-TAB: Detailed Health & Storage Statistics -->
+          <div id="sys-tab-content-vitals" class="sys-tab-pane">
+            <h3 style="color: var(--accent-indigo-text); font-weight: 700; margin-bottom: 1rem; font-size: 1.1rem;">Live Server Vitals</h3>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+              <!-- CPU Card -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
+                <div style="font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">CPU Load</div>
+                <div id="sys-cpu-val" style="font-size: 1.8rem; font-weight: 700; color: var(--text-primary); margin-top: 0.25rem; margin-bottom: 0.5rem;">0%</div>
+                <div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                  <div id="sys-cpu-bar" style="height: 100%; width: 0%; background: var(--accent-indigo); transition: width 0.3s ease;"></div>
+                </div>
+              </div>
+              <!-- RAM Card -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
+                <div style="font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Memory Allocation</div>
+                <div id="sys-ram-val" style="font-size: 1.8rem; font-weight: 700; color: var(--text-primary); margin-top: 0.25rem; margin-bottom: 0.5rem;">0%</div>
+                <div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                  <div id="sys-ram-bar" style="height: 100%; width: 0%; background: var(--accent-blue); transition: width 0.3s ease;"></div>
+                </div>
+                <div id="sys-ram-detail" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.35rem;">-</div>
+              </div>
+              <!-- Temperature Card -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
+                <div style="font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">CPU Temperature</div>
+                <div id="sys-temp-val" style="font-size: 1.8rem; font-weight: 700; color: var(--text-primary); margin-top: 0.25rem; margin-bottom: 0.5rem;">0°C</div>
+                <div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                  <div id="sys-temp-bar" style="height: 100%; width: 0%; background: var(--accent-red); transition: width 0.3s ease;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Disk Storage Details -->
+            <h3 style="color: var(--accent-blue); font-weight: 700; margin-bottom: 0.5rem; font-size: 1.1rem; margin-top: 2rem;">Host Storage Map & Mounts</h3>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 1rem;">
+              Usage statistics for all physical disks and mapped partitions currently attached to the host.
             </p>
-          </div>
-
-          <!-- Current IP details card -->
-          <div class="form-section" id="netplan-current-display" style="margin-bottom: 1.5rem; background: rgba(255, 255, 255, 0.02); border-radius: 12px; padding: 1.25rem;">
-            <h4 style="color: var(--accent-indigo); margin-bottom: 0.75rem; font-size: 0.95rem; font-weight: 700;">Current Network Interface Configuration</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; font-size: 0.85rem;">
-              <div>
-                <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Interface:</span>
-                <span id="lbl-netplan-iface" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
-              </div>
-              <div>
-                <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Addressing:</span>
-                <span id="lbl-netplan-mode" style="color: var(--text-primary); font-weight: 500;">-</span>
-              </div>
-              <div>
-                <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">IP Address:</span>
-                <span id="lbl-netplan-address" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
-              </div>
-              <div>
-                <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Gateway:</span>
-                <span id="lbl-netplan-gateway" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
-              </div>
-              <div>
-                <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">DNS:</span>
-                <span id="lbl-netplan-dns" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
-              </div>
+            <div style="overflow-x: auto; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 12px;">
+              <table class="samba-users-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.02);">
+                    <th style="padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">Device</th>
+                    <th style="padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">Mount Point</th>
+                    <th style="padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">Total Size</th>
+                    <th style="padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">Used</th>
+                    <th style="padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600;">Available</th>
+                    <th style="padding: 0.75rem 1rem; color: var(--text-muted); font-weight: 600; width: 140px;">Usage Bar</th>
+                  </tr>
+                </thead>
+                <tbody id="system-disks-target">
+                  <tr>
+                    <td colspan="6" style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Querying storage metrics...</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
-          <!-- Configuration Form -->
-          <div class="form-section" style="border: none; background: transparent; padding: 0; margin-bottom: 1.5rem;">
-            <div class="form-section-body" style="grid-template-columns: 1fr; gap: 1.25rem; padding: 0;">
-              
-              <!-- IP Mode Toggle -->
-              <div class="form-group">
-                <label>IP Configuration Mode</label>
-                <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+          <!-- SYSTEM SUB-TAB: Power Scheduler -->
+          <div id="sys-tab-content-power" class="sys-tab-pane" style="display: none;">
+            <h3 style="color: var(--accent-indigo-text); font-weight: 700; margin-bottom: 0.5rem; font-size: 1.1rem;">Scheduled Auto Power Management</h3>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 1.5rem;">
+              Set power policies to automatically shut down or wake up the server. Wake scheduler uses host motherboard RTC alarms.
+            </p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+              <!-- Shutdown Config -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <h4 style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem;">🔴 Auto Shutdown policy</h4>
                   <label class="toggle-container" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="radio" name="netplan_mode" value="dhcp" checked onchange="toggleNetplanFields('dhcp')" style="accent-color: var(--accent-indigo);">
-                    <span style="color: var(--text-primary); font-size: 0.9rem;">Dynamic IP (DHCP)</span>
+                    <input type="checkbox" id="power_enable_shutdown" style="accent-color: var(--accent-indigo);" onchange="togglePowerFields()">
+                    <span style="font-size: 0.85rem; color: var(--text-primary);">Enable</span>
                   </label>
+                </div>
+
+                <div class="form-group">
+                  <label for="power_shutdown_time">Shutdown Time</label>
+                  <input type="time" id="power_shutdown_time" value="23:00">
+                </div>
+
+                <div class="form-group">
+                  <label for="power_shutdown_days">Execute Days</label>
+                  <select id="power_shutdown_days" style="width: 100%; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); padding: 0.65rem;">
+                    <option value="everyday">Everyday</option>
+                    <option value="weekdays">Weekdays (Mon-Fri)</option>
+                    <option value="1,3,5">Mon, Wed, Fri</option>
+                    <option value="6,0">Weekend (Sat-Sun)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Wakeup Config -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 1rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <h4 style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem;">🟢 Auto Wakeup (RTC Alarm)</h4>
                   <label class="toggle-container" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                    <input type="radio" name="netplan_mode" value="static" onchange="toggleNetplanFields('static')" style="accent-color: var(--accent-indigo);">
-                    <span style="color: var(--text-primary); font-size: 0.9rem;">Static IP Configuration</span>
+                    <input type="checkbox" id="power_enable_wakeup" style="accent-color: var(--accent-indigo);" onchange="togglePowerFields()">
+                    <span style="font-size: 0.85rem; color: var(--text-primary);">Enable</span>
                   </label>
                 </div>
-              </div>
 
-              <!-- Interface Selector -->
-              <div class="form-group">
-                <label for="netplan_iface_select">Network Interface</label>
-                <select id="netplan_iface_select" style="width: 100%; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); padding: 0.65rem; font-family: monospace;">
-                  <!-- Options populated dynamically -->
-                </select>
-                <span class="form-tip">Select the physical interface you want to configure.</span>
-              </div>
+                <div class="form-group">
+                  <label for="power_wakeup_time">Wakeup Time</label>
+                  <input type="time" id="power_wakeup_time" value="07:00">
+                  <span class="form-tip">Hardware BIOS RTC wakeup time (system clock).</span>
+                </div>
 
-              <!-- Static Configuration Form Block -->
-              <div id="netplan-static-fields" style="display: none; flex-direction: column; gap: 1.25rem;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                  <div class="form-group">
-                    <label for="netplan_ip_cidr">Static IP Address / Subnet</label>
-                    <input type="text" id="netplan_ip_cidr" placeholder="e.g. 192.168.1.100/24">
-                    <span class="form-tip">Must include CIDR prefix suffix (e.g. /24).</span>
-                  </div>
-                  <div class="form-group">
-                    <label for="netplan_gateway">Gateway IP Address</label>
-                    <input type="text" id="netplan_gateway" placeholder="e.g. 192.168.1.1">
+                <div class="form-group">
+                  <label for="power_wakeup_days">Execute Days</label>
+                  <select id="power_wakeup_days" style="width: 100%; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); padding: 0.65rem;">
+                    <option value="everyday">Everyday</option>
+                    <option value="weekdays">Weekdays (Mon-Fri)</option>
+                    <option value="1,3,5">Mon, Wed, Fri</option>
+                    <option value="6,0">Weekend (Sat-Sun)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Warning Alert -->
+            <div class="warning-banner" style="background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.15); color: var(--caution-banner-text); margin-top: 1.5rem; margin-bottom: 1.5rem;">
+              <h3 style="color: var(--caution-banner-h3);">⚠️ ACPI Hardware Support Required</h3>
+              <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
+                Scheduled Wakeup sets the motherboard RTC alarm. Motherboard BIOS power configurations must support ACPI S3/S5 wakeups. Works best on native Linux server hardware.
+              </p>
+            </div>
+
+            <div class="btn-actions-footer">
+              <button class="btn btn-primary" onclick="applyPowerSchedule()">Save Power Schedule</button>
+            </div>
+          </div>
+
+          <!-- SYSTEM SUB-TAB: Network Configuration -->
+          <div id="sys-tab-content-network" class="sys-tab-pane" style="display: none;">
+            <!-- Netplan not supported state -->
+            <div id="netplan-unsupported-banner" class="warning-banner" style="display: none; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: var(--warning-banner-text); margin-bottom: 1.5rem;">
+              <h3 style="color: var(--accent-red);">⚠️ Netplan Not Supported</h3>
+              <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
+                Netplan command utility is not installed or supported on this host. This feature is tailored for system deployments using Netplan (typically Ubuntu/Debian).
+              </p>
+            </div>
+
+            <!-- Current IP details card -->
+            <div class="form-section" id="netplan-current-display" style="margin-bottom: 1.5rem; background: rgba(255, 255, 255, 0.02); border-radius: 12px; padding: 1.25rem;">
+              <h4 style="color: var(--accent-indigo); margin-bottom: 0.75rem; font-size: 0.95rem; font-weight: 700;">Current Network Interface Configuration</h4>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; font-size: 0.85rem;">
+                <div>
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Interface:</span>
+                  <span id="lbl-netplan-iface" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+                </div>
+                <div>
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Addressing:</span>
+                  <span id="lbl-netplan-mode" style="color: var(--text-primary); font-weight: 500;">-</span>
+                </div>
+                <div>
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">IP Address:</span>
+                  <span id="lbl-netplan-address" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+                </div>
+                <div>
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Gateway:</span>
+                  <span id="lbl-netplan-gateway" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+                </div>
+                <div>
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">DNS:</span>
+                  <span id="lbl-netplan-dns" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Configuration Form -->
+            <div class="form-section" style="border: none; background: transparent; padding: 0; margin-bottom: 1.5rem;">
+              <div class="form-section-body" style="grid-template-columns: 1fr; gap: 1.25rem; padding: 0;">
+                <div class="form-group">
+                  <label>IP Configuration Mode</label>
+                  <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+                    <label class="toggle-container" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                      <input type="radio" name="netplan_mode" value="dhcp" checked onchange="toggleNetplanFields('dhcp')" style="accent-color: var(--accent-indigo);">
+                      <span style="color: var(--text-primary); font-size: 0.9rem;">Dynamic IP (DHCP)</span>
+                    </label>
+                    <label class="toggle-container" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                      <input type="radio" name="netplan_mode" value="static" onchange="toggleNetplanFields('static')" style="accent-color: var(--accent-indigo);">
+                      <span style="color: var(--text-primary); font-size: 0.9rem;">Static IP Configuration</span>
+                    </label>
                   </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                  <div class="form-group">
-                    <label for="netplan_dns1">Primary DNS Nameserver</label>
-                    <input type="text" id="netplan_dns1" placeholder="e.g. 8.8.8.8">
+                <div class="form-group">
+                  <label for="netplan_iface_select">Network Interface</label>
+                  <select id="netplan_iface_select" style="width: 100%; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); padding: 0.65rem; font-family: monospace;">
+                    <!-- Options populated dynamically -->
+                  </select>
+                </div>
+
+                <div id="netplan-static-fields" style="display: none; flex-direction: column; gap: 1.25rem;">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                      <label for="netplan_ip_cidr">Static IP Address / Subnet</label>
+                      <input type="text" id="netplan_ip_cidr" placeholder="e.g. 192.168.1.100/24">
+                      <span class="form-tip">Must include CIDR prefix suffix (e.g. /24).</span>
+                    </div>
+                    <div class="form-group">
+                      <label for="netplan_gateway">Gateway IP Address</label>
+                      <input type="text" id="netplan_gateway" placeholder="e.g. 192.168.1.1">
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label for="netplan_dns2">Secondary DNS Nameserver (Optional)</label>
-                    <input type="text" id="netplan_dns2" placeholder="e.g. 1.1.1.1">
+
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                      <label for="netplan_dns1">Primary DNS Nameserver</label>
+                      <input type="text" id="netplan_dns1" placeholder="e.g. 8.8.8.8">
+                    </div>
+                    <div class="form-group">
+                      <label for="netplan_dns2">Secondary DNS Nameserver (Optional)</label>
+                      <input type="text" id="netplan_dns2" placeholder="e.g. 1.1.1.1">
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
 
+            <!-- Connectivity Warning Banner -->
+            <div class="warning-banner" style="background: rgba(245, 158, 11, 0.06); border-color: rgba(245, 158, 11, 0.2); color: var(--caution-banner-text); margin-bottom: 1.5rem;">
+              <h3 style="color: var(--caution-banner-h3);">⚠️ Warning: Potential Connectivity Loss</h3>
+              <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
+                Applying network configurations will temporarily disconnect host connections. Verify static values are correct before executing.
+              </p>
+            </div>
+
+            <div class="btn-actions-footer">
+              <button class="btn btn-primary" onclick="applyNetplanConfig()">Apply Network Configuration</button>
             </div>
           </div>
 
-          <!-- DANGER Connectivity Warning Banner -->
-          <div class="warning-banner" style="background: rgba(245, 158, 11, 0.06); border-color: rgba(245, 158, 11, 0.2); color: var(--caution-banner-text); margin-bottom: 1.5rem;">
-            <h3 style="color: var(--caution-banner-h3);">⚠️ Warning: Potential Connectivity Loss</h3>
-            <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
-              Applying these changes will reload host network interfaces. If you configure incorrect details (like an IP outside your router's subnet, an incorrect gateway, or mismatched interface), you will lose connection to the server.
-            </p>
-            <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem; font-weight: 500; color: var(--accent-indigo-text);">
-              If you change the server's IP, this WebUI page will disconnect. You will need to access the portal at the new address: e.g. http://[NEW_IP]:8888
-            </p>
+          <!-- SYSTEM SUB-TAB: Host Maintenance & Actions -->
+          <div id="sys-tab-content-maintenance" class="sys-tab-pane" style="display: none;">
+            <h3 style="color: var(--accent-indigo-text); font-weight: 700; margin-bottom: 1rem; font-size: 1.1rem;">Host Administration Tasks</h3>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
+              <!-- OS Update Card -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <h4 style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>⚙️</span> Operating System Update
+                  </h4>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1rem;">
+                    Queries host packet manager (apt/dnf) to fetch registry catalogs and installs outstanding security patches.
+                  </p>
+                </div>
+                <button class="btn btn-secondary" onclick="runSystemUpdate()" style="width: 100%; padding: 0.6rem; font-size: 0.8rem;">Run OS Package Updates</button>
+              </div>
+
+              <!-- Docker Prune Card -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <h4 style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🧹</span> Prune Docker Garbage
+                  </h4>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1rem;">
+                    Safely removes dangling images, build caches, and stopped build containers. Reclaims system volume disk space.
+                  </p>
+                </div>
+                <button class="btn btn-secondary" onclick="runPruneGarbage()" style="width: 100%; padding: 0.6rem; font-size: 0.8rem;">Prune Cache & Images</button>
+              </div>
+
+              <!-- Backup Configurations Card -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <h4 style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>💾</span> Backup Environment Configuration
+                  </h4>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1rem;">
+                    Backs up local configurations (.env file) and service configurations to secure backup archives.
+                  </p>
+                </div>
+                <button class="btn btn-secondary" onclick="runDirectAction('backup', 'Backing up Server Configurations')" style="width: 100%; padding: 0.6rem; font-size: 0.8rem;">Backup Environment</button>
+              </div>
+            </div>
           </div>
 
-          <div class="btn-actions-footer">
-            <button class="btn btn-primary" onclick="applyNetplanConfig()">Apply Network Configuration</button>
-          </div>
-
-          <!-- Dedicated Netplan Terminal -->
-          <div class="terminal-header" style="margin-top: 2rem;">
+          <!-- Common Execution Terminal Console for Network/Power/Maintenance actions -->
+          <div class="terminal-header" style="margin-top: 2rem;" id="sys-terminal-header">
             <div class="terminal-dots">
               <div class="terminal-dot red"></div>
               <div class="terminal-dot yellow"></div>
               <div class="terminal-dot green"></div>
             </div>
-            <div style="font-family: var(--font-sans); font-weight: 600;">Network Configuration Logs</div>
+            <div style="font-family: var(--font-sans); font-weight: 600;">System Administrative Operations Terminal</div>
             <div class="terminal-actions">
-              <span class="term-link" onclick="copyPaneConsole('netplan-terminal-body')">Copy Logs</span>
-              <span class="term-link" onclick="clearPaneConsole('netplan-terminal-body')">Clear</span>
+              <span class="term-link" onclick="copyPaneConsole('sys-terminal-body')">Copy Logs</span>
+              <span class="term-link" onclick="clearPaneConsole('sys-terminal-body')">Clear</span>
             </div>
           </div>
-          <div class="terminal-body" id="netplan-terminal-body" style="min-height: 200px; max-height: 350px; color: #38bdf8;">Console is waiting to run network changes...</div>
-        </div>
-      </section>
-
-      <!-- JOURNEY: Prune Docker Garbage -->
-      <section id="journey-prune" class="journey-pane">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2>Prune Docker Garbage</h2>
-              <div class="card-subtitle">Reclaim disk space by purging unused docker containers, networks, volumes, and image caches.</div>
-            </div>
-          </div>
-
-          <!-- Warning/Info Badge -->
-          <div class="warning-banner" style="background: rgba(245, 158, 11, 0.06); border-color: rgba(245, 158, 11, 0.2); color: var(--caution-banner-text); margin-bottom: 1.5rem;">
-            <h3 style="color: var(--caution-banner-h3);">⚠️ Notice: Garbage Collection</h3>
-            <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
-              This operation will run <code style="font-family: var(--font-mono); color: var(--accent-indigo-text);">docker system prune -af --volumes</code>. This will safely remove:
-            </p>
-            <ul style="margin-left: 1.25rem; margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem; list-style-type: disc;">
-              <li>All stopped docker containers.</li>
-              <li>All networks not used by at least one container.</li>
-              <li>All unused volumes (only volumes not currently attached to any container).</li>
-              <li>All dangling and unused images (tagged or untagged images that are not associated with a container).</li>
-              <li>All Docker build cache files.</li>
-            </ul>
-            <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem; font-weight: 500;">
-              Your running containers and their mounted data storage directories will not be affected.
-            </p>
-          </div>
-
-          <!-- Action Controls -->
-          <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem;">
-            <button class="btn btn-primary" id="btn-run-prune" onclick="runPruneGarbage()" style="display: flex; align-items: center; gap: 0.5rem;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-              Run Garbage Collection
-            </button>
-          </div>
-
-          <!-- Dedicated Terminal -->
-          <div class="terminal-header" style="margin-top: 1.5rem;">
-            <div class="terminal-dots">
-              <div class="terminal-dot red"></div>
-              <div class="terminal-dot yellow"></div>
-              <div class="terminal-dot green"></div>
-            </div>
-            <div style="font-family: var(--font-sans); font-weight: 600;">Garbage Collection Execution Logs</div>
-            <div class="terminal-actions">
-              <span class="term-link" onclick="copyPaneConsole('prune-terminal-body')">Copy Logs</span>
-              <span class="term-link" onclick="clearPaneConsole('prune-terminal-body')">Clear</span>
-            </div>
-          </div>
-          <div class="terminal-body" id="prune-terminal-body" style="min-height: 250px; max-height: 400px; color: #38bdf8;">Console is waiting to run garbage collection...</div>
-        </div>
-      </section>
-
-      <!-- JOURNEY: System Update & Maintenance -->
-      <section id="journey-sys-update" class="journey-pane">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2>OS Update & Maintenance</h2>
-              <div class="card-subtitle">Perform host operating system package updates and check reboot statuses.</div>
-            </div>
-          </div>
-
-          <!-- Warning/Info Badge -->
-          <div class="warning-banner" style="background: rgba(245, 158, 11, 0.06); border-color: rgba(245, 158, 11, 0.2); color: var(--caution-banner-text); margin-bottom: 1.5rem;">
-            <h3 style="color: var(--caution-banner-h3);">⚠️ Notice: OS Update & Maintenance</h3>
-            <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
-              This operation will update the host operating system package registry and upgrade all out-of-date packages (using the host package manager: apt, dnf, yum, or pacman).
-            </p>
-            <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
-              After upgrading, the system will check if a reboot is recommended to apply updates (such as kernel or shared library changes). Reboots will not be triggered automatically from this interface.
-            </p>
-          </div>
-
-          <!-- Action Controls -->
-          <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem;">
-            <button class="btn btn-primary" id="btn-run-sys-update" onclick="runSystemUpdate()" style="display: flex; align-items: center; gap: 0.5rem;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              Check & Apply System Updates
-            </button>
-          </div>
-
-          <!-- Dedicated Terminal -->
-          <div class="terminal-header" style="margin-top: 1.5rem;">
-            <div class="terminal-dots">
-              <div class="terminal-dot red"></div>
-              <div class="terminal-dot yellow"></div>
-              <div class="terminal-dot green"></div>
-            </div>
-            <div style="font-family: var(--font-sans); font-weight: 600;">System Update Execution Logs</div>
-            <div class="terminal-actions">
-              <span class="term-link" onclick="copyPaneConsole('sys-update-terminal-body')">Copy Logs</span>
-              <span class="term-link" onclick="clearPaneConsole('sys-update-terminal-body')">Clear</span>
-            </div>
-          </div>
-          <div class="terminal-body" id="sys-update-terminal-body" style="min-height: 250px; max-height: 400px; color: #38bdf8;">Console is waiting to run system update...</div>
+          <div class="terminal-body" id="sys-terminal-body" style="min-height: 220px; max-height: 350px; color: #38bdf8;">Console is idle. Operations logs will output here.</div>
         </div>
       </section>
 

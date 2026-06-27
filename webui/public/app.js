@@ -116,6 +116,14 @@
         fetchStatus();
       }
 
+      // Load Consolidated System state if needed
+      if (paneId === 'system') {
+        switchSystemTab('vitals');
+        fetchSystemStats();
+        loadNetplanState();
+        loadPowerScheduleState();
+      }
+
       // Reset docker-install console state on re-entry
       if (paneId === 'docker-install') {
         const statusEl = document.getElementById('docker-install-status');
@@ -525,6 +533,8 @@
       } catch (err) {
         console.error('Failed to query stack status:', err);
         updateStatusOffline();
+      } finally {
+        fetchSystemStats();
       }
     }
 
@@ -922,9 +932,7 @@
       
       if (!confirm(confirmMsg)) return;
 
-      streamPaneConsole(queryUrl, 'netplan-terminal-body');
-    }
-
+      streamPaneConsole(queryUrl, 'sys-terminal-body');
     // Local Terminal Helpers for independent pages
     function copyPaneConsole(id) {
       const text = document.getElementById(id).innerText;
@@ -933,7 +941,7 @@
       }).catch(err => {
         alert('Failed to copy console logs.');
       });
-    }
+    }}
 
     function clearPaneConsole(id) {
       document.getElementById(id).innerHTML = '[Console cleared]\n';
@@ -944,8 +952,10 @@
         activeSSE.close();
       }
       const terminal = document.getElementById(terminalId);
-      terminal.innerHTML = `[Task Initiated]\nConnecting to server execution stream...\n\n`;
-      terminal.scrollTop = terminal.scrollHeight;
+      if (terminal) {
+        terminal.innerHTML = `[Task Initiated]\nConnecting to server execution stream...\n\n`;
+        terminal.scrollTop = terminal.scrollHeight;
+      }
 
       activeSSE = new EventSource(queryUrl);
 
@@ -965,16 +975,20 @@
         if (lineClass) span.className = lineClass;
         span.textContent = line + '\n';
         
-        terminal.appendChild(span);
-        terminal.scrollTop = terminal.scrollHeight;
+        if (terminal) {
+          terminal.appendChild(span);
+          terminal.scrollTop = terminal.scrollHeight;
+        }
       };
 
       activeSSE.onerror = function() {
-        const span = document.createElement('span');
-        span.style.color = 'var(--text-muted)';
-        span.textContent = '\n[Execution finished. Log stream closed]\n';
-        terminal.appendChild(span);
-        terminal.scrollTop = terminal.scrollHeight;
+        if (terminal) {
+          const span = document.createElement('span');
+          span.style.color = 'var(--text-muted)';
+          span.textContent = '\n[Execution finished. Log stream closed]\n';
+          terminal.appendChild(span);
+          terminal.scrollTop = terminal.scrollHeight;
+        }
         
         activeSSE.close();
         activeSSE = null;
@@ -982,12 +996,13 @@
       };
     }
 
+    // Consolidated execution endpoints
     function runPruneGarbage() {
-      streamPaneConsole('/api/run?action=prune', 'prune-terminal-body');
+      streamPaneConsole('/api/run?action=prune', 'sys-terminal-body');
     }
 
     function runSystemUpdate() {
-      streamPaneConsole('/api/run?action=maintenance', 'sys-update-terminal-body');
+      streamPaneConsole('/api/run?action=maintenance', 'sys-terminal-body');
     }
 
     // App Configuration Portal functions
@@ -2097,4 +2112,189 @@
     function copyDetailCompose() {
       navigator.clipboard.writeText(currentDetailCompose);
       alert('Docker Compose code block copied to clipboard!');
+    }
+
+    // Consolidated System Administration tab switching
+    function switchSystemTab(tabName) {
+      document.querySelectorAll('.sys-tab-pane').forEach(p => p.style.display = 'none');
+      document.querySelectorAll('.sys-tab-btn').forEach(b => b.classList.remove('active'));
+      
+      const pane = document.getElementById('sys-tab-content-' + tabName);
+      const btn = document.getElementById('sys-tab-btn-' + tabName);
+      if (pane) pane.style.display = 'block';
+      if (btn) btn.classList.add('active');
+
+      // Re-query metrics contextually
+      if (tabName === 'vitals') {
+        fetchSystemStats();
+      } else if (tabName === 'network') {
+        loadNetplanState();
+      } else if (tabName === 'power') {
+        loadPowerScheduleState();
+      }
+    }
+
+    // Query and render host statistics (vitals/temperature/memory/disks list)
+    async function fetchSystemStats() {
+      try {
+        const res = await fetch('/api/system-stats');
+        if (!res.ok) return;
+        const stats = await res.json();
+
+        // 1. Update Homepage Vitals Card
+        const vitalsCpu = document.getElementById('vitals-cpu-val');
+        const vitalsRam = document.getElementById('vitals-ram-val');
+        const vitalsTemp = document.getElementById('vitals-temp-val');
+        if (vitalsCpu) vitalsCpu.textContent = `${stats.cpu}%`;
+        if (vitalsRam) vitalsRam.textContent = `${stats.memory.percent}%`;
+        if (vitalsTemp) vitalsTemp.textContent = `${stats.temp}°C`;
+
+        // 2. Update System Page Detailed Vitals
+        const sysCpuVal = document.getElementById('sys-cpu-val');
+        const sysCpuBar = document.getElementById('sys-cpu-bar');
+        const sysRamVal = document.getElementById('sys-ram-val');
+        const sysRamBar = document.getElementById('sys-ram-bar');
+        const sysRamDetail = document.getElementById('sys-ram-detail');
+        const sysTempVal = document.getElementById('sys-temp-val');
+        const sysTempBar = document.getElementById('sys-temp-bar');
+
+        if (sysCpuVal) sysCpuVal.textContent = `${stats.cpu}%`;
+        if (sysCpuBar) sysCpuBar.style.width = `${stats.cpu}%`;
+        if (sysRamVal) sysRamVal.textContent = `${stats.memory.percent}%`;
+        if (sysRamBar) sysRamBar.style.width = `${stats.memory.percent}%`;
+        if (sysRamDetail) sysRamDetail.textContent = `${stats.memory.used} of ${stats.memory.total} allocated`;
+        if (sysTempVal) sysTempVal.textContent = `${stats.temp}°C`;
+        if (sysTempBar) {
+          // color mapping based on danger thresholds
+          sysTempBar.style.width = `${Math.min(stats.temp, 100)}%`;
+          if (stats.temp > 70) {
+            sysTempBar.style.background = 'var(--accent-red)';
+          } else if (stats.temp > 55) {
+            sysTempBar.style.background = 'var(--accent-orange)';
+          } else {
+            sysTempBar.style.background = 'var(--accent-green)';
+          }
+        }
+
+        // 3. Render Disk Drives list
+        const disksTarget = document.getElementById('system-disks-target');
+        if (disksTarget) {
+          disksTarget.innerHTML = '';
+          if (!stats.disks || stats.disks.length === 0) {
+            disksTarget.innerHTML = `<tr><td colspan="6" style="padding: 1.5rem; text-align: center; color: var(--text-muted);">No physical storage dev mounts found.</td></tr>`;
+          } else {
+            stats.disks.forEach(d => {
+              const row = document.createElement('tr');
+              row.style.borderBottom = '1px solid rgba(255,255,255,0.03)';
+              
+              const pctVal = parseInt(d.percent.replace('%', ''));
+              let barColor = 'var(--accent-green)';
+              if (pctVal > 85) {
+                barColor = 'var(--accent-red)';
+              } else if (pctVal > 70) {
+                barColor = 'var(--accent-orange)';
+              }
+
+              row.innerHTML = `
+                <td style="padding: 0.75rem 1rem; font-family: var(--font-mono); color: var(--text-primary); font-weight: 500;">${d.device}</td>
+                <td style="padding: 0.75rem 1rem; color: var(--text-highlight);">${d.mount}</td>
+                <td style="padding: 0.75rem 1rem; color: var(--text-secondary);">${d.size}</td>
+                <td style="padding: 0.75rem 1rem; color: var(--accent-red);">${d.used}</td>
+                <td style="padding: 0.75rem 1rem; color: var(--accent-green);">${d.avail}</td>
+                <td style="padding: 0.75rem 1rem; vertical-align: middle;">
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; width: 30px; text-align: right;">${d.percent}</span>
+                    <div style="flex-grow: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; width: 80px;">
+                      <div style="height: 100%; width: ${pctVal}%; background: ${barColor};"></div>
+                    </div>
+                  </div>
+                </td>
+              `;
+              disksTarget.appendChild(row);
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to query system stats:', err);
+      }
+    }
+
+    // Power management Scheduler state handling
+    async function loadPowerScheduleState() {
+      try {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+
+        const chkSh = document.getElementById('power_enable_shutdown');
+        const chkWake = document.getElementById('power_enable_wakeup');
+        const txtShTime = document.getElementById('power_shutdown_time');
+        const selectShDays = document.getElementById('power_shutdown_days');
+        const txtWakeTime = document.getElementById('power_wakeup_time');
+        const selectWakeDays = document.getElementById('power_wakeup_days');
+
+        if (chkSh) chkSh.checked = (config.AUTO_SHUTDOWN_ENABLED === 'true');
+        if (chkWake) chkWake.checked = (config.AUTO_WAKEUP_ENABLED === 'true');
+        if (txtShTime) txtShTime.value = config.AUTO_SHUTDOWN_TIME || '23:00';
+        if (selectShDays) selectShDays.value = config.AUTO_SHUTDOWN_DAYS || 'everyday';
+        if (txtWakeTime) txtWakeTime.value = config.AUTO_WAKEUP_TIME || '07:00';
+        if (selectWakeDays) selectWakeDays.value = config.AUTO_WAKEUP_DAYS || 'everyday';
+
+        togglePowerFields();
+      } catch (err) {
+        console.error('Failed to load power configurations:', err);
+      }
+    }
+
+    function togglePowerFields() {
+      const enableSh = document.getElementById('power_enable_shutdown').checked;
+      const enableWake = document.getElementById('power_enable_wakeup').checked;
+
+      document.getElementById('power_shutdown_time').disabled = !enableSh;
+      document.getElementById('power_shutdown_days').disabled = !enableSh;
+      document.getElementById('power_wakeup_time').disabled = !enableWake;
+      document.getElementById('power_wakeup_days').disabled = !enableWake;
+    }
+
+    async function applyPowerSchedule() {
+      const enableSh = document.getElementById('power_enable_shutdown').checked;
+      const enableWake = document.getElementById('power_enable_wakeup').checked;
+      const shTime = document.getElementById('power_shutdown_time').value;
+      const shDays = document.getElementById('power_shutdown_days').value;
+      const wakeTime = document.getElementById('power_wakeup_time').value;
+      const wakeDays = document.getElementById('power_wakeup_days').value;
+
+      // 1. Save settings to .env first
+      const updates = {
+        AUTO_SHUTDOWN_ENABLED: enableSh ? 'true' : 'false',
+        AUTO_SHUTDOWN_TIME: shTime,
+        AUTO_SHUTDOWN_DAYS: shDays,
+        AUTO_WAKEUP_ENABLED: enableWake ? 'true' : 'false',
+        AUTO_WAKEUP_TIME: wakeTime,
+        AUTO_WAKEUP_DAYS: wakeDays
+      };
+
+      try {
+        const saveRes = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        });
+
+        if (!saveRes.ok) {
+          alert('Failed to save power schedule variables to .env config file.');
+          return;
+        }
+
+        // 2. Run system cron task runner
+        const queryUrl = `/api/run?action=schedule-power&sh_time=${encodeURIComponent(shTime)}&sh_days=${encodeURIComponent(shDays)}&wake_time=${encodeURIComponent(wakeTime)}&wake_days=${encodeURIComponent(wakeDays)}&enable_sh=${enableSh}&enable_wake=${enableWake}`;
+        
+        // Scroll terminal view into sight
+        const terminalHeader = document.getElementById('sys-terminal-header');
+        if (terminalHeader) terminalHeader.scrollIntoView({ behavior: 'smooth' });
+
+        streamPaneConsole(queryUrl, 'sys-terminal-body');
+      } catch (err) {
+        console.error('Power schedule task setup failure:', err);
+        alert('Setup failure: check server error log console.');
+      }
     }

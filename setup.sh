@@ -2717,6 +2717,102 @@ print(json.dumps(config))
 EOF
 }
 
+action_schedule_power() {
+  local shutdown_time="$1"
+  local shutdown_days="$2"
+  local wakeup_time="$3"
+  local wakeup_days="$4"
+  local enable_shutdown="$5"
+  local enable_wakeup="$6"
+
+  local script_dir="/opt/homeserver"
+  if [ "$(uname)" = "Darwin" ]; then
+    script_dir="."
+  fi
+  mkdir -p "$script_dir"
+  local script_path="${script_dir}/power_schedule.sh"
+
+  echo -e "Writing power scheduler controller script at $script_path..."
+  
+  cat << 'EOF' > "$script_path"
+#!/usr/bin/env bash
+# ==============================================================================
+# HOMESERVER AUTO POWER SHUTDOWN & WAKEUP SCHEDULER
+# ==============================================================================
+set -euo pipefail
+
+ENV_FILE="/opt/homeserver/.env"
+if [ ! -f "$ENV_FILE" ]; then
+  ENV_FILE="./.env"
+fi
+
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
+
+if [[ "${1:-}" == "--shutdown" ]]; then
+  echo "Auto shutdown task initiated..."
+  if [ "${AUTO_WAKEUP_ENABLED:-false}" = "true" ] && [ -n "${AUTO_WAKEUP_TIME:-}" ]; then
+    WAKE_TIME="${AUTO_WAKEUP_TIME}"
+    if command -v date &>/dev/null; then
+      WAKE_EPOCH=$(date -d "tomorrow ${WAKE_TIME}" +%s 2>/dev/null || date -j -f "%H:%M" "${WAKE_TIME}" "+%s" 2>/dev/null || echo "")
+      if [ -n "$WAKE_EPOCH" ]; then
+        echo "Scheduling rtcwake alarm for next wakeup at $(date -d "@$WAKE_EPOCH" 2>/dev/null || date -r "$WAKE_EPOCH" 2>/dev/null)..."
+        if command -v rtcwake &>/dev/null; then
+          rtcwake -m off -t "$WAKE_EPOCH"
+          exit 0
+        else
+          echo "Warning: rtcwake utility not found on host. Defaulting to standard shutdown."
+        fi
+      fi
+    fi
+  fi
+  
+  echo "Executing system shutdown..."
+  if command -v shutdown &>/dev/null; then
+    shutdown -h now
+  else
+    echo "Simulated shutdown: Host is off."
+  fi
+fi
+EOF
+
+  chmod +x "$script_path"
+
+  # Configure cron jobs
+  echo -e "Re-indexing user crontab for scheduled power tasks..."
+  local temp_cron
+  temp_cron=$(mktemp)
+  crontab -l 2>/dev/null | grep -v "power_schedule.sh" > "$temp_cron" || true
+
+  if [ "$enable_shutdown" = "true" ]; then
+    local cron_days="*"
+    if [ "$shutdown_days" = "weekdays" ]; then
+      cron_days="1-5"
+    elif [ "$shutdown_days" != "everyday" ] && [ -n "$shutdown_days" ]; then
+      cron_days="$shutdown_days"
+    fi
+    
+    local sh_min="0"
+    local sh_hour="23"
+    if [[ "$shutdown_time" =~ : ]]; then
+      sh_hour=$(echo "$shutdown_time" | cut -d: -f1)
+      sh_min=$(echo "$shutdown_time" | cut -d: -f2)
+      sh_hour=$((10#$sh_hour))
+      sh_min=$((10#$sh_min))
+    fi
+
+    echo "$sh_min $sh_hour * * $cron_days ${script_path} --shutdown >/dev/null 2>&1" >> "$temp_cron"
+    echo -e "${GREEN}✔ Scheduled shutdown cron entry added for ${shutdown_time} (Days: ${cron_days})${NC}"
+  fi
+
+  crontab "$temp_cron"
+  rm -f "$temp_cron"
+  echo -e "${GREEN}✔ System power schedule configuration completed successfully!${NC}"
+}
+
 action_set_static_ip() {
   local interface="$1"
   local ip_cidr="$2"
@@ -2966,6 +3062,9 @@ if [ $# -gt 0 ]; then
       ;;
     --sys-maintenance)
       action_system_maintenance
+      ;;
+    --schedule-power)
+      action_schedule_power "$2" "$3" "$4" "$5" "$6" "$7"
       ;;
     --git-push)
       action_git_push
