@@ -187,6 +187,33 @@ ok "Suite installed to ${INSTALL_DIR}"
 # ==============================================================================
 section 4 "Setting up WebUI as a system service..."
 
+# Ensure the real user belongs to the 'docker' group to communicate with Docker socket without sudo.
+# Uses /dev/tty redirection to support piped curl installations.
+if [ "$REAL_USER" != "root" ]; then
+  if ! id -nG "$REAL_USER" | grep -qw docker; then
+    echo -e -n "${YELLOW}  ▸ Add user $REAL_USER to 'docker' group to run without sudo? [Y/n]: ${NC}"
+    if read -r RESPONSE < /dev/tty; then
+      RESPONSE=${RESPONSE:-Y}
+      if [[ "$RESPONSE" =~ ^[Yy] ]]; then
+        if ! getent group docker >/dev/null; then
+          groupadd -f docker
+        fi
+        usermod -aG docker "$REAL_USER"
+        ok "Added user $REAL_USER to docker group"
+      else
+        warn "Skipping docker group assignment. WebUI status queries may show offline."
+      fi
+    else
+      # Fallback for non-interactive scripts: default to Yes
+      if ! getent group docker >/dev/null; then
+        groupadd -f docker
+      fi
+      usermod -aG docker "$REAL_USER"
+      ok "Non-interactive default: Added user $REAL_USER to docker group"
+    fi
+  fi
+fi
+
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 cat > "$SERVICE_FILE" << EOF
