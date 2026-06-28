@@ -1136,6 +1136,9 @@ sudo netplan apply`;
     }
 
     function streamPaneConsole(queryUrl, terminalId, onComplete) {
+      if (terminalId === 'sys-terminal-body') {
+        toggleSystemTerminal(true);
+      }
       if (activeSSE) {
         activeSSE.close();
       }
@@ -2407,17 +2410,14 @@ sudo netplan apply`;
       if (pane) pane.style.display = 'block';
       if (btn) btn.classList.add('active');
 
-      // Hide common terminal for network configuration tab
-      const termHeader = document.getElementById('sys-terminal-header');
-      const termBody = document.getElementById('sys-terminal-body');
-      if (termHeader && termBody) {
-        if (tabName === 'network') {
-          termHeader.style.display = 'none';
-          termBody.style.display = 'none';
-        } else {
-          termHeader.style.display = 'flex';
-          termBody.style.display = 'block';
-        }
+      // Hide common terminal entirely for network configuration tab
+      const termContainer = document.getElementById('sys-terminal-container');
+      const toggleBtn = document.getElementById('sys-tab-btn-terminal-toggle');
+      if (tabName === 'network') {
+        if (termContainer) termContainer.style.display = 'none';
+        if (toggleBtn) toggleBtn.style.display = 'none';
+      } else {
+        if (toggleBtn) toggleBtn.style.display = 'block';
       }
 
       // Re-query metrics contextually
@@ -2619,4 +2619,33 @@ curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfigurat
       }).catch(() => {
         alert('Failed to copy. Please manually copy the commands.');
       });
+    }
+
+    function toggleSystemTerminal(forceShow) {
+      const container = document.getElementById('sys-terminal-container');
+      const btn = document.getElementById('sys-tab-btn-terminal-toggle');
+      if (!container) return;
+
+      let show = false;
+      if (forceShow !== undefined) {
+        show = forceShow;
+      } else {
+        show = (container.style.display === 'none');
+      }
+
+      if (show) {
+        container.style.display = 'block';
+        if (btn) {
+          btn.style.background = 'rgba(56, 189, 248, 0.15)';
+          btn.style.borderColor = '#38bdf8';
+          btn.style.color = '#fff';
+        }
+      } else {
+        container.style.display = 'none';
+        if (btn) {
+          btn.style.background = 'rgba(56, 189, 248, 0.05)';
+          btn.style.borderColor = 'rgba(56, 189, 248, 0.2)';
+          btn.style.color = '#38bdf8';
+        }
+      }
     }

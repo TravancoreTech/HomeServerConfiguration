@@ -1310,6 +1310,7 @@
             <button class="badge-btn sys-tab-btn" id="sys-tab-btn-power" onclick="switchSystemTab('power')" style="padding: 0.65rem 1.25rem; font-size: 0.92rem; font-weight: 600; border-radius: 8px;">⏱️ Power Scheduler</button>
             <button class="badge-btn sys-tab-btn" id="sys-tab-btn-network" onclick="switchSystemTab('network')" style="padding: 0.65rem 1.25rem; font-size: 0.92rem; font-weight: 600; border-radius: 8px;">🌐 Network Configuration</button>
             <button class="badge-btn sys-tab-btn" id="sys-tab-btn-maintenance" onclick="switchSystemTab('maintenance')" style="padding: 0.65rem 1.25rem; font-size: 0.92rem; font-weight: 600; border-radius: 8px;">⚙️ Host Maintenance</button>
+            <button class="badge-btn" id="sys-tab-btn-terminal-toggle" onclick="toggleSystemTerminal()" style="padding: 0.65rem 1.25rem; font-size: 0.92rem; font-weight: 600; border-radius: 8px; margin-left: auto; background: rgba(56, 189, 248, 0.05); border-color: rgba(56, 189, 248, 0.2); color: #38bdf8;">📋 Operation Console</button>
           </div>
 
           <!-- SYSTEM SUB-TAB: Detailed Health & Storage Statistics -->
@@ -1659,19 +1660,22 @@
           </div>
 
           <!-- Common Execution Terminal Console for Network/Power/Maintenance actions -->
-          <div class="terminal-header" style="margin-top: 2rem;" id="sys-terminal-header">
-            <div class="terminal-dots">
-              <div class="terminal-dot red"></div>
-              <div class="terminal-dot yellow"></div>
-              <div class="terminal-dot green"></div>
+          <div id="sys-terminal-container" style="display: none; margin-top: 2rem;">
+            <div class="terminal-header" id="sys-terminal-header">
+              <div class="terminal-dots">
+                <div class="terminal-dot red"></div>
+                <div class="terminal-dot yellow"></div>
+                <div class="terminal-dot green"></div>
+              </div>
+              <div style="font-family: var(--font-sans); font-weight: 600;">System Administrative Operations Terminal</div>
+              <div class="terminal-actions">
+                <span class="term-link" onclick="copyPaneConsole('sys-terminal-body')">Copy Logs</span>
+                <span class="term-link" onclick="clearPaneConsole('sys-terminal-body')">Clear</span>
+                <span class="term-link" onclick="toggleSystemTerminal(false)" style="color: #f87171; margin-left: 0.5rem; font-weight: bold;">✕ Hide</span>
+              </div>
             </div>
-            <div style="font-family: var(--font-sans); font-weight: 600;">System Administrative Operations Terminal</div>
-            <div class="terminal-actions">
-              <span class="term-link" onclick="copyPaneConsole('sys-terminal-body')">Copy Logs</span>
-              <span class="term-link" onclick="clearPaneConsole('sys-terminal-body')">Clear</span>
-            </div>
+            <div class="terminal-body" id="sys-terminal-body" style="min-height: 220px; max-height: 350px; color: #38bdf8;">Console is idle. Operations logs will output here.</div>
           </div>
-          <div class="terminal-body" id="sys-terminal-body" style="min-height: 220px; max-height: 350px; color: #38bdf8;">Console is idle. Operations logs will output here.</div>
         </div>
       </section>
 
