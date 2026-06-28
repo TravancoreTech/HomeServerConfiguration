@@ -348,13 +348,32 @@
 
     // Helper to get normalized service name for logo images
     function getLogoKey(name) {
-      return name.toLowerCase()
-        .replace(/^media[-_]/i, '')
-        .replace(/^utility[-_]/i, '')
-        .replace(/^cloud[-_]/i, '')
-        .replace(/^storage[-_]/i, '')
-        .replace(/^dashboard[-_]/i, '')
-        .replace(/[-_]/g, '_');
+      const lower = name.toLowerCase();
+      // Explicit mapping to match downloaded logo filenames
+      if (lower.includes('jellyfin')) return 'jellyfin';
+      if (lower.includes('qbittorrent')) return 'qbittorrent';
+      if (lower.includes('radarr')) return 'radarr';
+      if (lower.includes('sonarr')) return 'sonarr';
+      if (lower.includes('prowlarr')) return 'prowlarr';
+      if (lower.includes('flaresolverr')) return 'flaresolverr';
+      if (lower.includes('jellyseerr')) return 'jellyseerr';
+      if (lower.includes('bazarr')) return 'bazarr';
+      if (lower.includes('navidrome')) return 'navidrome';
+      if (lower.includes('metube')) return 'metube';
+      if (lower.includes('nextcloud')) return 'nextcloud';
+      if (lower.includes('immich')) return 'immich';
+      if (lower.includes('vaultwarden')) return 'vaultwarden';
+      if (lower.includes('tailscale')) return 'tailscale';
+      if (lower.includes('stirling')) return 'stirling';
+      if (lower.includes('it-tools') || lower.includes('it_tools')) return 'ittools';
+      if (lower.includes('uptime-kuma') || lower.includes('uptime_kuma')) return 'uptimekuma';
+      if (lower.includes('syncthing')) return 'syncthing';
+      if (lower.includes('pairdrop')) return 'pairdrop';
+      if (lower.includes('paperless')) return 'paperless';
+      if (lower.includes('redis')) return 'redis';
+      if (lower.includes('postgres') || lower.includes('database')) return 'postgres';
+      // Fallback to generic docker icon
+      return 'docker';
     }
 
     // Classify a container by Broad Type and Actual Group (SOLID/SRP layout)
@@ -1763,6 +1782,26 @@ sudo netplan apply`;
     }
 
     // Initialize Log Console Stream (SSE)
+    function toggleGlobalConsole() {
+      const pane = document.getElementById('terminal-pane');
+      const btn = document.getElementById('btn-header-console');
+      if (!pane) return;
+      const isVisible = pane.style.display === 'block';
+      pane.style.display = isVisible ? 'none' : 'block';
+      if (btn) {
+        if (!isVisible) {
+          btn.style.background = 'rgba(99, 102, 241, 0.2)';
+          btn.style.borderColor = 'rgba(99, 102, 241, 0.5)';
+        } else {
+          btn.style.background = 'rgba(99, 102, 241, 0.08)';
+          btn.style.borderColor = 'rgba(99, 102, 241, 0.2)';
+        }
+      }
+      if (!isVisible) {
+        pane.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
     function initConsoleLogs(title, queryUrl) {
       document.getElementById('terminal-pane').style.display = 'block';
       const terminal = document.getElementById('terminal-body');
@@ -2147,6 +2186,24 @@ sudo netplan apply`;
           { host: 'SYSTEM_DATA_DIR/jellyfin/cache', container: '/cache', desc: 'Transcoding and cover art cache' }
         ],
         links: ['media_qbittorrent', 'media_radarr', 'media_sonarr'],
+        editCommands: [
+          { label: 'Edit compose file', cmd: 'nano ~/homeserver/media/docker-compose.yml' },
+          { label: 'Restart service', cmd: 'docker restart media_jellyfin' },
+          { label: 'View live logs', cmd: 'docker logs -f media_jellyfin' },
+          { label: 'Open config folder', cmd: 'cd ${SYSTEM_DATA_DIR}/jellyfin/config && ls' }
+        ],
+        mediaFolders: [
+          { path: '/media/movies', desc: 'Movies library — named as "Movie Name (Year)"' },
+          { path: '/media/tv', desc: 'TV Shows — named as "Show Name/Season XX/"' },
+          { path: '/media/music', desc: 'Music library — Artist/Album/Track structure' },
+          { path: '/media/downloads', desc: 'qBittorrent incoming downloads (auto-moved by Radarr/Sonarr)' }
+        ],
+        commonOptions: [
+          { name: 'Hardware Transcoding', desc: 'Enable Intel/NVIDIA GPU in Dashboard → Playback → Transcoding. Map /dev/dri for VAAPI.' },
+          { name: 'User Access Control', desc: 'Create separate user profiles per family member under Dashboard → Users.' },
+          { name: 'Remote Access', desc: 'Configure a public HTTPS domain or use Tailscale to access remotely.' },
+          { name: 'Library Scan', desc: 'Dashboard → Libraries → Scan All. Auto-triggers on file changes.' }
+        ],
         compose: `jellyfin:
     image: jellyfin/jellyfin:latest
     container_name: media_jellyfin
@@ -2166,6 +2223,22 @@ sudo netplan apply`;
           { host: 'SYSTEM_DATA_DIR/qbittorrent', container: '/config', desc: 'Application settings and state' }
         ],
         links: ['media_prowlarr', 'media_radarr', 'media_sonarr'],
+        editCommands: [
+          { label: 'Edit compose file', cmd: 'nano ~/homeserver/media/docker-compose.yml' },
+          { label: 'Restart service', cmd: 'docker restart media_qbittorrent' },
+          { label: 'View live logs', cmd: 'docker logs -f media_qbittorrent' },
+          { label: 'Open config folder', cmd: 'ls ${SYSTEM_DATA_DIR}/qbittorrent' }
+        ],
+        mediaFolders: [
+          { path: '/downloads/incomplete', desc: 'Active in-progress torrent data (do not move)' },
+          { path: '/downloads/complete', desc: 'Finished downloads, auto-imported by Radarr/Sonarr' }
+        ],
+        commonOptions: [
+          { name: 'Default Port', desc: 'WebUI runs on port 8080. Change in Settings → Web UI.' },
+          { name: 'Download Categories', desc: 'Create "movies" and "tv" categories mapped to /downloads/complete/movies and /downloads/complete/tv.' },
+          { name: 'Speed Limits', desc: 'Configure per-torrent or global speed limits in Settings → Speed.' },
+          { name: 'VPN Binding', desc: 'Bind qBittorrent to tun0 interface if using a VPN container to prevent IP leaks.' }
+        ],
         compose: `qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: media_qbittorrent
@@ -2190,6 +2263,23 @@ sudo netplan apply`;
           { host: 'SYSTEM_DATA_DIR/nextcloud/config', container: '/var/www/html/config', desc: 'System environment overrides' }
         ],
         links: ['nextcloud_db', 'nextcloud_cron', 'redis'],
+        editCommands: [
+          { label: 'Edit compose file', cmd: 'nano ~/homeserver/nextcloud/docker-compose.yml' },
+          { label: 'Run occ command', cmd: 'docker exec -u www-data nextcloud_app php occ <command>' },
+          { label: 'Restart service', cmd: 'docker restart nextcloud_app' },
+          { label: 'View live logs', cmd: 'docker logs -f nextcloud_app' }
+        ],
+        mediaFolders: [
+          { path: 'NEXTCLOUD_DATA_LOCATION/username/files/', desc: 'Per-user file storage root — maps to user home in UI' },
+          { path: 'NEXTCLOUD_DATA_LOCATION/username/files/Photos/', desc: 'Auto-sync from phone gallery via Nextcloud app' },
+          { path: '/var/www/html/data', desc: 'Internal container mount for all user data' }
+        ],
+        commonOptions: [
+          { name: 'External Storage', desc: 'Apps → External Storage Support: mount extra local/SMB paths as virtual drives inside Nextcloud.' },
+          { name: 'Memory Cache', desc: 'Add APCu or Redis cache to config.php for performance: "memcache.local" => "\\OC\\Memcache\\APCu".' },
+          { name: 'Trusted Domains', desc: 'Edit config.php → trusted_domains array to add your server IP or domain name.' },
+          { name: 'Cron Jobs', desc: 'The nextcloud_cron container runs cron tasks on a schedule. Verify with: docker logs nextcloud_cron.' }
+        ],
         compose: `nextcloud-app:
     image: nextcloud:apache
     container_name: nextcloud_app
@@ -2215,6 +2305,23 @@ sudo netplan apply`;
           { host: 'PHOTO_BACKUP_LOCATION', container: '/mnt/PhotoBackup', desc: 'External reference photobacks (read-only)' }
         ],
         links: ['immich_machine_learning', 'redis', 'database'],
+        editCommands: [
+          { label: 'Edit compose file', cmd: 'nano ~/homeserver/immich/docker-compose.yml' },
+          { label: 'Restart service', cmd: 'docker restart immich_server' },
+          { label: 'View live logs', cmd: 'docker logs -f immich_server' },
+          { label: 'Check ML service', cmd: 'docker logs -f immich_machine_learning' }
+        ],
+        mediaFolders: [
+          { path: 'UPLOAD_LOCATION/', desc: 'All uploaded photos and videos organized by date' },
+          { path: 'UPLOAD_LOCATION/library/', desc: 'Immich-managed library (do not manually edit)' },
+          { path: 'PHOTO_BACKUP_LOCATION/', desc: 'Read-only external backup reference mount (for browsing existing photos)' }
+        ],
+        commonOptions: [
+          { name: 'External Library', desc: 'In Immich UI: Administration → External Libraries → Add your PHOTO_BACKUP_LOCATION path for existing archive browsing.' },
+          { name: 'Machine Learning', desc: 'Face recognition and smart search are powered by immich_machine_learning. GPU acceleration requires CUDA or OpenVINO.' },
+          { name: 'Mobile App', desc: 'Install Immich app on iOS/Android and point to http://<server-ip>:2283. Enable background sync.' },
+          { name: 'Storage Template', desc: 'Administration → Storage Template: set naming pattern like {{y}}/{{MM}}/{{dd}}/{{filename}}.' }
+        ],
         compose: `immich-server:
     image: ghcr.io/immich-app/immich-server:release
     container_name: immich_server
@@ -2240,6 +2347,18 @@ sudo netplan apply`;
           { host: 'SYSTEM_DATA_DIR/vaultwarden', container: '/data', desc: 'Vault credential files and logs' }
         ],
         links: [],
+        editCommands: [
+          { label: 'Edit compose file', cmd: 'nano ~/homeserver/utility/docker-compose.yml' },
+          { label: 'Restart service', cmd: 'docker restart utility_vaultwarden' },
+          { label: 'View live logs', cmd: 'docker logs -f utility_vaultwarden' },
+          { label: 'Backup vault data', cmd: 'cp -r ${SYSTEM_DATA_DIR}/vaultwarden /backup/vaultwarden_$(date +%Y%m%d)' }
+        ],
+        commonOptions: [
+          { name: 'Admin Panel', desc: 'Enable admin panel by setting ADMIN_TOKEN env variable. Access at /admin path.' },
+          { name: 'Signups', desc: 'Disable new user registration by setting SIGNUPS_ALLOWED=false after creating your account.' },
+          { name: 'HTTPS', desc: 'Vaultwarden requires HTTPS for the browser extension. Use a reverse proxy (Nginx/Caddy) with a TLS certificate.' },
+          { name: 'Bitwarden Clients', desc: 'Use official Bitwarden apps — point server URL to your Vaultwarden address.' }
+        ],
         compose: `vaultwarden:
     image: vaultwarden/server:latest
     container_name: utility_vaultwarden
@@ -2257,6 +2376,18 @@ sudo netplan apply`;
           { host: 'SYSTEM_DATA_DIR/tailscale', container: '/var/lib/tailscale', desc: 'VPN auth states and keys' }
         ],
         links: [],
+        editCommands: [
+          { label: 'Edit compose file', cmd: 'nano ~/homeserver/utility/docker-compose.yml' },
+          { label: 'Tailscale status', cmd: 'docker exec utility_tailscale tailscale status' },
+          { label: 'Re-authenticate', cmd: 'docker exec utility_tailscale tailscale up --authkey=<YOUR_KEY>' },
+          { label: 'Enable exit node', cmd: 'docker exec utility_tailscale tailscale up --advertise-exit-node' }
+        ],
+        commonOptions: [
+          { name: 'Auth Key', desc: 'Generate a reusable auth key from tailscale.com/admin/settings/keys and set as TS_AUTHKEY env var.' },
+          { name: 'MagicDNS', desc: 'Enable MagicDNS in Tailscale admin console to access devices by name (e.g. homeserver.tail12345.ts.net).' },
+          { name: 'Subnet Router', desc: 'Expose your home LAN with: docker exec utility_tailscale tailscale up --advertise-routes=192.168.1.0/24' },
+          { name: 'Exit Node', desc: 'Route all remote device traffic through the homeserver by advertising as an exit node.' }
+        ],
         compose: `tailscale:
     image: tailscale/tailscale:latest
     container_name: utility_tailscale
@@ -2387,6 +2518,70 @@ sudo netplan apply`;
       // Populate Compose code block
       currentDetailCompose = meta.compose;
       document.getElementById('detail-compose-code').textContent = meta.compose;
+
+      // Populate Edit Commands section
+      const editCmdsEl = document.getElementById('detail-edit-commands');
+      if (editCmdsEl) {
+        editCmdsEl.innerHTML = '';
+        const cmds = meta.editCommands || [
+          { label: 'Edit compose file', cmd: 'nano ~/homeserver/docker-compose.yml' },
+          { label: 'Restart service', cmd: `docker restart ${name}` },
+          { label: 'View live logs', cmd: `docker logs -f ${name}` }
+        ];
+        cmds.forEach(c => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); margin-bottom: 0.5rem;';
+          row.innerHTML = `
+            <span style="font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; min-width: 120px; flex-shrink: 0;">${c.label}</span>
+            <code style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--accent-indigo-text); background: rgba(99,102,241,0.06); padding: 0.2rem 0.5rem; border-radius: 4px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.cmd}</code>
+            <button onclick="navigator.clipboard.writeText(${JSON.stringify(c.cmd)})" style="font-size: 0.7rem; padding: 0.2rem 0.45rem; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; background: var(--bg-surface); color: var(--text-muted); flex-shrink: 0; font-family: var(--font-sans);">Copy</button>
+          `;
+          editCmdsEl.appendChild(row);
+        });
+      }
+
+      // Populate Media Folders section (if applicable)
+      const mediaFoldersEl = document.getElementById('detail-media-folders');
+      const mediaFoldersSection = document.getElementById('detail-media-section');
+      if (mediaFoldersSection) {
+        if (meta.mediaFolders && meta.mediaFolders.length > 0) {
+          mediaFoldersSection.style.display = 'block';
+          if (mediaFoldersEl) {
+            mediaFoldersEl.innerHTML = '';
+            meta.mediaFolders.forEach(f => {
+              const div = document.createElement('div');
+              div.style.cssText = 'padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); margin-bottom: 0.5rem;';
+              div.innerHTML = `
+                <div style="font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700; color: var(--accent-green);">${f.path}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.15rem;">${f.desc}</div>
+              `;
+              mediaFoldersEl.appendChild(div);
+            });
+          }
+        } else {
+          mediaFoldersSection.style.display = 'none';
+        }
+      }
+
+      // Populate Common Options section
+      const commonOptsEl = document.getElementById('detail-common-options');
+      if (commonOptsEl) {
+        commonOptsEl.innerHTML = '';
+        const opts = meta.commonOptions || [];
+        if (opts.length === 0) {
+          commonOptsEl.innerHTML = '<span style="color: var(--text-muted); font-size: 0.82rem;">No common options documented yet.</span>';
+        } else {
+          opts.forEach(o => {
+            const div = document.createElement('div');
+            div.style.cssText = 'padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); margin-bottom: 0.65rem;';
+            div.innerHTML = `
+              <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">${o.name}</div>
+              <div style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5;">${o.desc}</div>
+            `;
+            commonOptsEl.appendChild(div);
+          });
+        }
+      }
 
       // Start streaming live logs for this container on details page
       streamContainerDetailLogs(name);
