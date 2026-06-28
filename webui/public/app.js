@@ -1027,6 +1027,14 @@
         }
       } catch (err) {
         console.error('Failed to load Netplan state:', err);
+        // Populate the dropdown with an error state so the user knows it failed to load
+        const select = document.getElementById('netplan_iface_select');
+        if (select && select.options.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'Failed to load interfaces — refresh to retry';
+          select.appendChild(opt);
+        }
       }
     }
 
@@ -1040,10 +1048,12 @@
     function applyNetplanConfig() {
       const radChecked = document.querySelector('input[name="netplan_mode"]:checked');
       const mode = radChecked ? radChecked.value : 'dhcp';
-      const interface_name = document.getElementById('netplan_iface_select').value;
-      
-      if (!interface_name) {
-        alert('Please select a network interface.');
+      const ifaceSelect = document.getElementById('netplan_iface_select');
+      const interface_name = ifaceSelect ? ifaceSelect.value : '';
+
+      // Check if the dropdown is empty or only has the placeholder "No interfaces found" option
+      if (!interface_name || (ifaceSelect && ifaceSelect.options.length === 1 && ifaceSelect.options[0].value === '')) {
+        alert('No network interfaces were detected. Please ensure the server has a network interface available and refresh the page.');
         return;
       }
 
