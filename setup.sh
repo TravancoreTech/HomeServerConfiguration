@@ -2742,7 +2742,11 @@ print(json.dumps(config))
 " 2>/dev/null || echo "null")
   else
     # Mock fallback for non-Linux hosts
-    current_config="{\"interface\": \"eth0\", \"dhcp\": true, \"address\": \"192.168.1.150/24\", \"gateway\": \"192.168.1.1\", \"dns\": [\"8.8.8.8\", \"1.1.1.1\"]}"
+    if [ -f "mock_netplan.json" ]; then
+      current_config=$(cat mock_netplan.json)
+    else
+      current_config="{\"interface\": \"eth0\", \"dhcp\": true, \"address\": \"192.168.1.150/24\", \"gateway\": \"192.168.1.1\", \"dns\": [\"8.8.8.8\", \"1.1.1.1\"]}"
+    fi
   fi
 
   cat <<EOF
@@ -2873,11 +2877,12 @@ action_set_static_ip() {
   elif [ -x /usr/bin/netplan ]; then
     netplan_cmd="/usr/bin/netplan"
   else
-    if [ "$(uname)" = "Darwin" ]; then
+    if [ "$(uname)" = "Darwin" ] || [ ! -d /etc/netplan ]; then
       echo -e "[DEV MODE] Writing simulated Netplan configuration for $interface..."
       echo -e "IP Address: $ip_cidr"
       echo -e "Gateway: $gateway"
       echo -e "DNS: $dns1, $dns2"
+      echo "{\"interface\": \"$interface\", \"dhcp\": false, \"address\": \"$ip_cidr\", \"gateway\": \"$gateway\", \"dns\": [\"$dns1\"${dns2:+, \"$dns2\"}]}" > mock_netplan.json
       echo -e "${GREEN}✔ Simulated Static IP set successfully!${NC}"
       return 0
     else
@@ -2956,8 +2961,9 @@ action_set_dhcp() {
   elif [ -x /usr/bin/netplan ]; then
     netplan_cmd="/usr/bin/netplan"
   else
-    if [ "$(uname)" = "Darwin" ]; then
+    if [ "$(uname)" = "Darwin" ] || [ ! -d /etc/netplan ]; then
       echo -e "[DEV MODE] Writing simulated Netplan DHCP configuration for $interface..."
+      echo "{\"interface\": \"$interface\", \"dhcp\": true, \"address\": \"192.168.1.150/24\", \"gateway\": \"192.168.1.1\", \"dns\": [\"8.8.8.8\", \"1.1.1.1\"]}" > mock_netplan.json
       echo -e "${GREEN}✔ Simulated DHCP set successfully!${NC}"
       return 0
     else
