@@ -1617,13 +1617,9 @@
           document.getElementById('homepage_IMMICH_API_KEY').value = data.HOMEPAGE_VAR_IMMICH_API_KEY;
         }
 
-        const repoVal = data.GITHUB_REPO || localStorage.getItem('GITHUB_REPO') || '';
+        const repoVal = data.GITHUB_REPO || localStorage.getItem('GITHUB_REPO') || 'arunkarshan/HomeServerConfiguration';
         document.getElementById('git_push_REPO').value = repoVal;
         document.getElementById('git_sync_REPO').value = repoVal;
-
-        const tokenVal = data.GITHUB_TOKEN || localStorage.getItem('GITHUB_TOKEN') || '';
-        document.getElementById('git_push_TOKEN').value = tokenVal;
-        document.getElementById('git_sync_TOKEN').value = tokenVal;
 
         // Populate volume config settings
         if (data.JELLYFIN_EXTRA_DIR) {
@@ -1670,10 +1666,8 @@
         config['HOMEPAGE_VAR_IMMICH_API_KEY'] = document.getElementById('homepage_IMMICH_API_KEY').value;
       } else if (journeyId === 'git-push') {
         config['GITHUB_REPO'] = document.getElementById('git_push_REPO').value;
-        config['GITHUB_TOKEN'] = document.getElementById('git_push_TOKEN').value;
       } else if (journeyId === 'git-sync') {
         config['GITHUB_REPO'] = document.getElementById('git_sync_REPO').value;
-        config['GITHUB_TOKEN'] = document.getElementById('git_sync_TOKEN').value;
       }
 
       try {
@@ -1876,9 +1870,7 @@
     // Sync and cache Git configurations in localStorage
     const setupGitSyncListeners = () => {
       const syncRepo = document.getElementById('git_sync_REPO');
-      const syncToken = document.getElementById('git_sync_TOKEN');
       const pushRepo = document.getElementById('git_push_REPO');
-      const pushToken = document.getElementById('git_push_TOKEN');
 
       if (syncRepo && pushRepo) {
         syncRepo.addEventListener('input', (e) => {
@@ -1888,17 +1880,6 @@
         pushRepo.addEventListener('input', (e) => {
           localStorage.setItem('GITHUB_REPO', e.target.value);
           syncRepo.value = e.target.value;
-        });
-      }
-
-      if (syncToken && pushToken) {
-        syncToken.addEventListener('input', (e) => {
-          localStorage.setItem('GITHUB_TOKEN', e.target.value);
-          pushToken.value = e.target.value;
-        });
-        pushToken.addEventListener('input', (e) => {
-          localStorage.setItem('GITHUB_TOKEN', e.target.value);
-          syncToken.value = e.target.value;
         });
       }
     };
