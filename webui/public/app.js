@@ -62,6 +62,30 @@
       if (updateHash) {
         window.location.hash = paneId;
       }
+
+      // Update Top Header Page Title dynamically
+      const titleEl = document.getElementById('header-page-title');
+      if (titleEl) {
+        const titles = {
+          'dashboard': 'Overview',
+          'docker': 'Docker Containers',
+          'system': 'System Administration',
+          'tailscale': 'Tailscale VPN',
+          'samba': 'Samba Shares',
+          'app-config': 'App Configuration',
+          'guide': 'Suite Reference Guide',
+          'usage': 'App Setup & Usage',
+          'install': 'New Stack Deployment',
+          'update': 'Selective Suite Update',
+          'restart': 'Selective Suite Restart',
+          'check-updates': 'Check System Updates',
+          'git-push': 'Git Configurations Backup',
+          'git-sync': 'Git Configurations Sync',
+          'docker-install': 'Docker Engine Installation'
+        };
+        titleEl.textContent = titles[paneId] || 'Overview';
+      }
+
       // Deactivate active menu highlights
       document.querySelectorAll('.menu-item').forEach(btn => btn.classList.remove('active'));
       // Hide active panes
@@ -2523,9 +2547,11 @@ sudo netplan apply`;
         const vitalsCpu = document.getElementById('vitals-cpu-val');
         const vitalsRam = document.getElementById('vitals-ram-val');
         const vitalsTemp = document.getElementById('vitals-temp-val');
+        const vitalsUptime = document.getElementById('vitals-uptime-val');
         if (vitalsCpu) vitalsCpu.textContent = `${stats.cpu}%`;
         if (vitalsRam) vitalsRam.textContent = `${stats.memory.percent}%`;
         if (vitalsTemp) vitalsTemp.textContent = `${stats.temp}°C`;
+        if (vitalsUptime && stats.uptime) vitalsUptime.textContent = stats.uptime;
 
         // 2. Update System Page Detailed Vitals
         const sysCpuVal = document.getElementById('sys-cpu-val');

@@ -163,6 +163,7 @@ function handleGetRoute(req, res) {
           percent: 52.5
         },
         temp: parseFloat((40 + Math.random() * 8).toFixed(1)),
+        uptime: "up 2 days, 14 hours, 5 minutes",
         disks: [
           { device: '/dev/disk1s1s1', fstype: 'apfs', size: '228.3 GiB', used: '162.1 GiB', avail: '66.2 GiB', percent: '71%', mount: '/' },
           { device: '/dev/disk3s1', fstype: 'apfs', size: '931.5 GiB', used: '452.0 GiB', avail: '479.5 GiB', percent: '49%', mount: '/Volumes/Storage' }
@@ -176,29 +177,33 @@ function handleGetRoute(req, res) {
     // On Linux: execute native commands to fetch host metrics
     const statsCmd = `
       # 1. CPU Usage (robust idle-extraction looping)
-      CPU_IDLE=$(top -bn1 | grep -i "cpu(s)" | awk -F',' '{for(i=1;i<=NF;i++){if($i ~ /id/){print $i}}}' | awk '{print $1}')
-      if [ -z "$CPU_IDLE" ]; then CPU_IDLE=100; fi
-      CPU_USAGE=$(awk -v idle="$CPU_IDLE" 'BEGIN {print 100 - idle}')
-      if [ -z "$CPU_USAGE" ]; then CPU_USAGE=0; fi
+      CPU_IDLE=\$(top -bn1 | grep -i "cpu(s)" | awk -F',' '{for(i=1;i<=NF;i++){if(\$i ~ /id/){print \$i}}}' | awk '{print \$1}')
+      if [ -z "\$CPU_IDLE" ]; then CPU_IDLE=100; fi
+      CPU_USAGE=\$(awk -v idle="\$CPU_IDLE" 'BEGIN {print 100 - idle}')
+      if [ -z "\$CPU_USAGE" ]; then CPU_USAGE=0; fi
 
       # 2. Memory Usage (MB) - POSIX-compliant assignment
-      MEM_TOTAL=$(free -m | awk 'NR==2{print $2}')
-      MEM_USED=$(free -m | awk 'NR==2{print $3}')
-      if [ -z "$MEM_TOTAL" ] || [ "$MEM_TOTAL" -eq 0 ]; then MEM_TOTAL=1; MEM_USED=0; fi
-      MEM_PCT=$(awk -v total="$MEM_TOTAL" -v used="$MEM_USED" 'BEGIN {printf "%.1f", (used*100)/total}')
+      MEM_TOTAL=\$(free -m | awk 'NR==2{print \$2}')
+      MEM_USED=\$(free -m | awk 'NR==2{print \$3}')
+      if [ -z "\$MEM_TOTAL" ] || [ "\$MEM_TOTAL" -eq 0 ]; then MEM_TOTAL=1; MEM_USED=0; fi
+      MEM_PCT=\$(awk -v total="\$MEM_TOTAL" -v used="\$MEM_USED" 'BEGIN {printf "%.1f", (used*100)/total}')
 
       # 3. CPU Temperature
       CPU_TEMP=0
       if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
-        CPU_TEMP=$(cat /sys/class/thermal/thermal_zone0/temp)
-        CPU_TEMP=$(awk -v temp="$CPU_TEMP" 'BEGIN {printf "%.1f", temp/1000}')
+        CPU_TEMP=\$(cat /sys/class/thermal/thermal_zone0/temp)
+        CPU_TEMP=\$(awk -v temp="\$CPU_TEMP" 'BEGIN {printf "%.1f", temp/1000}')
       elif command -v sensors &>/dev/null; then
-        CPU_TEMP=$(sensors | grep -i "package id" | head -1 | awk '{print $4}' | tr -d '+°C' || echo 0)
+        CPU_TEMP=\$(sensors | grep -i "package id" | head -1 | awk '{print \$4}' | tr -d '+°C' || echo 0)
       fi
-      if [ -z "$CPU_TEMP" ]; then CPU_TEMP=0; fi
+      if [ -z "\$CPU_TEMP" ]; then CPU_TEMP=0; fi
+
+      # 4. Host Uptime
+      UPTIME_VAL=\$(uptime -p 2>/dev/null || uptime | awk '{print "up", \$3, \$4}' | tr -d ',')
+      if [ -z "\$UPTIME_VAL" ]; then UPTIME_VAL="up 0 hours"; fi
 
       # Format output
-      echo "$CPU_USAGE|$MEM_TOTAL|$MEM_USED|$MEM_PCT|$CPU_TEMP"
+      echo "\$CPU_USAGE|\$MEM_TOTAL|\$MEM_USED|\$MEM_PCT|\$CPU_TEMP|\$UPTIME_VAL"
     `;
 
     exec(statsCmd, (err, stdout) => {
@@ -209,7 +214,7 @@ function handleGetRoute(req, res) {
       }
       
       const parts = stdout.trim().split('|');
-      if (parts.length < 5) {
+      if (parts.length < 6) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Failed to parse system metrics' }));
         return;
@@ -220,6 +225,7 @@ function handleGetRoute(req, res) {
       const memUsedVal = parseInt(parts[2]);
       const memPct = parseFloat(parts[3]);
       const temp = parseFloat(parts[4]);
+      const uptime = parts[5];
 
       // Fetch storage devices usage (df -hP)
       exec('df -hP', (dfErr, dfStdout) => {
@@ -250,6 +256,7 @@ function handleGetRoute(req, res) {
             percent: memPct
           },
           temp,
+          uptime,
           disks
         };
 
