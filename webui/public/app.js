@@ -1102,7 +1102,19 @@
       
       if (!confirm(confirmMsg)) return;
 
-      streamPaneConsole(queryUrl, 'sys-terminal-body');
+      const applyBtn = document.getElementById('netplan-apply-btn');
+      const loader = document.getElementById('netplan-loader');
+      const restartBtnContainer = document.getElementById('netplan-restart-container');
+
+      if (applyBtn) applyBtn.style.display = 'none';
+      if (loader) loader.style.display = 'flex';
+      if (restartBtnContainer) restartBtnContainer.style.display = 'none';
+
+      streamPaneConsole(queryUrl, 'sys-terminal-body', (success) => {
+        if (loader) loader.style.display = 'none';
+        if (restartBtnContainer) restartBtnContainer.style.display = 'block';
+        if (applyBtn) applyBtn.style.display = 'inline-block';
+      });
     // Local Terminal Helpers for independent pages
     function copyPaneConsole(id) {
       const text = document.getElementById(id).innerText;
@@ -1117,10 +1129,11 @@
       document.getElementById(id).innerHTML = '[Console cleared]\n';
     }
 
-    function streamPaneConsole(queryUrl, terminalId) {
+    function streamPaneConsole(queryUrl, terminalId, onComplete) {
       if (activeSSE) {
         activeSSE.close();
       }
+      let success = true;
       const terminal = document.getElementById(terminalId);
       if (terminal) {
         terminal.innerHTML = `[Task Initiated]\nConnecting to server execution stream...\n\n`;
@@ -1135,6 +1148,7 @@
         let lineClass = '';
         if (line.includes('[ERROR]') || line.includes('Failed') || line.includes('Error')) {
           lineClass = 'term-err';
+          success = false;
         } else if (line.includes('✔') || line.includes('successfully') || line.includes('Success')) {
           lineClass = 'term-ok';
         } else if (line.includes('Warning') || line.includes('⚠️')) {
@@ -1163,6 +1177,9 @@
         activeSSE.close();
         activeSSE = null;
         fetchStatus();
+        if (typeof onComplete === 'function') {
+          onComplete(success);
+        }
       };
     }
 
@@ -1937,6 +1954,49 @@
           const spinner = document.getElementById('restart-spinner');
           if (spinner) spinner.style.borderTopColor = '#facc15';
           if (btn) btn.disabled = false;
+        }
+      }, 2000);
+    }
+
+    async function restartNetworkWebui() {
+      const confirmed = confirm(
+        '⚠️ Restart network and Portal WebUI service?\n\nThe server network interfaces will restart, and the management portal will go offline briefly and reconnect automatically.'
+      );
+      if (!confirmed) return;
+
+      const overlay = document.getElementById('restart-overlay');
+      const statusText = document.getElementById('restart-status-text');
+
+      overlay.style.display = 'flex';
+      statusText.textContent = 'Sending restart signal to network & WebUI...';
+
+      try {
+        await fetch('/api/run?action=restart-network-webui');
+      } catch (_) {
+        // Disconnect is expected
+      }
+
+      statusText.textContent = 'Network & WebUI services are restarting — waiting to reconnect…';
+
+      let attempts = 0;
+      const maxAttempts = 60; // 2 minutes timeout
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const r = await fetch('/api/status', { cache: 'no-store' });
+          if (r.ok) {
+            clearInterval(poll);
+            statusText.textContent = 'Services are back! Reloading…';
+            setTimeout(() => window.location.reload(), 800);
+          }
+        } catch (_) {
+          statusText.textContent = `Waiting for reconnect… (${attempts * 2}s elapsed)`;
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(poll);
+          statusText.textContent = 'Server did not respond in time. Please refresh manually.';
+          const spinner = document.getElementById('restart-spinner');
+          if (spinner) spinner.style.borderTopColor = '#facc15';
         }
       }, 2000);
     }

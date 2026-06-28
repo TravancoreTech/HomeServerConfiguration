@@ -3139,6 +3139,16 @@ if [ $# -gt 0 ]; then
     --set-dhcp)
       action_set_dhcp "$2"
       ;;
+    --restart-network-webui)
+      echo -e "Restarting network and WebUI service..."
+      if [ "$(uname)" != "Darwin" ]; then
+        systemctl restart systemd-networkd 2>/dev/null || true
+        (sleep 2 && systemctl restart homeserver-webui) &
+      else
+        echo -e "[DEV MODE] Simulating restart of network and homeserver-webui service..."
+      fi
+      echo -e "${GREEN}✔ Restart signal sent successfully!${NC}"
+      ;;
     --install-docker)
       check_dependencies
       ;;

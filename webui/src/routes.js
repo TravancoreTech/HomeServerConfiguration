@@ -303,6 +303,9 @@ function handleGetRoute(req, res) {
       case 'netplan-dhcp':
         args = ['--set-dhcp', parsedUrl.searchParams.get('iface') || ''];
         break;
+      case 'restart-network-webui':
+        args = ['--restart-network-webui'];
+        break;
       case 'schedule-power':
         args = [
           '--schedule-power',

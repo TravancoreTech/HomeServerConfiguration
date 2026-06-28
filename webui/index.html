@@ -1545,8 +1545,19 @@
               </p>
             </div>
 
-            <div class="btn-actions-footer">
+            <div class="btn-actions-footer" style="display: flex; align-items: center; gap: 1rem;">
               <button id="netplan-apply-btn" class="btn btn-primary" onclick="applyNetplanConfig()">Apply Network Configuration</button>
+              
+              <!-- Loader (hidden by default) -->
+              <div id="netplan-loader" style="display: none; align-items: center; gap: 0.6rem; color: var(--text-muted); font-size: 0.88rem;">
+                <div style="width: 18px; height: 18px; border: 2px solid transparent; border-top-color: var(--accent-indigo); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+                <span>Applying configuration, please wait...</span>
+              </div>
+
+              <!-- Restart Service Button (hidden by default) -->
+              <div id="netplan-restart-container" style="display: none;">
+                <button class="btn btn-secondary" onclick="restartNetworkWebui()" style="background: var(--accent-indigo); color: white; border: 1px solid var(--accent-indigo);">🔁 Restart network and WebUI service</button>
+              </div>
             </div>
           </div>
 
