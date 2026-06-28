@@ -1129,7 +1129,7 @@ sudo netplan apply`;
       }).catch(err => {
         alert('Failed to copy console logs.');
       });
-    }}
+    }
 
     function clearPaneConsole(id) {
       document.getElementById(id).innerHTML = '[Console cleared]\n';
