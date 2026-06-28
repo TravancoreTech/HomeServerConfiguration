@@ -2955,6 +2955,12 @@ action_set_dhcp() {
   cp -f /etc/netplan/*.yaml /etc/netplan/backup/ 2>/dev/null || true
   cp -f /etc/netplan/*.yml /etc/netplan/backup/ 2>/dev/null || true
 
+  if [ -d /etc/cloud ]; then
+    echo -e "Disabling cloud-init network configuration to prevent overrides..."
+    mkdir -p /etc/cloud/cloud.cfg.d/
+    echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+  fi
+
   rm -f /etc/netplan/*.yaml /etc/netplan/*.yml
 
   local netplan_file="/etc/netplan/01-netcfg.yaml"

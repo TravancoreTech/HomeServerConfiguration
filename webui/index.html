@@ -1305,11 +1305,11 @@
           </div>
 
           <!-- Tabs Selector for System Sub-actions -->
-          <div class="checklist-header-actions" style="margin-bottom: 1.5rem; justify-content: flex-start; gap: 0.5rem; flex-wrap: wrap;">
-            <button class="badge-btn active sys-tab-btn" id="sys-tab-btn-vitals" onclick="switchSystemTab('vitals')">📊 Health & Storage</button>
-            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-power" onclick="switchSystemTab('power')">⏱️ Power Scheduler</button>
-            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-network" onclick="switchSystemTab('network')">🌐 Network Configuration</button>
-            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-maintenance" onclick="switchSystemTab('maintenance')">⚙️ Host Maintenance</button>
+          <div class="checklist-header-actions" style="margin-bottom: 2rem; justify-content: flex-start; gap: 0.75rem; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 1rem;">
+            <button class="badge-btn active sys-tab-btn" id="sys-tab-btn-vitals" onclick="switchSystemTab('vitals')" style="padding: 0.65rem 1.25rem; font-size: 0.92rem; font-weight: 600; border-radius: 8px;">📊 Health & Storage</button>
+            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-power" onclick="switchSystemTab('power')" style="padding: 0.65rem 1.25rem; font-size: 0.92rem; font-weight: 600; border-radius: 8px;">⏱️ Power Scheduler</button>
+            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-network" onclick="switchSystemTab('network')" style="padding: 0.65rem 1.25rem; font-size: 0.92rem; font-weight: 600; border-radius: 8px;">🌐 Network Configuration</button>
+            <button class="badge-btn sys-tab-btn" id="sys-tab-btn-maintenance" onclick="switchSystemTab('maintenance')" style="padding: 0.65rem 1.25rem; font-size: 0.92rem; font-weight: 600; border-radius: 8px;">⚙️ Host Maintenance</button>
           </div>
 
           <!-- SYSTEM SUB-TAB: Detailed Health & Storage Statistics -->
@@ -1450,38 +1450,40 @@
             <!-- Netplan not supported state -->
             <div id="netplan-unsupported-banner" class="warning-banner" style="display: none; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: var(--warning-banner-text); margin-bottom: 1.5rem;">
               <h3 style="color: var(--accent-red);">⚠️ Netplan Not Supported</h3>
-              <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
+              <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.88rem;">
                 Netplan command utility is not installed or supported on this host. This feature is tailored for system deployments using Netplan (typically Ubuntu/Debian).
               </p>
             </div>
 
             <!-- Current IP details card -->
-            <div class="form-section" id="netplan-current-display" style="margin-bottom: 1.5rem; background: rgba(255, 255, 255, 0.02); border-radius: 12px; padding: 1.25rem;">
-              <h4 style="color: var(--accent-indigo); margin-bottom: 0.75rem; font-size: 0.95rem; font-weight: 700;">Current Network Interface Configuration</h4>
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; font-size: 0.85rem;">
-                <div>
-                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Interface:</span>
-                  <span id="lbl-netplan-iface" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+            <div id="netplan-current-display" style="margin-bottom: 2rem; background: linear-gradient(135deg, rgba(99, 102, 241, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+              <h4 style="color: var(--accent-indigo); margin-bottom: 1.25rem; font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <span>🌐</span> Active Network Configuration
+              </h4>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.25rem; font-size: 0.88rem;">
+                <div style="background: rgba(255,255,255,0.01); padding: 0.85rem 1.1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.03);">
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.35rem; font-size: 0.72rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Interface</span>
+                  <span id="lbl-netplan-iface" style="color: var(--text-primary); font-weight: 600; font-family: monospace;">-</span>
                 </div>
-                <div>
-                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">MAC Address:</span>
-                  <span id="lbl-netplan-mac" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+                <div style="background: rgba(255,255,255,0.01); padding: 0.85rem 1.1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.03);">
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.35rem; font-size: 0.72rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">MAC Address</span>
+                  <span id="lbl-netplan-mac" style="color: var(--text-primary); font-weight: 600; font-family: monospace;">-</span>
                 </div>
-                <div>
-                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Addressing:</span>
-                  <span id="lbl-netplan-mode" style="color: var(--text-primary); font-weight: 500;">-</span>
+                <div style="background: rgba(255,255,255,0.01); padding: 0.85rem 1.1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.03);">
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.35rem; font-size: 0.72rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Addressing</span>
+                  <span id="lbl-netplan-mode" style="color: var(--text-primary); font-weight: 600;">-</span>
                 </div>
-                <div>
-                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">IP Address:</span>
-                  <span id="lbl-netplan-address" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+                <div style="background: rgba(255,255,255,0.01); padding: 0.85rem 1.1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.03);">
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.35rem; font-size: 0.72rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">IP Address</span>
+                  <span id="lbl-netplan-address" style="color: var(--text-primary); font-weight: 600; font-family: monospace;">-</span>
                 </div>
-                <div>
-                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Gateway:</span>
-                  <span id="lbl-netplan-gateway" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+                <div style="background: rgba(255,255,255,0.01); padding: 0.85rem 1.1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.03);">
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.35rem; font-size: 0.72rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Gateway</span>
+                  <span id="lbl-netplan-gateway" style="color: var(--text-primary); font-weight: 600; font-family: monospace;">-</span>
                 </div>
-                <div>
-                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.25rem;">DNS:</span>
-                  <span id="lbl-netplan-dns" style="color: var(--text-primary); font-weight: 500; font-family: monospace;">-</span>
+                <div style="background: rgba(255,255,255,0.01); padding: 0.85rem 1.1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.03);">
+                  <span style="color: var(--text-muted); display: block; margin-bottom: 0.35rem; font-size: 0.72rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">DNS Servers</span>
+                  <span id="lbl-netplan-dns" style="color: var(--text-primary); font-weight: 600; font-family: monospace;">-</span>
                 </div>
               </div>
             </div>
@@ -1552,6 +1554,9 @@
               <h3 style="color: var(--caution-banner-h3);">⚠️ Warning: Potential Connectivity Loss</h3>
               <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
                 Applying network configurations will temporarily disconnect host connections. Verify static values are correct before executing.
+              </p>
+              <p style="margin-top: 0.35rem; line-height: 1.6; font-size: 0.82rem; color: #fbbf24; font-weight: 500;">
+                ℹ️ Note: Cloud-init network configurations will be automatically disabled to prevent system overrides upon reboot.
               </p>
             </div>
 
