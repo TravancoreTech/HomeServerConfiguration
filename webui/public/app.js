@@ -1723,6 +1723,7 @@ sudo netplan apply`;
         config['PGID'] = document.getElementById('PGID').value;
         config['SYSTEM_DATA_DIR'] = document.getElementById('SYSTEM_DATA_DIR').value;
         config['MEDIA_DIR'] = document.getElementById('MEDIA_DIR').value;
+        config['GITHUB_REPO'] = document.getElementById('GITHUB_REPO').value;
         config['CONFIGURE_DRIVE_MOUNTS'] = document.getElementById('chk-auto-mount').checked ? 'true' : 'false';
         config['DRIVE_MOUNT_POINTS'] = document.getElementById('DRIVE_MOUNT_POINTS').value;
         config['DRIVE_SIZES'] = document.getElementById('DRIVE_SIZES').value;
@@ -1730,6 +1731,8 @@ sudo netplan apply`;
         config['PHOTO_BACKUP_LOCATION'] = document.getElementById('PHOTO_BACKUP_LOCATION').value;
         config['NEXTCLOUD_DATA_LOCATION'] = document.getElementById('NEXTCLOUD_DATA_LOCATION').value;
         config['TS_AUTHKEY'] = document.getElementById('TS_AUTHKEY').value;
+      } else if (journeyId === 'sync') {
+        config['GITHUB_REPO'] = document.getElementById('GITHUB_REPO').value;
       } else if (journeyId === 'tailscale') {
         config['TS_AUTHKEY'] = document.getElementById('tailscale_TS_AUTHKEY').value;
       } else if (journeyId === 'homepage') {

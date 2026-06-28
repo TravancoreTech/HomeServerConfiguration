@@ -37,25 +37,172 @@ restore_ownership() {
 
 # Helper to write/update GitHub config in .env
 save_github_config() {
-  # Git sync is disabled.
-  return 0
+  local repo="$1"
+  local temp_env
+  temp_env=$(mktemp 2>/dev/null || echo "/tmp/temp_env_$$")
+  
+  if [ -f .env ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [[ "$line" =~ ^GITHUB_REPO= ]]; then
+        echo "GITHUB_REPO=${repo}" >> "$temp_env"
+      elif [[ "$line" =~ ^GITHUB_TOKEN= ]]; then
+        continue
+      else
+        echo "$line" >> "$temp_env"
+      fi
+    done < .env
+    
+    if ! grep -q "^GITHUB_REPO=" "$temp_env"; then
+      echo "GITHUB_REPO=${repo}" >> "$temp_env"
+    fi
+    mv "$temp_env" .env
+  else
+    cat << EOF > .env
+# ==============================================================================
+# GLOBAL HOMESERVER ENVIRONMENT CONFIGURATION (.ENV)
+# ==============================================================================
+GITHUB_REPO=${repo}
+EOF
+  fi
+  restore_ownership
 }
 
 # ------------------------------------------------------------------------------
 # GIT FETCH TIMESTAMP HELPERS
 # ------------------------------------------------------------------------------
 save_fetch_timestamp() {
-  return 0
+  TZ="Asia/Kolkata" date "+%Y-%m-%d %H:%M:%S IST" > .last_fetch_timestamp 2>/dev/null || true
+  if [ -n "${SUDO_UID:-}" ]; then
+    chown "${SUDO_UID}:${SUDO_GID}" .last_fetch_timestamp 2>/dev/null || true
+  fi
 }
 
 show_last_fetch_timestamp() {
-  return 0
+  if [ -f .last_fetch_timestamp ]; then
+    local last_ts
+    last_ts=$(cat .last_fetch_timestamp)
+    echo -e "Last Git Fetch: ${YELLOW}${last_ts}${NC}"
+  else
+    echo -e "Last Git Fetch: ${YELLOW}Never / Unknown${NC}"
+  fi
 }
 
 # Function to download and sync configurations from GitHub
 sync_from_github() {
-  return 0
+  echo -e "${BLUE}======================================================================${NC}"
+  echo -e "${GREEN}          HOMESERVER CONFIGURATION SYNCHRONIZER (GITHUB BALL)${NC}"
+  echo -e "${BLUE}======================================================================${NC}"
+
+  # Load variables from .env if it exists
+  if [ -f .env ]; then
+    # Parse GITHUB_ variables safely
+    eval "$(grep -E "^GITHUB_" .env | sed 's/^/export /' || true)"
+  fi
+
+  # Strip quotes from GITHUB_REPO if it exists
+  GITHUB_REPO=$(echo "${GITHUB_REPO:-}" | sed 's/^"//;s/"$//')
+
+  if [ -z "${GITHUB_REPO:-}" ] || [ "$GITHUB_REPO" = "username/repo-name" ]; then
+    read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
+    GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
+  fi
+
+  # Save configuration immediately to .env
+  save_github_config "$GITHUB_REPO"
+
+  # Validate system requirements for sync, installing automatically if running as root
+  if ! command -v unzip &>/dev/null || ! command -v rsync &>/dev/null; then
+    if [ "$EUID" -eq 0 ]; then
+      echo -e "${YELLOW}Missing unzip/rsync utilities. Attempting automatic installation...${NC}"
+      if command -v apt-get &>/dev/null; then
+        apt-get update && apt-get install -y unzip rsync
+      elif command -v dnf &>/dev/null; then
+        dnf install -y unzip rsync
+      elif command -v yum &>/dev/null; then
+        yum install -y unzip rsync
+      elif command -v pacman &>/dev/null; then
+        pacman -Sy --noconfirm unzip rsync
+      else
+        echo -e "${RED}Error: Package manager not found. Please install 'unzip' and 'rsync' manually.${NC}"
+        exit 1
+      fi
+    else
+      echo -e "${RED}Error: 'unzip' and 'rsync' utilities are required but not installed.${NC}"
+      echo -e "Please install them manually, or run 'sudo ./setup.sh' to have them installed automatically.${NC}"
+      exit 1
+    fi
+  fi
+
+  echo -e "Fetching latest configuration from: ${YELLOW}https://github.com/${GITHUB_REPO}${NC}..."
+  
+  # Download archive ZIP
+  HTTP_CODE=0
+  SUCCESS=false
+  
+  for branch in "main" "master"; do
+    echo -e "Checking branch: ${BLUE}$branch${NC}..."
+    HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
+    
+    if [ "$HTTP_CODE" -eq 200 ]; then
+      SUCCESS=true
+      break
+    else
+      rm -f config_temp.zip
+    fi
+  done
+
+  if [ "$SUCCESS" = false ]; then
+    echo -e "${RED}Error: Failed to download repository archive (HTTP status: $HTTP_CODE).${NC}"
+    if [ -f config_temp.zip ]; then
+      echo -e "${YELLOW}GitHub API Response:${NC}"
+      cat config_temp.zip || true
+      echo ""
+      rm -f config_temp.zip
+    fi
+    exit 1
+  fi
+
+  echo -e "Extracting configurations..."
+  rm -rf temp_extract
+  mkdir -p temp_extract
+  unzip -q config_temp.zip -d temp_extract
+
+  # Get the generated directory name in zip (e.g. username-reponame-hash)
+  SOURCE_DIR=$(find temp_extract -maxdepth 1 -type d | grep -v "temp_extract$" | head -n 1)
+
+  if [ -z "$SOURCE_DIR" ]; then
+    echo -e "${RED}Error: Failed to locate extracted source directory.${NC}"
+    rm -rf config_temp.zip temp_extract
+    exit 1
+  fi
+
+  # Safely sync files to workspace root, avoiding database/media state and secrets overwrite
+  echo -e "Deploying files to homeserver workspace..."
+  rsync -av \
+    --include='appdata/' \
+    --include='appdata/homepage/***' \
+    --exclude='appdata/*' \
+    --exclude='.git*' \
+    --exclude='.env*' \
+    --exclude='*/*.env*' \
+    --exclude='data/' \
+    --exclude='temp_extract/' \
+    --exclude='config_temp.zip' \
+    "$SOURCE_DIR/" ./
+
+  # Clean up temporary files
+  rm -rf config_temp.zip temp_extract
+  save_fetch_timestamp
+  echo -e "${GREEN}✔ Configuration sync completed successfully!${NC}\n"
 }
+
+# ------------------------------------------------------------------------------
+# 0. HYBRID SYNC OPTION (RUNS AS NON-ROOT)
+# ------------------------------------------------------------------------------
+if [[ "${1:-}" == "--sync" ]]; then
+  sync_from_github
+  exit 0
+fi
 
 # Load variables from .env if it exists to preserve current configuration early
 if [ -f .env ]; then
@@ -1001,8 +1148,50 @@ EOF
 # SILENT GITHUB SYNCHRONIZER
 # ------------------------------------------------------------------------------
 sync_from_github_silent() {
-  # Git silent sync is disabled.
-  return 0
+  local repo="${GITHUB_REPO:-arunkarshan/HomeServerConfiguration}"
+
+  echo -e "Silently syncing configurations from: ${YELLOW}https://github.com/${repo}${NC}..."
+  
+  if ! command -v unzip &>/dev/null || ! command -v rsync &>/dev/null; then
+    if [ "$EUID" -eq 0 ]; then
+      if command -v apt-get &>/dev/null; then
+        apt-get update && apt-get install -y unzip rsync
+      elif command -v dnf &>/dev/null; then
+        dnf install -y unzip rsync
+      elif command -v yum &>/dev/null; then
+        yum install -y unzip rsync
+      elif command -v pacman &>/dev/null; then
+        pacman -Sy --noconfirm unzip rsync
+      fi
+    fi
+  fi
+
+  local success=false
+  for branch in "main" "master"; do
+    local http_code=0
+    http_code=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
+    
+    if [ "$http_code" -eq 200 ]; then
+      success=true
+      break
+    else
+      rm -f config_temp.zip
+    fi
+  done
+
+  if [ "$success" = true ]; then
+    mkdir -p config_temp_dir
+    unzip -q config_temp.zip -d config_temp_dir
+    local top_dir
+    top_dir=$(find config_temp_dir -mindepth 1 -maxdepth 1 -type d | head -n 1)
+    rsync -a --exclude='.git' --exclude='.env*' --exclude='*/*.env*' "${top_dir}/" ./
+    rm -rf config_temp_dir config_temp.zip
+    save_fetch_timestamp
+    echo -e "${GREEN}✔ Repository synchronized successfully.${NC}"
+  else
+    echo -e "${RED}Error: Failed to silently download repository archive. Sync skipped.${NC}"
+  fi
+  restore_ownership
 }
 
 # ------------------------------------------------------------------------------

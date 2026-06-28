@@ -486,6 +486,11 @@
                 <span style="font-size: 0.82rem; font-weight: 600;">Selective Restart</span>
               </button>
 
+              <button class="btn btn-secondary" onclick="runConfiguredAction('sync', 'Synchronizing Configurations from Git')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
+                <span style="font-size: 1.4rem;">📥</span>
+                <span style="font-size: 0.82rem; font-weight: 600;">Fetch from Git</span>
+              </button>
+
               <button class="btn btn-secondary" onclick="triggerJourney('docker-install')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
                 <span style="font-size: 1.4rem;">🐳</span>
                 <span style="font-size: 0.82rem; font-weight: 600;">Install Docker Engine</span>
@@ -2103,6 +2108,10 @@
           <div class="form-group">
             <label for="MEDIA_DIR">Mass Media HDD Directory</label>
             <input type="text" id="MEDIA_DIR" placeholder="e.g. ./data/media">
+          </div>
+          <div class="form-group">
+            <label for="GITHUB_REPO">GitHub Configuration Repo</label>
+            <input type="text" id="GITHUB_REPO" placeholder="format: owner/repo">
           </div>
           
           <div class="form-group span-2 toggle-container" style="margin-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
