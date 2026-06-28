@@ -328,6 +328,72 @@
               <div class="metric-detail" id="vitals-os-desc">Host server kernel environment</div>
             </div>
 
+            <!-- Network Bandwidth status card -->
+            <div class="metric-card" id="card-net-speed" style="border-left: 4px solid var(--accent-green);">
+              <div class="metric-title">Network Traffic</div>
+              <div class="metric-value" id="vitals-net-speed-val" style="font-size: 1.15rem; word-break: break-word;">↓ 0 B/s  ↑ 0 B/s</div>
+              <div class="metric-detail" id="vitals-net-speed-desc">Real-time RX/TX network transfer</div>
+            </div>
+
+          </div>
+
+          <!-- Advanced Diagnostics Collapsible Widget -->
+          <div class="card" style="margin-top: 1.5rem;">
+            <div class="card-header" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;" onclick="const el = document.getElementById('advanced-diagnostics-body'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; this.querySelector('.chevron-indicator').textContent = el.style.display === 'none' ? '▾' : '▴';">
+              <div>
+                <h2>Advanced Diagnostics & Telemetry</h2>
+                <div class="card-subtitle">Detailed node state, network parameters, and system processes</div>
+              </div>
+              <span class="chevron-indicator" style="font-size: 1.25rem; color: var(--text-muted);">▾</span>
+            </div>
+            
+            <div id="advanced-diagnostics-body" style="display: none; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.04);">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                
+                <!-- Samba Connections Diagnostics -->
+                <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem;">
+                  <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-orange); letter-spacing: 0.05em;">Samba Network Status</div>
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <span style="font-size: 0.82rem; color: var(--text-secondary);">Active Sessions</span>
+                    <span id="diag-samba-conns" style="font-size: 0.78rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 20px; background: rgba(245,158,11,0.1); color: var(--accent-orange); border: 1px solid rgba(245,158,11,0.2);">0 active</span>
+                  </div>
+                </div>
+
+                <!-- Tailscale VPN Diagnostics -->
+                <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem;">
+                  <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-indigo-text); letter-spacing: 0.05em;">Tailscale Node Status</div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
+                    <span style="color: var(--text-secondary);">VPN IP Address</span>
+                    <code id="diag-ts-ip" style="font-family: var(--font-mono); color: var(--accent-indigo-text);">N/A</code>
+                  </div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
+                    <span style="color: var(--text-secondary);">Connected Peers</span>
+                    <span id="diag-ts-peers" style="font-weight: 700; color: var(--text-primary);">0 peers</span>
+                  </div>
+                </div>
+
+                <!-- Load Average Diagnostics -->
+                <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem;">
+                  <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-green); letter-spacing: 0.05em;">Load Average (1m/5m/15m)</div>
+                  <div id="diag-load-avg" style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); font-family: var(--font-mono); letter-spacing: -0.02em;">0.00  0.00  0.00</div>
+                  <div style="font-size: 0.7rem; color: var(--text-muted);">Process scheduler queue depth telemetry</div>
+                </div>
+
+                <!-- Swap Memory Diagnostics -->
+                <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem;">
+                  <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-blue); letter-spacing: 0.05em;">Swap Space allocation</div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
+                    <span style="color: var(--text-secondary);">Swap Allocated</span>
+                    <span id="diag-swap-total" style="color: var(--text-primary); font-weight: 600;">0.0 GB</span>
+                  </div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
+                    <span style="color: var(--text-secondary);">Swap Used</span>
+                    <span id="diag-swap-used" style="color: var(--text-primary); font-weight: 600;">0.0 GB</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
           </div>
 
           <!-- Docker Ecosystem Overview Widget -->

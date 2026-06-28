@@ -18,6 +18,9 @@
     let logsSSE = null;
     let logsPaused = false;
     let currentLogContainer = '';
+    let lastRxBytes = 0;
+    let lastTxBytes = 0;
+    let lastSpeedTimestamp = 0;
 
     // Move shared config flow to active tab
     function moveSharedConfig(targetPaneId) {
@@ -180,7 +183,10 @@
 
     // Checkbox selections helpers
     function checkAll(val, prefix) {
-      document.querySelectorAll(`.cb-${prefix}`).forEach(cb => cb.checked = val);
+      document.querySelectorAll(`.cb-${prefix}`).forEach(cb => {
+        cb.checked = val;
+        cb.dispatchEvent(new Event('change'));
+      });
       // Sync group check boxes
       Object.keys(SUITE_GROUPS).forEach(suiteKey => {
         const groupCb = document.getElementById(`group-cb-${prefix}-${suiteKey}`);
@@ -200,7 +206,10 @@
       const list = SUITE_GROUPS[suiteName] || [];
       list.forEach(svc => {
         const cb = document.getElementById(`cb-${prefix}-${svc}`);
-        if (cb) cb.checked = true;
+        if (cb) {
+          cb.checked = true;
+          cb.dispatchEvent(new Event('change'));
+        }
       });
       // Sync group check boxes
       Object.keys(SUITE_GROUPS).forEach(suiteKey => {
@@ -218,6 +227,7 @@
         const cb = document.getElementById(`cb-${prefix}-${svc}`);
         if (cb) {
           cb.checked = isChecked;
+          cb.dispatchEvent(new Event('change'));
         }
       });
       if (prefix === 'update' || prefix === 'install') {
@@ -320,18 +330,43 @@
           grid.className = 'checklist-grid';
 
           services.forEach(svc => {
+            const details = getServiceDetails(svc);
             const item = document.createElement('div');
             item.className = 'check-item';
+            item.style.cssText = 'display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); cursor: pointer; user-select: none; transition: var(--transition); position: relative;';
             item.innerHTML = `
-              <input type="checkbox" id="cb-${prefix}-${svc}" value="${svc}" class="cb-${prefix}">
-              <label for="cb-${prefix}-${svc}">${svc}</label>
+              <input type="checkbox" id="cb-${prefix}-${svc}" value="${svc}" class="cb-${prefix}" style="width: 16px; height: 16px; accent-color: var(--accent-indigo); cursor: pointer; flex-shrink: 0; z-index: 2;">
+              <span style="font-size: 1.15rem; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px; flex-shrink: 0; user-select: none;">${details.icon}</span>
+              <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+                <label for="cb-${prefix}-${svc}" style="cursor: pointer; font-size: 0.82rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; z-index: 1;">${details.name}</label>
+                <span style="font-size: 0.68rem; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.1rem;">${svc}</span>
+              </div>
             `;
 
             const input = item.querySelector('input');
+            const updateHighlight = () => {
+              if (input.checked) {
+                item.style.borderColor = 'var(--accent-indigo)';
+                item.style.background = 'rgba(99, 102, 241, 0.05)';
+              } else {
+                item.style.borderColor = 'var(--border-color)';
+                item.style.background = 'rgba(255,255,255,0.02)';
+              }
+            };
+
             input.addEventListener('change', () => {
+              updateHighlight();
               syncGroupCheckboxState(prefix, suiteKey);
               if (prefix === 'update' || prefix === 'install') {
                 updateContextualConfigVisibility(prefix);
+              }
+            });
+
+            // Allow clicking the card itself to check the box
+            item.addEventListener('click', (e) => {
+              if (e.target !== input && e.target.tagName !== 'LABEL') {
+                input.checked = !input.checked;
+                input.dispatchEvent(new Event('change'));
               }
             });
 
@@ -2728,6 +2763,66 @@ sudo netplan apply`;
         if (vitalsTemp) vitalsTemp.textContent = `${stats.temp}°C`;
         if (vitalsUptime && stats.uptime) vitalsUptime.textContent = stats.uptime;
         if (vitalsOS && stats.os) vitalsOS.textContent = stats.os;
+
+        // Helper to format speed
+        function formatSpeed(bytesPerSec) {
+          if (bytesPerSec < 1024) return `${bytesPerSec.toFixed(0)} B/s`;
+          const kb = bytesPerSec / 1024;
+          if (kb < 1024) return `${kb.toFixed(1)} KB/s`;
+          const mb = kb / 1024;
+          return `${mb.toFixed(1)} MB/s`;
+        }
+
+        // Calculate network speed
+        const currentTimestamp = Date.now();
+        const rxBytes = stats.net_rx || 0;
+        const txBytes = stats.net_tx || 0;
+        let rxSpeedStr = '0 B/s';
+        let txSpeedStr = '0 B/s';
+        
+        if (lastSpeedTimestamp > 0 && currentTimestamp > lastSpeedTimestamp) {
+          const timeSec = (currentTimestamp - lastSpeedTimestamp) / 1000;
+          const rxDiff = rxBytes - lastRxBytes;
+          const txDiff = txBytes - lastTxBytes;
+          if (rxDiff >= 0 && txDiff >= 0) {
+            rxSpeedStr = formatSpeed(rxDiff / timeSec);
+            txSpeedStr = formatSpeed(txDiff / timeSec);
+          }
+        }
+        lastRxBytes = rxBytes;
+        lastTxBytes = txBytes;
+        lastSpeedTimestamp = currentTimestamp;
+
+        const vitalsNetSpeed = document.getElementById('vitals-net-speed-val');
+        if (vitalsNetSpeed) {
+          vitalsNetSpeed.innerHTML = `<span style="color: var(--accent-green);">↓ ${rxSpeedStr}</span> <span style="color: var(--accent-blue); margin-left: 0.5rem;">↑ ${txSpeedStr}</span>`;
+        }
+
+        // Update Advanced Diagnostics fields
+        const diagSamba = document.getElementById('diag-samba-conns');
+        const diagTsIp = document.getElementById('diag-ts-ip');
+        const diagTsPeers = document.getElementById('diag-ts-peers');
+        const diagLoadAvg = document.getElementById('diag-load-avg');
+        const diagSwapTotal = document.getElementById('diag-swap-total');
+        const diagSwapUsed = document.getElementById('diag-swap-used');
+
+        if (diagSamba) {
+          diagSamba.textContent = `${stats.samba_conns} active`;
+          if (stats.samba_conns > 0) {
+            diagSamba.style.background = 'rgba(16, 185, 129, 0.1)';
+            diagSamba.style.color = 'var(--accent-green)';
+            diagSamba.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+          } else {
+            diagSamba.style.background = 'rgba(245, 158, 11, 0.1)';
+            diagSamba.style.color = 'var(--accent-orange)';
+            diagSamba.style.borderColor = 'rgba(245, 158, 11, 0.2)';
+          }
+        }
+        if (diagTsIp) diagTsIp.textContent = stats.tailscale_ip || 'N/A';
+        if (diagTsPeers) diagTsPeers.textContent = `${stats.tailscale_peers} peers`;
+        if (diagLoadAvg) diagLoadAvg.textContent = stats.load_avg || '0.00 0.00 0.00';
+        if (diagSwapTotal && stats.swap) diagSwapTotal.textContent = stats.swap.total;
+        if (diagSwapUsed && stats.swap) diagSwapUsed.textContent = stats.swap.used;
 
         // 2. Update System Page Detailed Vitals
         const sysCpuVal = document.getElementById('sys-cpu-val');

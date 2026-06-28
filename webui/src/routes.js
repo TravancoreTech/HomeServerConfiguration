@@ -165,6 +165,13 @@ function handleGetRoute(req, res) {
         temp: parseFloat((40 + Math.random() * 8).toFixed(1)),
         uptime: "up 2 days, 14 hours, 5 minutes",
         os: "macOS Dev (Darwin)",
+        net_rx: Math.floor(1024 * 1024 * 100 + Math.random() * 1024 * 1024 * 10),
+        net_tx: Math.floor(1024 * 1024 * 50 + Math.random() * 1024 * 1024 * 5),
+        samba_conns: 2,
+        tailscale_ip: "100.80.90.100",
+        tailscale_peers: 5,
+        load_avg: "0.15 0.28 0.35",
+        swap: { total: "4.0 GB", used: "1.2 GB" },
         disks: [
           { device: '/dev/disk1s1s1', fstype: 'apfs', size: '228.3 GiB', used: '162.1 GiB', avail: '66.2 GiB', percent: '71%', mount: '/' },
           { device: '/dev/disk3s1', fstype: 'apfs', size: '931.5 GiB', used: '452.0 GiB', avail: '479.5 GiB', percent: '49%', mount: '/Volumes/Storage' }
@@ -177,13 +184,13 @@ function handleGetRoute(req, res) {
 
     // On Linux: execute native commands to fetch host metrics
     const statsCmd = `
-      # 1. CPU Usage (robust idle-extraction looping)
+      # 1. CPU Usage
       CPU_IDLE=\$(top -bn1 | grep -i "cpu(s)" | awk -F',' '{for(i=1;i<=NF;i++){if(\$i ~ /id/){print \$i}}}' | awk '{print \$1}')
       if [ -z "\$CPU_IDLE" ]; then CPU_IDLE=100; fi
       CPU_USAGE=\$(awk -v idle="\$CPU_IDLE" 'BEGIN {print 100 - idle}')
       if [ -z "\$CPU_USAGE" ]; then CPU_USAGE=0; fi
 
-      # 2. Memory Usage (MB) - POSIX-compliant assignment
+      # 2. Memory Usage (MB)
       MEM_TOTAL=\$(free -m | awk 'NR==2{print \$2}')
       MEM_USED=\$(free -m | awk 'NR==2{print \$3}')
       if [ -z "\$MEM_TOTAL" ] || [ "\$MEM_TOTAL" -eq 0 ]; then MEM_TOTAL=1; MEM_USED=0; fi
@@ -211,8 +218,40 @@ function handleGetRoute(req, res) {
         OS_NAME=\$(uname -sr)
       fi
 
+      # 6. Default network interface RX/TX bytes
+      DEFAULT_IFACE=\$(ip route 2>/dev/null | grep default | awk '{print \$5}' | head -1)
+      if [ -z "\$DEFAULT_IFACE" ]; then DEFAULT_IFACE=\$(ls /sys/class/net | grep -v lo | head -1); fi
+      if [ -n "\$DEFAULT_IFACE" ]; then
+        NET_RX=\$(cat /sys/class/net/\$DEFAULT_IFACE/statistics/rx_bytes 2>/dev/null || echo 0)
+        NET_TX=\$(cat /sys/class/net/\$DEFAULT_IFACE/statistics/tx_bytes 2>/dev/null || echo 0)
+      else
+        NET_RX=0
+        NET_TX=0
+      fi
+
+      # 7. Samba Connections Count
+      SAMBA_CONNS=0
+      if command -v smbstatus &>/dev/null; then
+        SAMBA_CONNS=\$(smbstatus -p 2>/dev/null | grep -v "PID" | grep -v "\-\-\-\-" | grep -v "^$" | wc -l || echo 0)
+      fi
+
+      # 8. Tailscale details
+      TS_IP="N/A"
+      TS_PEERS=0
+      if command -v tailscale &>/dev/null; then
+        TS_IP=\$(tailscale ip -4 2>/dev/null || echo "N/A")
+        TS_PEERS=\$(tailscale status 2>/dev/null | grep -v "Self" | grep -v "^$" | wc -l || echo 0)
+      fi
+
+      # 9. System Load Average (1m, 5m, 15m)
+      LOAD_AVG=\$(cat /proc/loadavg 2>/dev/null | awk '{print \$1" "\$2" "\$3}' || echo "0.0 0.0 0.0")
+
+      # 10. Swap usage
+      SWAP_TOTAL=\$(free -m | awk 'NR==3{print \$2}' || echo 0)
+      SWAP_USED=\$(free -m | awk 'NR==3{print \$3}' || echo 0)
+
       # Format output
-      echo "\$CPU_USAGE|\$MEM_TOTAL|\$MEM_USED|\$MEM_PCT|\$CPU_TEMP|\$UPTIME_VAL|\$OS_NAME"
+      echo "\$CPU_USAGE|\$MEM_TOTAL|\$MEM_USED|\$MEM_PCT|\$CPU_TEMP|\$UPTIME_VAL|\$OS_NAME|\$NET_RX|\$NET_TX|\$SAMBA_CONNS|\$TS_IP|\$TS_PEERS|\$LOAD_AVG|\$SWAP_TOTAL|\$SWAP_USED"
     `;
 
     exec(statsCmd, (err, stdout) => {
@@ -223,9 +262,9 @@ function handleGetRoute(req, res) {
       }
       
       const parts = stdout.trim().split('|');
-      if (parts.length < 6) {
+      if (parts.length < 15) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to parse system metrics' }));
+        res.end(JSON.stringify({ error: 'Failed to parse full system metrics' }));
         return;
       }
 
@@ -236,6 +275,14 @@ function handleGetRoute(req, res) {
       const temp = parseFloat(parts[4]);
       const uptime = parts[5];
       const osName = parts[6] || 'Linux Host';
+      const netRx = parseInt(parts[7]);
+      const netTx = parseInt(parts[8]);
+      const sambaConns = parseInt(parts[9]);
+      const tsIp = parts[10];
+      const tsPeers = parseInt(parts[11]);
+      const loadAvg = parts[12];
+      const swapTotal = parseInt(parts[13]);
+      const swapUsed = parseInt(parts[14]);
 
       // Fetch storage devices usage (df -hP)
       exec('df -hP', (dfErr, dfStdout) => {
@@ -246,7 +293,7 @@ function handleGetRoute(req, res) {
             if (cols.length >= 6 && cols[0].startsWith('/dev/')) {
               disks.push({
                 device: cols[0],
-                fstype: 'ext4', // default fallback
+                fstype: 'ext4',
                 size: cols[1],
                 used: cols[2],
                 avail: cols[3],
@@ -268,6 +315,16 @@ function handleGetRoute(req, res) {
           temp,
           uptime,
           os: osName,
+          net_rx: netRx,
+          net_tx: netTx,
+          samba_conns: sambaConns,
+          tailscale_ip: tsIp,
+          tailscale_peers: tsPeers,
+          load_avg: loadAvg,
+          swap: {
+            total: (swapTotal / 1024).toFixed(1) + " GB",
+            used: (swapUsed / 1024).toFixed(1) + " GB"
+          },
           disks
         };
 
