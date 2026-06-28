@@ -1747,10 +1747,18 @@ sudo netplan apply`;
         return;
       }
 
+      let queryParams = '';
+      if (action === 'update') {
+        const restartCheckbox = document.getElementById('update-restart-immediately');
+        if (restartCheckbox && !restartCheckbox.checked) {
+          queryParams = '&only_pull=true';
+        }
+      }
+
       // Transition and launch SSE logs
       const title = `${action === 'install' ? 'Install' : action.charAt(0).toUpperCase() + action.slice(1)} Task Running`;
       const sseAction = action === 'install' ? 'nuke' : action;
-      initConsoleLogs(title, `/api/run?action=${sseAction}&services=${selected.join(',')}`);
+      initConsoleLogs(title, `/api/run?action=${sseAction}&services=${selected.join(',')}${queryParams}`);
     }
 
     // Trigger configured single-command tasks (tailscale, homepage, etc.)

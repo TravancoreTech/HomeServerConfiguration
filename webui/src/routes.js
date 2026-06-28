@@ -318,7 +318,12 @@ function handleGetRoute(req, res) {
 
     switch (action) {
       case 'nuke': args = ['--nuke', services || 'all']; break;
-      case 'update': args = ['--update', services || 'all']; break;
+      case 'update':
+        args = ['--update', services || 'all'];
+        if (parsedUrl.searchParams.get('only_pull') === 'true') {
+          args.push('--only-pull');
+        }
+        break;
       case 'reconfigure': args = ['--reconfigure', services || 'all']; break;
       case 'restart': args = ['--restart', services || 'all']; break;
       case 'prune': args = ['--prune']; break;

@@ -419,10 +419,6 @@
                 <span style="font-size: 1.4rem;">🔄</span>
                 <span style="font-size: 0.82rem; font-weight: 600;">Selective Restart</span>
               </button>
-              <button class="btn btn-secondary" onclick="triggerJourney('check-updates')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                <span style="font-size: 1.4rem;">📥</span>
-                <span style="font-size: 0.82rem; font-weight: 600;">Check & Pull Updates</span>
-              </button>
 
               <button class="btn btn-secondary" onclick="triggerJourney('docker-install')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
                 <span style="font-size: 1.4rem;">🐳</span>
@@ -722,26 +718,20 @@
             <!-- Shared config flow will be moved here in JS -->
           </div>
           
+          <!-- Toggle restart option -->
+          <div style="margin-top: 1.5rem; display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 1.5rem;">
+            <div>
+              <div style="font-weight: 700; color: var(--text-primary); font-size: 0.9rem;">Restart Containers Immediately</div>
+              <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.15rem;">Stop and start containers to apply updates immediately. Turn off to only download images in the background.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="update-restart-immediately" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          
           <div class="btn-actions-footer">
             <button class="btn btn-primary" onclick="runSelectiveAction('update')">Update Selected</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- JOURNEY: Check & Pull Updates (without restart) -->
-      <section id="journey-check-updates" class="journey-pane">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2>Check & Pull Image Updates</h2>
-              <div class="card-subtitle">Download the latest Docker images from registries without restarting services</div>
-            </div>
-          </div>
-          <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
-            This will fetch and pull all service updates sequentially. New versions will be cached locally and will take effect the next time containers are restarted or re-deployed.
-          </p>
-          <div class="btn-actions-footer">
-            <button class="btn btn-primary" onclick="runDirectAction('check-updates', 'Pulling Registry Container Updates')">Check & Pull Images</button>
           </div>
         </div>
       </section>

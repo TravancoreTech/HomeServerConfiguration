@@ -1992,6 +1992,7 @@ action_nuke_selected() {
 # ------------------------------------------------------------------------------
 action_update_config_noninteractive() {
   local target_services_arg="$1"
+  local only_pull_arg="${2:-}"
   echo -e "\nUpdating configuration from Git repository..."
   sync_from_github_silent
   build_compose_args
@@ -2027,11 +2028,17 @@ action_update_config_noninteractive() {
 
   echo -e "Updating services: ${GREEN}${selected_services[*]}${NC}"
 
-  # Pull and start
+  # Pull
   for service in "${selected_services[@]}"; do
     echo -e "Pulling image for: ${BLUE}$service${NC}..."
     docker compose $COMPOSE_ARGS pull "$service" || true
   done
+
+  if [ "$only_pull_arg" = "--only-pull" ]; then
+    echo -e "${GREEN}✔ Pull updates completed (containers not restarted).${NC}"
+    restore_ownership
+    return 0
+  fi
 
   echo -e "${BLUE}Bringing services up...${NC}"
   docker compose $COMPOSE_ARGS up -d "${selected_services[@]}"
@@ -2891,7 +2898,7 @@ if [ $# -gt 0 ]; then
       action_nuke_selected "$2"
       ;;
     --update)
-      action_update_config_noninteractive "$2"
+      action_update_config_noninteractive "$2" "$3"
       ;;
     --reconfigure)
       action_reconfigure_noninteractive "$2"
