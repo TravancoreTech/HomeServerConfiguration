@@ -2863,8 +2863,16 @@ action_set_static_ip() {
     return 1
   fi
 
-  if ! command -v netplan &>/dev/null; then
-    echo -e "${YELLOW}Warning: netplan utility not found on the host system.${NC}"
+  local netplan_cmd="netplan"
+  if command -v netplan &>/dev/null; then
+    netplan_cmd="netplan"
+  elif [ -x /usr/sbin/netplan ]; then
+    netplan_cmd="/usr/sbin/netplan"
+  elif [ -x /sbin/netplan ]; then
+    netplan_cmd="/sbin/netplan"
+  elif [ -x /usr/bin/netplan ]; then
+    netplan_cmd="/usr/bin/netplan"
+  else
     if [ "$(uname)" = "Darwin" ]; then
       echo -e "[DEV MODE] Writing simulated Netplan configuration for $interface..."
       echo -e "IP Address: $ip_cidr"
@@ -2919,14 +2927,14 @@ EOF
   chmod 600 "$netplan_file"
 
   echo -e "Applying netplan configuration..."
-  if netplan apply; then
+  if $netplan_cmd apply; then
     echo -e "${GREEN}✔ Static IP configured successfully!${NC}"
     return 0
   else
     echo -e "${RED}Error: Failed to apply Netplan configuration.${NC}"
     echo -e "Restoring backup configurations..."
     cp -f /etc/netplan/backup/* /etc/netplan/ 2>/dev/null || true
-    netplan apply
+    $netplan_cmd apply
     return 1
   fi
 }
@@ -2938,8 +2946,16 @@ action_set_dhcp() {
     return 1
   fi
 
-  if ! command -v netplan &>/dev/null; then
-    echo -e "${YELLOW}Warning: netplan utility not found on the host system.${NC}"
+  local netplan_cmd="netplan"
+  if command -v netplan &>/dev/null; then
+    netplan_cmd="netplan"
+  elif [ -x /usr/sbin/netplan ]; then
+    netplan_cmd="/usr/sbin/netplan"
+  elif [ -x /sbin/netplan ]; then
+    netplan_cmd="/sbin/netplan"
+  elif [ -x /usr/bin/netplan ]; then
+    netplan_cmd="/usr/bin/netplan"
+  else
     if [ "$(uname)" = "Darwin" ]; then
       echo -e "[DEV MODE] Writing simulated Netplan DHCP configuration for $interface..."
       echo -e "${GREEN}✔ Simulated DHCP set successfully!${NC}"
@@ -2977,14 +2993,14 @@ EOF
   chmod 600 "$netplan_file"
 
   echo -e "Applying netplan configuration..."
-  if netplan apply; then
+  if $netplan_cmd apply; then
     echo -e "${GREEN}✔ DHCP configured successfully!${NC}"
     return 0
   else
     echo -e "${RED}Error: Failed to apply Netplan configuration.${NC}"
     echo -e "Restoring backup configurations..."
     cp -f /etc/netplan/backup/* /etc/netplan/ 2>/dev/null || true
-    netplan apply
+    $netplan_cmd apply
     return 1
   fi
 }
