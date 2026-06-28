@@ -456,7 +456,7 @@
             Select a service card below to inspect architecture layout, linked containers, compose scripts, and volume mount paths.
           </p>
 
-          <div class="dashboard-containers-grid" id="docker-page-containers-target" style="margin-bottom: 1rem;">
+          <div id="docker-page-containers-target" style="margin-bottom: 1rem;">
             <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem;">
               Loading docker containers...
             </div>
@@ -472,10 +472,12 @@
               ← Back to Containers List
             </a>
           </div>
-
           <div class="card-header" style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <span id="detail-icon" style="font-size: 2.2rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 12px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; user-select: none;">🎬</span>
+              <div id="detail-icon-container" style="font-size: 2.2rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 12px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; user-select: none; position: relative;">
+                <span id="detail-icon" style="display: block;">🎬</span>
+                <img id="detail-logo" src="" onload="this.previousElementSibling.style.display='none'; this.style.display='block';" onerror="this.style.display='none';" style="display: none; width: 100%; height: 100%; object-fit: contain;" />
+              </div>
               <div>
                 <h2 id="detail-service-name" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">Jellyfin Media Server</h2>
                 <div id="detail-container-name" style="font-size: 0.82rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 0.15rem;">media_jellyfin</div>

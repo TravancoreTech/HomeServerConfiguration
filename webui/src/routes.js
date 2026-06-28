@@ -52,6 +52,12 @@ function handleGetRoute(req, res) {
     serveStaticFile(path.join(__dirname, '../public/app.js'), 'application/javascript', res);
     return;
   }
+  if (pathname.startsWith('/logos/') && pathname.endsWith('.png')) {
+    const logoName = path.basename(pathname);
+    const logoPath = path.join(__dirname, '../public/logos', logoName);
+    serveStaticFile(logoPath, 'image/png', res);
+    return;
+  }
 
   // API Route: Get Status of Docker Containers
   if (pathname === '/api/status') {

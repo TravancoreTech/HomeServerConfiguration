@@ -383,6 +383,71 @@
       });
     }
 
+    // Helper to get normalized service name for logo images
+    function getLogoKey(name) {
+      return name.toLowerCase()
+        .replace(/^media[-_]/i, '')
+        .replace(/^utility[-_]/i, '')
+        .replace(/^cloud[-_]/i, '')
+        .replace(/^storage[-_]/i, '')
+        .replace(/^dashboard[-_]/i, '')
+        .replace(/[-_]/g, '_');
+    }
+
+    // Classify a container by Broad Type and Actual Group (SOLID/SRP layout)
+    function classifyContainer(name) {
+      const lower = name.toLowerCase();
+      
+      // Determine Broad Type
+      let broadType = 'General';
+      if (lower.startsWith('media_') || lower.startsWith('media-') || SUITE_GROUPS.media.some(k => lower.includes(k))) {
+        broadType = 'Media';
+      } else if (lower.startsWith('storage_') || lower.startsWith('storage-') || lower.startsWith('nextcloud') || lower.startsWith('immich') || SUITE_GROUPS.cloud.some(k => lower.includes(k))) {
+        broadType = 'Storage';
+      } else if (lower.startsWith('utility_') || lower.startsWith('utility-') || SUITE_GROUPS.utility.some(k => lower.includes(k))) {
+        broadType = 'Utility';
+      } else if (lower.startsWith('dashboard_') || lower.startsWith('dashboard-')) {
+        broadType = 'Dashboard';
+      }
+
+      // Determine Sub Group
+      let group = 'General';
+      
+      if (broadType === 'Media') {
+        // Jellyfin / Arr group
+        const isArr = ['jellyfin', 'qbittorrent', 'radarr', 'sonarr', 'prowlarr', 'flaresolverr', 'jellyseerr', 'bazarr'].some(k => lower.includes(k));
+        if (isArr) {
+          group = 'Jellyfin / Arr Group';
+        } else {
+          group = 'Other Media';
+        }
+      } else if (broadType === 'Storage') {
+        if (lower.includes('immich')) {
+          group = 'Immich Group';
+        } else if (lower.includes('nextcloud')) {
+          group = 'Nextcloud Group';
+        } else if (lower.includes('filebrowser') || lower.includes('kopia') || lower.includes('backrest')) {
+          group = 'Backup & File Manager';
+        }
+      } else if (broadType === 'Utility') {
+        if (lower.includes('paperless')) {
+          group = 'Paperless Group';
+        } else if (lower.includes('radicale') || lower.includes('baikal')) {
+          group = 'Calendar & Contacts';
+        } else if (lower.includes('syncthing') || lower.includes('pairdrop')) {
+          group = 'File Sync & Sharing';
+        } else if (lower.includes('vaultwarden') || lower.includes('tailscale')) {
+          group = 'Security & VPN';
+        } else if (['stirling', 'it-tools', 'uptime', 'cronicle', 'ofelia'].some(k => lower.includes(k))) {
+          group = 'System & Monitoring';
+        }
+      } else if (broadType === 'Dashboard') {
+        group = 'Dashboard Overview';
+      }
+
+      return { broadType, group };
+    }
+
     // Fetch container status and render statuses in sidebar & dashboard
     async function fetchStatus() {
       try {
@@ -430,7 +495,10 @@
         const stoppedList = [];
         const errorList = [];
 
-        Object.entries(data.containers).sort().forEach(([name, status]) => {
+        // Build nested group structure: grouped[broadType][group] = []
+        const grouped = {};
+
+        Object.entries(data.containers).forEach(([name, status]) => {
           total++;
           const statusLower = status.toLowerCase();
           const isUp = statusLower.includes('up') || statusLower.includes('running');
@@ -452,39 +520,114 @@
           }
 
           const details = getServiceDetails(name);
+          const { broadType, group } = classifyContainer(name);
 
-          // Render in Docker Containers Detailed Page Grid
-          if (dockerPageGrid) {
-            const dbCard = document.createElement('div');
-            dbCard.className = 'dashboard-container-card';
-            dbCard.style.cssText = 'display: flex; flex-direction: row; align-items: flex-start; padding: 1.25rem; gap: 1rem; border-radius: 12px; min-height: auto; cursor: pointer;';
-            dbCard.onclick = (e) => {
-              // Prevent clicking on Logs link from triggering container details page change
-              if (e.target.tagName.toLowerCase() !== 'a') {
-                showContainerDetails(name, status, isUp, details);
-              }
-            };
-            dbCard.innerHTML = `
-              <div class="service-card-icon" style="font-size: 1.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex-shrink: 0; user-select: none;">
-                ${details.icon}
-              </div>
-              <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
-                  <span class="dashboard-container-name" style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${details.name}</span>
-                  <span class="status-dot ${isUp ? 'up' : (isError ? 'down' : 'down')}" style="background-color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; box-shadow: 0 0 6px ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; flex-shrink: 0;"></span>
-                </div>
-                <span style="color: var(--text-muted); font-size: 0.75rem; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; margin-bottom: 0.5rem;" title="${name}">${name}</span>
-                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem;">
-                  <span style="font-weight: 600; color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')};">${isUp ? 'Running' : (isError ? 'Error' : 'Stopped')}</span>
-                  <a href="javascript:void(0)" onclick="triggerLogs('${name}')" style="color: var(--accent-indigo-text); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
-                    View Log ↗
-                  </a>
-                </div>
-              </div>
-            `;
-            dockerPageGrid.appendChild(dbCard);
+          if (!grouped[broadType]) {
+            grouped[broadType] = {};
           }
+          if (!grouped[broadType][group]) {
+            grouped[broadType][group] = [];
+          }
+          grouped[broadType][group].push({ name, status, isUp, isError, details });
         });
+
+        // Render in Docker Containers Detailed Page Grid (hierarchical grouping)
+        if (dockerPageGrid) {
+          const broadTypeOrder = ['Media', 'Storage', 'Utility', 'Dashboard', 'General'];
+          const broadTypeIcons = {
+            'Media': '🎬',
+            'Storage': '🗄️',
+            'Utility': '🛠️',
+            'Dashboard': '📊',
+            'General': '📦'
+          };
+
+          const presentBroadTypes = Object.keys(grouped).sort((a, b) => {
+            let idxA = broadTypeOrder.indexOf(a);
+            let idxB = broadTypeOrder.indexOf(b);
+            if (idxA === -1) idxA = 999;
+            if (idxB === -1) idxB = 999;
+            return idxA - idxB;
+          });
+
+          presentBroadTypes.forEach(broadType => {
+            // Broad Type Section
+            const broadSection = document.createElement('div');
+            broadSection.className = 'broad-type-section';
+            broadSection.style.cssText = 'margin-bottom: 2rem; padding: 1.25rem; border: 1px solid var(--border-color); border-radius: 12px; background: rgba(255, 255, 255, 0.015);';
+
+            const broadIcon = broadTypeIcons[broadType] || '📦';
+            const broadTitle = document.createElement('h3');
+            broadTitle.className = 'broad-type-title';
+            broadTitle.style.cssText = 'font-family: var(--font-sans); font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-top: 0; margin-bottom: 1.25rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;';
+            broadTitle.innerHTML = `<span>${broadIcon}</span> ${broadType}`;
+            broadSection.appendChild(broadTitle);
+
+            // Group sorting
+            const groupOrder = ['Jellyfin / Arr Group', 'Immich Group', 'Nextcloud Group', 'Backup & File Manager', 'Paperless Group', 'Calendar & Contacts', 'File Sync & Sharing', 'Security & VPN', 'System & Monitoring', 'Dashboard Overview', 'General'];
+            const presentGroups = Object.keys(grouped[broadType]).sort((a, b) => {
+              let idxA = groupOrder.indexOf(a);
+              let idxB = groupOrder.indexOf(b);
+              if (idxA === -1) idxA = 999;
+              if (idxB === -1) idxB = 999;
+              return idxA - idxB;
+            });
+
+            presentGroups.forEach(groupName => {
+              const groupSection = document.createElement('div');
+              groupSection.className = 'group-section';
+              groupSection.style.cssText = 'margin-bottom: 1.25rem;';
+
+              const containers = grouped[broadType][groupName];
+              
+              const groupTitle = document.createElement('h4');
+              groupTitle.className = 'group-title';
+              groupTitle.style.cssText = 'font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600; color: var(--text-secondary); margin-top: 0; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 0.35rem;';
+              groupTitle.innerHTML = `• ${groupName} <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-left: 0.25rem;">(${containers.length})</span>`;
+              groupSection.appendChild(groupTitle);
+
+              const grid = document.createElement('div');
+              grid.className = 'dashboard-containers-grid';
+
+              // Sort containers in this group alphabetically
+              containers.sort((a, b) => a.name.localeCompare(b.name)).forEach(({ name, status, isUp, isError, details }) => {
+                const dbCard = document.createElement('div');
+                dbCard.className = 'dashboard-container-card';
+                dbCard.style.cssText = 'display: flex; flex-direction: row; align-items: flex-start; padding: 1.25rem; gap: 1rem; border-radius: 12px; min-height: auto; cursor: pointer;';
+                dbCard.onclick = (e) => {
+                  if (e.target.tagName.toLowerCase() !== 'a') {
+                    showContainerDetails(name, status, isUp, details);
+                  }
+                };
+                dbCard.innerHTML = `
+                  <div class="service-card-icon" style="font-size: 1.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex-shrink: 0; user-select: none; position: relative;">
+                    <span class="fallback-emoji" style="display: block;">${details.icon}</span>
+                    <img src="/logos/logo_${getLogoKey(name)}.png" onload="this.previousElementSibling.style.display='none'; this.style.display='block';" onerror="this.style.display='none';" style="display: none; width: 100%; height: 100%; object-fit: contain;" />
+                  </div>
+                  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                      <span class="dashboard-container-name" style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${details.name}</span>
+                      <span class="status-dot ${isUp ? 'up' : (isError ? 'down' : 'down')}" style="background-color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; box-shadow: 0 0 6px ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; flex-shrink: 0;"></span>
+                    </div>
+                    <span style="color: var(--text-muted); font-size: 0.75rem; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; margin-bottom: 0.5rem;" title="${name}">${name}</span>
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem;">
+                      <span style="font-weight: 600; color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')};">${isUp ? 'Running' : (isError ? 'Error' : 'Stopped')}</span>
+                      <a href="javascript:void(0)" onclick="triggerLogs('${name}')" style="color: var(--accent-indigo-text); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                        View Log ↗
+                      </a>
+                    </div>
+                  </div>
+                `;
+                grid.appendChild(dbCard);
+              });
+
+              groupSection.appendChild(grid);
+              broadSection.appendChild(groupSection);
+            });
+
+            dockerPageGrid.appendChild(broadSection);
+          });
+        }
 
         // Update home metrics
         document.getElementById('widget-total-count').textContent = total;
@@ -2040,6 +2183,12 @@
 
       // Populate layout
       document.getElementById('detail-icon').textContent = details.icon;
+      document.getElementById('detail-icon').style.display = 'block';
+      const detailLogo = document.getElementById('detail-logo');
+      if (detailLogo) {
+        detailLogo.style.display = 'none';
+        detailLogo.src = `/logos/logo_${getLogoKey(name)}.png`;
+      }
       document.getElementById('detail-service-name').textContent = details.name;
       document.getElementById('detail-container-name').textContent = name;
       
