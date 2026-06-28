@@ -1622,6 +1622,39 @@
                   <button class="btn btn-secondary" onclick="rebootHostMachine()" style="flex: 1; padding: 0.6rem; font-size: 0.8rem; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24;">Reboot</button>
                 </div>
               </div>
+
+              <!-- Clean & Reinstall Card -->
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <h4 style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🚨</span> Clean & Reinstall WebUI
+                  </h4>
+                  <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1rem;">
+                    Completely remove the WebUI systemd service and re-bootstrap it from scratch.
+                  </p>
+                </div>
+                <button class="btn btn-secondary" onclick="toggleReinstallInstructions()" style="width: 100%; padding: 0.6rem; font-size: 0.8rem; background: rgba(239, 68, 68, 0.05); border-color: rgba(239, 68, 68, 0.2); color: #f87171;">View Reinstall Commands</button>
+              </div>
+            </div>
+
+            <!-- Reinstall Instructions Panel (Hidden by default) -->
+            <div id="reinstall-instructions-panel" style="display: none; background: #080b13; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; font-family: monospace; font-size: 0.82rem; line-height: 1.6; color: #f87171;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem;">
+                <span style="font-weight: 700; color: #f87171;">🚨 WebUI Full Reinstallation Guide</span>
+                <button class="badge-btn" onclick="copyReinstallCommands()" style="padding: 0.25rem 0.5rem; font-size: 0.72rem; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #f87171;">📋 Copy Commands</button>
+              </div>
+              <span style="color: #64748b;"># 1. Stop and remove the WebUI systemd service</span><br>
+              <span style="color: #a5b4fc;">sudo systemctl stop homeserver-webui</span><br>
+              <span style="color: #a5b4fc;">sudo systemctl disable homeserver-webui</span><br>
+              <span style="color: #a5b4fc;">sudo rm -f /etc/systemd/system/homeserver-webui.service</span><br>
+              <span style="color: #a5b4fc;">sudo systemctl daemon-reload</span><br>
+              <span style="color: #a5b4fc;">sudo systemctl reset-failed</span><br><br>
+              
+              <span style="color: #64748b;"># 2. Clean current installation files</span><br>
+              <span style="color: #a5b4fc;">sudo rm -rf /opt/homeserver</span><br><br>
+              
+              <span style="color: #64748b;"># 3. Download and run the bootstrap script from scratch</span><br>
+              <span style="color: #38bdf8;">curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfiguration/main/bootstrap.sh | sudo bash</span>
             </div>
           </div>
 

@@ -2581,3 +2581,29 @@ sudo netplan apply`;
         alert('Setup failure: check server error log console.');
       }
     }
+
+    function toggleReinstallInstructions() {
+      const panel = document.getElementById('reinstall-instructions-panel');
+      if (panel) {
+        panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
+        if (panel.style.display === 'block') {
+          panel.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    }
+
+    function copyReinstallCommands() {
+      const commands = `sudo systemctl stop homeserver-webui
+sudo systemctl disable homeserver-webui
+sudo rm -f /etc/systemd/system/homeserver-webui.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
+sudo rm -rf /opt/homeserver
+curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfiguration/main/bootstrap.sh | sudo bash`;
+
+      navigator.clipboard.writeText(commands).then(() => {
+        alert('Reinstallation commands copied! You can paste directly into your terminal/SSH session.');
+      }).catch(() => {
+        alert('Failed to copy. Please manually copy the commands.');
+      });
+    }
