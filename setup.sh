@@ -2638,8 +2638,22 @@ action_netplan_info() {
         interfaces+=("\"$name\"")
       fi
     done
-  else
-    # Mock fallback for non-Linux hosts (e.g. Darwin macOS development)
+  fi
+
+  # Fallback: if /sys/class/net yielded nothing (or doesn't exist), try ip link show
+  # This handles environments where /sys/class/net only has lo/virtual devices
+  if [ ${#interfaces[@]} -eq 0 ]; then
+    if command -v ip &>/dev/null; then
+      while IFS= read -r iface; do
+        [[ -z "$iface" ]] && continue
+        [[ "$iface" == lo ]] && continue
+        interfaces+=("\"$iface\"")
+      done < <(ip -o link show | awk -F': ' '{print $2}' | awk '{print $1}' | grep -v '^lo$' | grep -v '^$')
+    fi
+  fi
+
+  # Final fallback for non-Linux hosts (e.g. Darwin macOS development)
+  if [ ${#interfaces[@]} -eq 0 ] && [ ! -d /sys/class/net ]; then
     interfaces+=("\"eth0\"")
     interfaces+=("\"enp3s0\"")
   fi

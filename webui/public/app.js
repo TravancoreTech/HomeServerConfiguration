@@ -978,23 +978,37 @@
 
         // Populate interface dropdown selector
         const select = document.getElementById('netplan_iface_select');
+        const noIfaceBanner = document.getElementById('netplan-no-iface-banner');
+        const applyBtn = document.getElementById('netplan-apply-btn');
         if (select) {
           select.innerHTML = '';
           if (data.interfaces && data.interfaces.length > 0) {
+            // Hide error banner, enable apply button
+            if (noIfaceBanner) noIfaceBanner.style.display = 'none';
+            if (applyBtn) applyBtn.disabled = false;
+            let hasMatch = false;
             data.interfaces.forEach(iface => {
               const opt = document.createElement('option');
               opt.value = iface;
               opt.textContent = iface;
               if (cur.interface === iface) {
                 opt.selected = true;
+                hasMatch = true;
               }
               select.appendChild(opt);
             });
+            // Auto-select first interface if none matches current config
+            if (!hasMatch && select.options.length > 0) {
+              select.options[0].selected = true;
+            }
           } else {
+            // No interfaces: show error banner and disable apply button
             const opt = document.createElement('option');
             opt.value = '';
-            opt.textContent = 'No interfaces found';
+            opt.textContent = 'No interfaces detected';
             select.appendChild(opt);
+            if (noIfaceBanner) noIfaceBanner.style.display = 'flex';
+            if (applyBtn) applyBtn.disabled = true;
           }
         }
 
