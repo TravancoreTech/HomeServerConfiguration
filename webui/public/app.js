@@ -57,8 +57,11 @@
       if (tailscaleCard) tailscaleCard.style.display = hasTailscale ? 'block' : 'none';
     }
 
-    // Switch between guided task panels
-    function triggerJourney(paneId) {
+    // Switch between guided task panels with History/Hash support
+    function triggerJourney(paneId, updateHash = true) {
+      if (updateHash) {
+        window.location.hash = paneId;
+      }
       // Deactivate active menu highlights
       document.querySelectorAll('.menu-item').forEach(btn => btn.classList.remove('active'));
       // Hide active panes
@@ -2751,11 +2754,21 @@ curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfigurat
       }
     }
 
-    // Initialize dragging
+    // Initialize dragging and hash routing on load
     setTimeout(() => {
       const termContainer = document.getElementById('sys-terminal-container');
       const termHeader = document.getElementById('sys-terminal-header');
       if (termContainer && termHeader) {
         makeElementDraggable(termContainer, termHeader);
       }
-    }, 100);
+
+      // Initial route loading from URL Hash
+      const initialPane = window.location.hash.substring(1) || 'dashboard';
+      triggerJourney(initialPane, false);
+    }, 120);
+
+    // Dynamic browser back/forward button hash listener
+    window.addEventListener('hashchange', () => {
+      const paneId = window.location.hash.substring(1) || 'dashboard';
+      triggerJourney(paneId, false);
+    });
