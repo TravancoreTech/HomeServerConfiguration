@@ -2601,6 +2601,26 @@ action_netplan_info() {
     interfaces+=("\"enp3s0\"")
   fi
 
+  local macs_json="{}"
+  local macs=()
+  for iface in "${interfaces[@]}"; do
+    local name_clean=$(echo "$iface" | sed 's/^"//;s/"$//')
+    local mac="00:00:00:00:00:00"
+    if [ -f "/sys/class/net/${name_clean}/address" ]; then
+      mac=$(cat "/sys/class/net/${name_clean}/address")
+    elif command -v ip &>/dev/null; then
+      mac=$(ip link show "$name_clean" 2>/dev/null | awk '/ether/ {print $2}')
+      mac="${mac:-00:00:00:00:00:00}"
+    else
+      mac="00:1c:42:00:00:08"
+    fi
+    macs+=("\"$name_clean\": \"$mac\"")
+  done
+  if [ ${#macs[@]} -gt 0 ]; then
+    local IFS=","
+    macs_json="{${macs[*]}}"
+  fi
+
   if [ ${#interfaces[@]} -gt 0 ]; then
     local IFS=","
     interfaces_json="[${interfaces[*]}]"
@@ -2679,6 +2699,7 @@ print(json.dumps(config))
 {
   "installed": $installed,
   "interfaces": $interfaces_json,
+  "macs": $macs_json,
   "current": $current_config
 }
 EOF
@@ -3091,6 +3112,24 @@ if [ $# -gt 0 ]; then
         echo -e "[DEV MODE] Simulating restart of network and homeserver-webui service..."
       fi
       echo -e "${GREEN}✔ Restart signal sent successfully!${NC}"
+      ;;
+    --host-reboot)
+      echo -e "Rebooting host machine..."
+      if [ "$(uname)" != "Darwin" ]; then
+        (sleep 2 && reboot) &
+      else
+        echo -e "[DEV MODE] Simulating host reboot..."
+      fi
+      echo -e "${GREEN}✔ Reboot command sent successfully!${NC}"
+      ;;
+    --host-shutdown)
+      echo -e "Shutting down host machine..."
+      if [ "$(uname)" != "Darwin" ]; then
+        (sleep 2 && poweroff) &
+      else
+        echo -e "[DEV MODE] Simulating host shutdown..."
+      fi
+      echo -e "${GREEN}✔ Shutdown command sent successfully!${NC}"
       ;;
     --install-docker)
       check_dependencies

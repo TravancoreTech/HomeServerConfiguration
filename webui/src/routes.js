@@ -306,6 +306,12 @@ function handleGetRoute(req, res) {
       case 'restart-network-webui':
         args = ['--restart-network-webui'];
         break;
+      case 'host-reboot':
+        args = ['--host-reboot'];
+        break;
+      case 'host-shutdown':
+        args = ['--host-shutdown'];
+        break;
       case 'schedule-power':
         args = [
           '--schedule-power',

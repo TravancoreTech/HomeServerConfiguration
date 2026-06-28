@@ -965,12 +965,14 @@
         // Populating current settings display
         const cur = data.current || {};
         const lblIface = document.getElementById('lbl-netplan-iface');
+        const lblMac = document.getElementById('lbl-netplan-mac');
         const lblMode = document.getElementById('lbl-netplan-mode');
         const lblAddress = document.getElementById('lbl-netplan-address');
         const lblGateway = document.getElementById('lbl-netplan-gateway');
         const lblDns = document.getElementById('lbl-netplan-dns');
 
         if (lblIface) lblIface.textContent = cur.interface || '-';
+        if (lblMac) lblMac.textContent = (cur.interface && data.macs) ? (data.macs[cur.interface] || '-') : '-';
         if (lblMode) lblMode.textContent = cur.interface ? (cur.dhcp ? 'Dynamic (DHCP)' : 'Static IP') : '-';
         if (lblAddress) lblAddress.textContent = cur.address || '-';
         if (lblGateway) lblGateway.textContent = cur.gateway || '-';
@@ -1995,6 +1997,66 @@
         if (attempts >= maxAttempts) {
           clearInterval(poll);
           statusText.textContent = 'Server did not respond in time. Please refresh manually.';
+          const spinner = document.getElementById('restart-spinner');
+          if (spinner) spinner.style.borderTopColor = '#facc15';
+        }
+      }, 2000);
+    }
+
+    async function shutdownHostMachine() {
+      const confirmed = confirm(
+        '⚠️  SHUTDOWN THE SERVER HOST MACHINE?\n\nThe server will power off and the management portal will go offline.'
+      );
+      if (!confirmed) return;
+
+      const overlay = document.getElementById('restart-overlay');
+      const statusText = document.getElementById('restart-status-text');
+      if (overlay) overlay.style.display = 'flex';
+      if (statusText) statusText.textContent = 'Sending shutdown command...';
+
+      try {
+        await fetch('/api/run?action=host-shutdown');
+      } catch (_) {}
+
+      if (statusText) statusText.textContent = 'Server host is shutting down... The WebUI will remain offline.';
+      const spinner = document.getElementById('restart-spinner');
+      if (spinner) spinner.style.display = 'none';
+    }
+
+    async function rebootHostMachine() {
+      const confirmed = confirm(
+        '⚠️  REBOOT THE SERVER HOST MACHINE?\n\nThe server will restart and the management portal will go offline, then reconnect automatically once online.'
+      );
+      if (!confirmed) return;
+
+      const overlay = document.getElementById('restart-overlay');
+      const statusText = document.getElementById('restart-status-text');
+      if (overlay) overlay.style.display = 'flex';
+      if (statusText) statusText.textContent = 'Sending reboot command...';
+
+      try {
+        await fetch('/api/run?action=host-reboot');
+      } catch (_) {}
+
+      if (statusText) statusText.textContent = 'Host is rebooting — waiting for it to come back online…';
+
+      let attempts = 0;
+      const maxAttempts = 90; // 3 minutes
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const r = await fetch('/api/status', { cache: 'no-store' });
+          if (r.ok) {
+            clearInterval(poll);
+            if (statusText) statusText.textContent = 'Server is back! Reloading…';
+            setTimeout(() => window.location.reload(), 800);
+          }
+        } catch (_) {
+          if (statusText) statusText.textContent = `Waiting for host to boot… (${attempts * 2}s elapsed)`;
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(poll);
+          if (statusText) statusText.textContent = 'Server did not respond in time. Please refresh manually.';
           const spinner = document.getElementById('restart-spinner');
           if (spinner) spinner.style.borderTopColor = '#facc15';
         }
