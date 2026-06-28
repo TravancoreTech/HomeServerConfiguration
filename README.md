@@ -249,92 +249,114 @@ All stacks share a single `.env` file in the project root. It is auto-generated 
 
 ## Management Portal (WebUI)
 
-The WebUI runs at `http://<your-server-ip>:8888`. It is started automatically on boot via systemd.
+The WebUI is a lightweight, responsive SPA (Single Page Application) that runs at `http://<your-server-ip>:8888`. It is started automatically on boot via a systemd unit.
 
-```
-systemctl status homeserver-webui    # check status
+```bash
+systemctl status homeserver-webui    # check status of portal
 systemctl restart homeserver-webui   # restart portal
-journalctl -u homeserver-webui -f    # live logs
+journalctl -u homeserver-webui -f    # stream live portal logs
 ```
 
-### Sidebar actions
+### Portal Sections
 
-| Section | Action |
-|---|---|
-| **Deploy & Setup** | Overview Dashboard, First-Time Install, Selective Update, Selective Restart, Check & Pull Updates |
-| **Services & VPN** | Configure Tailscale VPN, Configure Samba Share, Configure Static IP, Configure Apps |
-| **System & Storage** | Backup Configurations, Push/Fetch Configs to/from Git, Prune Docker Garbage, OS Update |
-| **Documentation & Guides** | Install Docker Engine, Suite Reference Guide, App Setup Manuals |
+The WebUI is structured into distinct pages accessible via the left sidebar:
+
+#### 📊 Homepage Dashboard
+* **Ecosystem Vitals**: Displays real-time aggregate widgets for total containers, running containers, stopped containers, and containers in error state.
+* **System Bulletin**: A centralized notice board showing warning alerts if containers are stopped or unhealthy, or general notices if all services are healthy.
+* **System Vitals Mini-Card**: Quick status snapshot of CPU, RAM, Temperature, and Storage. Clicking it navigates directly to the System Admin panel.
+
+#### 🐳 Docker Containers
+* **Container Cards**: Displays all containers with their real-time state, custom-mapped service icons, and direct links to view log outputs.
+* **Container Inspector**: Click on any service card to open its detailed metadata viewer:
+  * Service group classification, linked backend containers, and active image tags.
+  * Interactive **Volume Mounts Map** (mapping host directories to container mount points).
+  * **Docker Compose Viewer**: Displays the raw Docker Compose configuration block with a copy-to-clipboard button.
+
+#### ⚙️ System Administration
+The System Administration view manages host level services independent of the Docker daemon:
+* **Vitals Tab**: Real-time polling charts and grids showing exact CPU load, RAM allocation, CPU thermal temperature, and an interactive storage disk capacity table.
+* **Power Tab**: Configures automated server shutdown and wakeup schedules:
+  * **Auto Shutdown**: Configurable time (e.g. `23:30`) and schedule selection (Everyday, Weekdays, Weekends, or specific days of the week) mapped to system crontabs.
+  * **Auto Wakeup**: Configured to write to the motherboard's Real Time Clock (RTC) wake alarms (`rtcwake`), letting the hardware boot up automatically at the specified time.
+* **Network Tab**: Edits host interface settings. Easily configure DHCP or switch to a Static IP (specifying Address, Gateway, Primary & Secondary DNS) with automated validation.
+* **Maintenance Tab**: Actions to update host system packages, prune unused Docker images/volumes (Garbage Collection), and restart the WebUI process.
+* **Consolidated Terminal**: A single, clean terminal log viewer embedded at the bottom of the System page that streams output from system upgrades, Netplan updates, and Docker pruning.
 
 ---
 
 ## setup.sh CLI Reference
 
-`setup.sh` is the backend engine. The WebUI calls it internally, but it can also be run directly from the terminal for scripting or advanced use.
+`setup.sh` is the underlying bash engine. The WebUI calls it internally, but it can also be run directly from the terminal for scripting or manual administration.
 
 ```bash
 # First-time interactive setup
 sudo ./setup.sh
 
-# Non-interactive flags (used by WebUI)
-sudo ./setup.sh --install-docker          # Install Docker Engine + Compose V2
-sudo ./setup.sh --update    <services>    # Pull & redeploy selected services
-sudo ./setup.sh --restart   <services>    # Restart selected services
-sudo ./setup.sh --reconfigure <services>  # Recreate containers with new config
-sudo ./setup.sh --nuke      <services>    # Tear down and wipe selected services
-sudo ./setup.sh --prune                   # Remove unused Docker images & volumes
-sudo ./setup.sh --tailscale               # Configure & start Tailscale VPN
-sudo ./setup.sh --install-samba           # Install and configure Samba shares
-sudo ./setup.sh --sys-maintenance         # Run OS update & maintenance
-sudo ./setup.sh --backup                  # Backup all config files
-sudo ./setup.sh --git-push                # Push configs to GitHub
-sudo ./setup.sh --sync                    # Pull latest configs from GitHub
-sudo ./setup.sh --check-updates           # Check for new Docker image versions
-sudo ./setup.sh --set-static-ip <iface> <ip> <gw> <dns1> <dns2>
-sudo ./setup.sh --set-dhcp <iface>
+# Non-interactive actions (called by WebUI backend)
+sudo ./setup.sh --install-docker                  # Install Docker Engine & Compose V2
+sudo ./setup.sh --update <services>                # Pull & redeploy selected services (e.g., 'all' or 'media_jellyfin')
+sudo ./setup.sh --restart <services>              # Restart selected containers
+sudo ./setup.sh --reconfigure <services>          # Recreate containers applying latest configuration
+sudo ./setup.sh --nuke <services>                  # Tear down containers and wipe their local configurations
+sudo ./setup.sh --prune                           # Prune unused Docker images, containers, networks, and volumes
+sudo ./setup.sh --tailscale                       # Deploy and authenticate Tailscale VPN
+sudo ./setup.sh --install-samba                   # Install Samba daemon and Cockpit administration GUI
+sudo ./setup.sh --samba-info                      # Retrieve configured Samba shares and active users
+sudo ./setup.sh --samba-add-user <user> <pass>    # Add a user to the Samba registry
+sudo ./setup.sh --samba-remove-user <user>        # Delete a Samba user
+sudo ./setup.sh --samba-add-share <name> <path>   # Register a new folder share in smb.conf
+sudo ./setup.sh --samba-remove-share <name>       # Delete a share from smb.conf
+sudo ./setup.sh --sys-maintenance                 # Run OS upgrades and clean package caches
+sudo ./setup.sh --backup                          # Compress and archive .env and appdata/ configs
+sudo ./setup.sh --git-push                        # Commit and push configs to GITHUB_REPO
+sudo ./setup.sh --sync                            # Sync latest configs from GITHUB_REPO zipball
+sudo ./setup.sh --check-updates                   # Check for newer tags of running Docker images
+sudo ./setup.sh --set-static-ip <iface> <ip> <gw> <dns1> <dns2>  # Configure static IP via Netplan
+sudo ./setup.sh --set-dhcp <iface>                # Revert interface to DHCP auto configuration
+sudo ./setup.sh --schedule-power <shutdown_time> <shutdown_days> <wakeup_time> <wakeup_days> <enable_shutdown> <enable_wakeup> # Configure auto power scheduler
 ```
 
 ---
 
 ## Directory Structure
 
+The project directory structure is modular and separates frontend assets, backend router, and compose suites:
+
 ```
 HomeServerConfiguration/
 │
-├── bootstrap.sh              # One-command installer (starts WebUI only)
-├── setup.sh                  # Main orchestrator (3000+ lines, all operations)
-├── configure_services.py     # Service configuration generator
+├── bootstrap.sh              # One-command installer (installs Node.js & spawns WebUI)
+├── setup.sh                  # Core bash orchestrator (handles all system and docker actions)
+├── configure_services.py     # Python config compiler
 ├── configure_homepage.sh     # Homepage dashboard config writer
-├── docker-compose.yml        # Root-level shared network definition
-├── .env                      # Active configuration (gitignored)
+├── docker-compose.yml        # Shared internal networks definition
+├── .env                      # Global environment and secrets configuration (gitignored)
 ├── .gitignore
 │
-├── webui/                    # Management portal (Node.js)
-│   ├── index.html            # Single-page application
-│   └── server.js             # Express-style HTTP + SSE server
+├── webui/                    # WebUI Node.js Server Project
+│   ├── server.js             # Lightweight web server entry point
+│   ├── index.html            # Core HTML structure & SPA shell
+│   │
+│   ├── public/               # Static Frontend Assets
+│   │   ├── app.js            # SPA logic, real-time stats polling, routes, events
+│   │   └── styles.css        # Modular CSS design system, cards, terminals, layout
+│   │
+│   └── src/                  # Backend Module files
+│       ├── config.js         # Configuration parser and env writer
+│       ├── runner.js         # Secure terminal execution and spawn processor
+│       └── routes.js         # HTTP router and SSE real-time stream endpoints
 │
-├── media/                    # 🎬 Media suite
-│   └── docker-compose.yml
+├── media/                    # 🎬 Media suite docker-compose
+├── immich/                   # 📸 Photo backup suite docker-compose
+├── nextcloud/                # ☁️ Cloud drive suite docker-compose
+├── storage/                  # 🗄️ Storage management suite docker-compose
+├── utility/                  # 🛠️ Utility & admin suite docker-compose
+├── dashboard/                # 📊 Homepage/Heimdall launcher docker-compose
 │
-├── immich/                   # 📸 Photo backup suite
-│   ├── docker-compose.yml
-│   └── hwaccel.transcoding.yml
-│
-├── nextcloud/                # ☁️ Cloud drive suite
-│   └── docker-compose.yml
-│
-├── storage/                  # 🗄️ Storage management suite
-│   └── docker-compose.yml
-│
-├── utility/                  # 🛠️ Utility & admin suite
-│   └── docker-compose.yml
-│
-├── dashboard/                # 📊 Dashboard suite
-│   └── docker-compose.yml
-│
-└── appdata/                  # Runtime config data (gitignored, except homepage)
-    ├── homepage/             # Homepage dashboard YAML configs (committed)
-    └── ...                   # All other service configs (local only)
+└── appdata/                  # Services configuration directories (gitignored)
+    ├── homepage/             # Config files for the gethomepage dashboard (committed)
+    └── ...                   # Application DBs, configuration files, and state data
 ```
 
 ---
@@ -346,17 +368,17 @@ HomeServerConfiguration/
 | CPU | Intel Core i3 (8th gen+) | Intel Core i5/i7 with QuickSync iGPU |
 | RAM | 8 GB | 16–32 GB |
 | Boot drive | 120 GB SSD | 256 GB SSD |
-| Media storage | 2 TB HDD | 4–8 TB HDD (or NAS) |
+| Media storage | 2 TB HDD | 4–8 TB HDD (or dedicated storage array) |
 | OS | Ubuntu Server 22.04 LTS | Ubuntu Server 24.04 LTS |
 | Network | 100 Mbps LAN | Gigabit LAN |
 
-> An Intel iGPU (8th gen+) enables hardware-accelerated transcoding in both Jellyfin and Immich via VAAPI/QuickSync with zero additional setup.
+> **Hardware Accel Tip:** An Intel iGPU (8th gen+) enables hardware-accelerated transcoding in both Jellyfin and Immich via QuickSync/VAAPI with zero configuration.
 
 ---
 
 ## Updating Services
 
-All container updates are managed through the WebUI under **Check & Pull Updates** or **Selective Update**. This pulls the latest image for each selected service, stops the old container, and restarts it.
+All container updates are managed through the WebUI under **Check & Pull Updates** or **Selective Update**. This pulls the latest image tag for each selected service, stops the old container, and restarts it with identical configurations.
 
 To update everything at once from the terminal:
 
@@ -370,12 +392,12 @@ sudo ./setup.sh --update all
 
 The WebUI **Backup Configurations** action archives all `appdata/` config directories and the `.env` file. The **Push Configs to Git** action commits and pushes the project (excluding secrets) to your GitHub repository for version control.
 
-To restore on a new machine: bootstrap → git pull → redeploy.
+To restore on a new machine: bootstrap ➔ git pull ➔ redeploy.
 
 ```bash
 # Full restore workflow
 curl -fsSL https://raw.githubusercontent.com/arunkarshan/HomeServerConfiguration/main/bootstrap.sh | sudo bash
-# Then in WebUI: Fetch Configs from Git → Install (From scratch)
+# Then in WebUI: Fetch Configs from Git -> Install (From scratch)
 ```
 
 ---
