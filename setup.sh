@@ -38,7 +38,6 @@ restore_ownership() {
 # Helper to write/update GitHub config in .env
 save_github_config() {
   local repo="$1"
-  local token="$2"
   local temp_env
   temp_env=$(mktemp)
   
@@ -47,18 +46,14 @@ save_github_config() {
       if [[ "$line" =~ ^GITHUB_REPO= ]]; then
         echo "GITHUB_REPO=${repo}" >> "$temp_env"
       elif [[ "$line" =~ ^GITHUB_TOKEN= ]]; then
-        echo "GITHUB_TOKEN=${token}" >> "$temp_env"
+        continue
       else
         echo "$line" >> "$temp_env"
       fi
     done < .env
     
-    # If variables were not in .env, append them
     if ! grep -q "^GITHUB_REPO=" "$temp_env"; then
       echo "GITHUB_REPO=${repo}" >> "$temp_env"
-    fi
-    if ! grep -q "^GITHUB_TOKEN=" "$temp_env"; then
-      echo "GITHUB_TOKEN=${token}" >> "$temp_env"
     fi
     mv "$temp_env" .env
   else
@@ -67,7 +62,6 @@ save_github_config() {
 # GLOBAL HOMESERVER ENVIRONMENT CONFIGURATION (.ENV)
 # ==============================================================================
 GITHUB_REPO=${repo}
-GITHUB_TOKEN=${token}
 EOF
   fi
   restore_ownership
@@ -105,23 +99,16 @@ sync_from_github() {
     eval "$(grep -E "^GITHUB_" .env | sed 's/^/export /' || true)"
   fi
 
-  # Strip quotes from GITHUB_REPO and GITHUB_TOKEN if they exist
+  # Strip quotes from GITHUB_REPO if it exists
   GITHUB_REPO=$(echo "${GITHUB_REPO:-}" | sed 's/^"//;s/"$//')
-  GITHUB_TOKEN=$(echo "${GITHUB_TOKEN:-}" | sed 's/^"//;s/"$//')
 
   if [ -z "${GITHUB_REPO:-}" ] || [ "$GITHUB_REPO" = "username/repo-name" ]; then
     read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
     GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
   fi
 
-  if [ -z "${GITHUB_TOKEN:-}" ]; then
-    read -s -rp "Enter GitHub Personal Access Token (optional, press Enter to skip for public repos): " USER_TOKEN
-    echo ""
-    GITHUB_TOKEN="${USER_TOKEN:-}"
-  fi
-
   # Save configuration immediately to .env
-  save_github_config "$GITHUB_REPO" "$GITHUB_TOKEN"
+  save_github_config "$GITHUB_REPO"
 
   # Validate system requirements for sync, installing automatically if running as root
   if ! command -v unzip &>/dev/null || ! command -v rsync &>/dev/null; then
@@ -154,16 +141,7 @@ sync_from_github() {
   
   for branch in "main" "master"; do
     echo -e "Checking branch: ${BLUE}$branch${NC}..."
-    if [ -n "${GITHUB_TOKEN:-}" ]; then
-      HTTP_CODE=$(curl -s -w "%{http_code}" -H "Authorization: Bearer $GITHUB_TOKEN" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
-      if [ "$HTTP_CODE" -eq 401 ] || [ "$HTTP_CODE" -eq 403 ]; then
-        echo -e "${YELLOW}Warning: Token-based request failed (HTTP $HTTP_CODE). Retrying anonymously...${NC}"
-        rm -f config_temp.zip
-        HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
-      fi
-    else
-      HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
-    fi
+    HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
     
     if [ "$HTTP_CODE" -eq 200 ]; then
       SUCCESS=true
@@ -182,8 +160,6 @@ sync_from_github() {
       rm -f config_temp.zip
     fi
     echo -e "Suggestions:"
-    echo -e "1. If the repository is private, verify your GITHUB_TOKEN has read access to the repo."
-    echo -e "   (Note: GitHub returns 404 Not Found for unauthorized private repo requests to hide their existence)."
     echo -e "2. Check that the repository owner and name ($GITHUB_REPO) are spelled correctly."
     echo -e "3. Ensure the repository has a 'main' or 'master' branch."
     exit 1
@@ -959,19 +935,6 @@ prompt_and_generate_configs() {
     fi
   fi
 
-  # GitHub token prompt
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-    echo -e "${GREEN}✔ Reusing existing GitHub token.${NC}"
-  else
-    if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      GITHUB_TOKEN=""
-    else
-      read -s -rp "Enter GitHub Personal Access Token (optional, press Enter to skip for public repos): " USER_TOKEN
-      echo ""
-      GITHUB_TOKEN="${USER_TOKEN:-}"
-    fi
-  fi
-
   # Tailscale Auth Key prompt
   if [ -n "${TS_AUTHKEY:-}" ]; then
     echo -e "${GREEN}✔ Reusing existing Tailscale Auth Key.${NC}"
@@ -1069,7 +1032,6 @@ KOPIA_ADMIN_PASSWORD=${KOPIA_ADMIN_PASS}
 
 # GitHub Sync Configuration
 GITHUB_REPO=${GITHUB_REPO}
-GITHUB_TOKEN=${GITHUB_TOKEN:-}
 HOMEPAGE_VAR_SERVER_IP=${SERVER_IP}
 
 # Homepage Widget Credentials
@@ -1192,7 +1154,6 @@ EOF
 # ------------------------------------------------------------------------------
 sync_from_github_silent() {
   local repo="${GITHUB_REPO:-arunkarshan/HomeServerConfiguration}"
-  local token="${GITHUB_TOKEN:-}"
 
   echo -e "Silently syncing configurations from: ${YELLOW}https://github.com/${repo}${NC}..."
   
@@ -1213,16 +1174,7 @@ sync_from_github_silent() {
   local success=false
   for branch in "main" "master"; do
     local http_code=0
-    if [ -n "$token" ]; then
-      http_code=$(curl -s -w "%{http_code}" -H "Authorization: Bearer $token" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
-      if [ "$http_code" -eq 401 ] || [ "$http_code" -eq 403 ]; then
-        echo -e "${YELLOW}Warning: Token-based request failed (HTTP $http_code). Retrying anonymously...${NC}"
-        rm -f config_temp.zip
-        http_code=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
-      fi
-    else
-      http_code=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
-    fi
+    http_code=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
     
     if [ "$http_code" -eq 200 ]; then
       success=true
@@ -1809,10 +1761,8 @@ action_git_push() {
 
   # Load github configs from .env
   local repo=""
-  local token=""
   if [ -f .env ]; then
     repo=$(grep -E "^GITHUB_REPO=" .env | cut -d'=' -f2- | sed 's/^"//;s/"$//' || true)
-    token=$(grep -E "^GITHUB_TOKEN=" .env | cut -d'=' -f2- | sed 's/^"//;s/"$//' || true)
   fi
 
   # Fallback to defaults or git credentials if not in .env
@@ -1822,14 +1772,8 @@ action_git_push() {
   
   # Temporarily disable exit-on-error to handle push failures gracefully
   set +e
-  if [ -n "$token" ] && [ "$token" != "YOUR_GITHUB_TOKEN" ]; then
-    # Authenticated push using token
-    local remote_url="https://x-access-token:${token}@github.com/${repo}.git"
-    git push "$remote_url" main
-  else
-    # Standard push (using SSH keys or Credential Helper)
-    git push origin main
-  fi
+  # Standard push (using SSH keys or Credential Helper)
+  git push origin main
   local push_status=$?
   set -e
 
@@ -1837,7 +1781,6 @@ action_git_push() {
     echo -e "\n${GREEN}✔ Successfully pushed configurations to GitHub!${NC}"
   else
     echo -e "\n${RED}Failed to push configurations to GitHub.${NC}"
-    echo -e "If this is a private repository, please check your GITHUB_TOKEN permissions."
   fi
   restore_ownership
 }
