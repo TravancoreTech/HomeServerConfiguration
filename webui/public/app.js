@@ -1835,7 +1835,7 @@ sudo netplan apply`;
       }
     }
 
-    function initConsoleLogs(title, queryUrl) {
+    function initConsoleLogs(title, queryUrl, onComplete) {
       document.getElementById('terminal-pane').style.display = 'block';
       const terminal = document.getElementById('terminal-body');
       const titleEl = document.getElementById('terminal-title-text');
@@ -1880,7 +1880,54 @@ sudo netplan apply`;
         activeSSE.close();
         activeSSE = null;
         fetchStatus();
+        if (onComplete) onComplete();
       };
+    }
+
+    async function updateWebUIAndConfigs() {
+      const confirmed = confirm(
+        '⚠️ Update WebUI & Configurations?\n\nThis will download the latest assets from your configured Git repository, apply them, and restart the WebUI portal server process.'
+      );
+      if (!confirmed) return;
+
+      const saved = await saveConfigForJourney('sync');
+      if (!saved) {
+        alert('Failed to save configuration settings. Aborting task execution.');
+        return;
+      }
+
+      initConsoleLogs('Updating WebUI & Configurations', `/api/run?action=sync`, async () => {
+        const overlay = document.getElementById('restart-overlay');
+        const statusText = document.getElementById('restart-status-text');
+        overlay.style.display = 'flex';
+        statusText.textContent = 'Sending restart signal after Git Update...';
+        
+        try {
+          await fetch('/api/restart-server', { method: 'POST' });
+        } catch (_) {}
+
+        statusText.textContent = 'WebUI is restarting with new code — waiting for it to come back online…';
+
+        let attempts = 0;
+        const maxAttempts = 60;
+        const poll = setInterval(async () => {
+          attempts++;
+          try {
+            const r = await fetch('/api/status', { cache: 'no-store' });
+            if (r.ok) {
+              clearInterval(poll);
+              statusText.textContent = 'WebUI updated successfully! Reloading page…';
+              setTimeout(() => window.location.reload(), 800);
+            }
+          } catch (_) {
+            statusText.textContent = `Waiting for WebUI… (${attempts * 2}s elapsed)`;
+          }
+          if (attempts >= maxAttempts) {
+            clearInterval(poll);
+            statusText.textContent = 'WebUI restart timed out. Please refresh manually.';
+          }
+        }, 2000);
+      });
     }
 
     // Terminal helper actions
@@ -2761,9 +2808,10 @@ sudo netplan apply`;
         const vitalsTemp = document.getElementById('vitals-temp-val');
         const vitalsUptime = document.getElementById('vitals-uptime-val');
         const vitalsOS = document.getElementById('vitals-os-val');
-        if (vitalsCpu) vitalsCpu.textContent = `${stats.cpu}%`;
-        if (vitalsRam) vitalsRam.textContent = `${stats.memory.percent}%`;
-        if (vitalsTemp) vitalsTemp.textContent = `${stats.temp}°C`;
+        
+        if (vitalsCpu) vitalsCpu.textContent = (stats.cpu !== undefined && stats.cpu !== null && !isNaN(stats.cpu)) ? `${stats.cpu}%` : 'N/A';
+        if (vitalsRam) vitalsRam.textContent = (stats.memory && stats.memory.percent !== undefined && stats.memory.percent !== null && !isNaN(stats.memory.percent)) ? `${stats.memory.percent}%` : 'N/A';
+        if (vitalsTemp) vitalsTemp.textContent = (stats.temp !== undefined && stats.temp !== null && !isNaN(stats.temp) && stats.temp > 0) ? `${stats.temp}°C` : 'N/A';
         if (vitalsUptime && stats.uptime) vitalsUptime.textContent = stats.uptime;
         if (vitalsOS && stats.os) vitalsOS.textContent = stats.os;
 
@@ -2810,8 +2858,9 @@ sudo netplan apply`;
         const diagSwapUsed = document.getElementById('diag-swap-used');
 
         if (diagSamba) {
-          diagSamba.textContent = `${stats.samba_conns} active`;
-          if (stats.samba_conns > 0) {
+          const sConns = stats.samba_conns !== undefined ? stats.samba_conns : 0;
+          diagSamba.textContent = `${sConns} active`;
+          if (sConns > 0) {
             diagSamba.style.background = 'rgba(16, 185, 129, 0.1)';
             diagSamba.style.color = 'var(--accent-green)';
             diagSamba.style.borderColor = 'rgba(16, 185, 129, 0.2)';
@@ -2822,10 +2871,10 @@ sudo netplan apply`;
           }
         }
         if (diagTsIp) diagTsIp.textContent = stats.tailscale_ip || 'N/A';
-        if (diagTsPeers) diagTsPeers.textContent = `${stats.tailscale_peers} peers`;
+        if (diagTsPeers) diagTsPeers.textContent = `${stats.tailscale_peers !== undefined ? stats.tailscale_peers : 0} peers`;
         if (diagLoadAvg) diagLoadAvg.textContent = stats.load_avg || '0.00 0.00 0.00';
-        if (diagSwapTotal && stats.swap) diagSwapTotal.textContent = stats.swap.total;
-        if (diagSwapUsed && stats.swap) diagSwapUsed.textContent = stats.swap.used;
+        if (diagSwapTotal) diagSwapTotal.textContent = (stats.swap && stats.swap.total) ? stats.swap.total : '0.0 GB';
+        if (diagSwapUsed) diagSwapUsed.textContent = (stats.swap && stats.swap.used) ? stats.swap.used : '0.0 GB';
 
         // 2. Update System Page Detailed Vitals
         const sysCpuVal = document.getElementById('sys-cpu-val');
@@ -2836,18 +2885,23 @@ sudo netplan apply`;
         const sysTempVal = document.getElementById('sys-temp-val');
         const sysTempBar = document.getElementById('sys-temp-bar');
 
-        if (sysCpuVal) sysCpuVal.textContent = `${stats.cpu}%`;
-        if (sysCpuBar) sysCpuBar.style.width = `${stats.cpu}%`;
-        if (sysRamVal) sysRamVal.textContent = `${stats.memory.percent}%`;
-        if (sysRamBar) sysRamBar.style.width = `${stats.memory.percent}%`;
-        if (sysRamDetail) sysRamDetail.textContent = `${stats.memory.used} of ${stats.memory.total} allocated`;
-        if (sysTempVal) sysTempVal.textContent = `${stats.temp}°C`;
+        const sCpu = (stats.cpu !== undefined && stats.cpu !== null && !isNaN(stats.cpu)) ? stats.cpu : 0;
+        const sRam = (stats.memory && stats.memory.percent !== undefined && stats.memory.percent !== null && !isNaN(stats.memory.percent)) ? stats.memory.percent : 0;
+        const sTemp = (stats.temp !== undefined && stats.temp !== null && !isNaN(stats.temp)) ? stats.temp : 0;
+
+        if (sysCpuVal) sysCpuVal.textContent = sCpu > 0 ? `${sCpu}%` : 'N/A';
+        if (sysCpuBar) sysCpuBar.style.width = `${sCpu}%`;
+        if (sysRamVal) sysRamVal.textContent = sRam > 0 ? `${sRam}%` : 'N/A';
+        if (sysRamBar) sysRamBar.style.width = `${sRam}%`;
+        if (stats.memory && sysRamDetail) {
+          sysRamDetail.textContent = `${stats.memory.used || '0 GB'} of ${stats.memory.total || '0 GB'} allocated`;
+        }
+        if (sysTempVal) sysTempVal.textContent = sTemp > 0 ? `${sTemp}°C` : 'N/A';
         if (sysTempBar) {
-          // color mapping based on danger thresholds
-          sysTempBar.style.width = `${Math.min(stats.temp, 100)}%`;
-          if (stats.temp > 70) {
+          sysTempBar.style.width = `${Math.min(sTemp, 100)}%`;
+          if (sTemp > 70) {
             sysTempBar.style.background = 'var(--accent-red)';
-          } else if (stats.temp > 55) {
+          } else if (sTemp > 55) {
             sysTempBar.style.background = 'var(--accent-orange)';
           } else {
             sysTempBar.style.background = 'var(--accent-green)';
