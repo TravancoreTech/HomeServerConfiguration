@@ -327,8 +327,6 @@ function handleGetRoute(req, res) {
       case 'tailscale': args = ['--tailscale']; break;
       case 'samba': args = ['--install-samba']; break;
       case 'maintenance': args = ['--sys-maintenance']; break;
-      case 'git-push': args = ['--git-push']; break;
-      case 'sync': args = ['--sync']; break;
       case 'install-docker': args = ['--install-docker']; break;
       case 'check-updates': args = ['--check-updates']; break;
       case 'netplan-static':
@@ -370,7 +368,7 @@ function handleGetRoute(req, res) {
         return;
     }
 
-    const spawnFn = (action === 'sync' || action === 'git-push') ? spawnSetupNoSudo : spawnSetup;
+    const spawnFn = spawnSetup;
     const child = spawnFn(args, { cwd: path.join(__dirname, '../..'), env });
 
     child.stdout.on('data', data => sendSseCleanLine(data, res));

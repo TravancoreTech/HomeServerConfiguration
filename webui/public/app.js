@@ -79,8 +79,6 @@
           'update': 'Selective Suite Update',
           'restart': 'Selective Suite Restart',
           'check-updates': 'Check System Updates',
-          'git-push': 'Git Configurations Backup',
-          'git-sync': 'Git Configurations Sync',
           'docker-install': 'Docker Engine Installation'
         };
         titleEl.textContent = titles[paneId] || 'Overview';
@@ -573,23 +571,24 @@
 
               // Sort containers in this group alphabetically
               containers.sort((a, b) => a.name.localeCompare(b.name)).forEach(({ name, status, isUp, isError, details }) => {
+                const accentColor = isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)');
                 const dbCard = document.createElement('div');
-                dbCard.className = 'dashboard-container-card';
-                dbCard.style.cssText = 'display: flex; flex-direction: row; align-items: center; padding: 1.1rem; gap: 1rem; border-radius: 12px; min-height: auto; cursor: pointer;';
+                dbCard.className = 'dashboard-container-card metric-card';
+                dbCard.style.cssText = `cursor: pointer; padding: 1.25rem 1.25rem 1rem; gap: 0.85rem; flex-direction: column; border-left: 3px solid ${accentColor}; min-height: 0;`;
                 dbCard.onclick = () => {
                   showContainerDetails(name, status, isUp, details);
                 };
                 dbCard.innerHTML = `
-                  <div class="service-card-icon" style="font-size: 1.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; user-select: none; position: relative;">
-                    <span class="fallback-emoji" style="display: block;">${details.icon}</span>
-                    <img src="/logos/logo_${getLogoKey(name)}.png" onload="this.previousElementSibling.style.display='none'; this.style.display='block';" onerror="this.style.display='none';" style="display: none; width: 100%; height: 100%; object-fit: contain;" />
-                  </div>
-                  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0; justify-content: center;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
-                      <span class="dashboard-container-name" style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${details.name}</span>
-                      <span class="status-dot ${isUp ? 'up' : (isError ? 'down' : 'down')}" style="background-color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; box-shadow: 0 0 6px ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; flex-shrink: 0;"></span>
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="font-size: 1.5rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; flex-shrink: 0; position: relative;">
+                      <span style="display: block;">${details.icon}</span>
+                      <img src="/logos/logo_${getLogoKey(name)}.png" onload="this.previousElementSibling.style.display='none'; this.style.display='block';" onerror="this.style.display='none';" style="display: none; width: 100%; height: 100%; object-fit: contain; border-radius: 6px; padding: 4px;" />
                     </div>
-                    <span style="color: var(--text-muted); font-size: 0.75rem; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem;" title="${name}">${name}</span>
+                    <span style="font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 20px; background: ${isUp ? 'rgba(16,185,129,0.1)' : (isError ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)')}; color: ${accentColor}; border: 1px solid ${isUp ? 'rgba(16,185,129,0.2)' : (isError ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)')}; text-transform: uppercase; letter-spacing: 0.04em;">${isUp ? 'Running' : (isError ? 'Error' : 'Stopped')}</span>
+                  </div>
+                  <div>
+                    <div style="font-weight: 700; color: var(--text-primary); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.2rem;">${details.name}</div>
+                    <div style="color: var(--text-muted); font-size: 0.72rem; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</div>
                   </div>
                 `;
                 grid.appendChild(dbCard);
@@ -1673,9 +1672,6 @@ sudo netplan apply`;
           document.getElementById('ts-authkey-display').value = 'Not configured';
         }
 
-        const repoVal = data.GITHUB_REPO || localStorage.getItem('GITHUB_REPO') || 'arunkarshan/HomeServerConfiguration';
-        document.getElementById('git_push_REPO').value = repoVal;
-        document.getElementById('git_sync_REPO').value = repoVal;
       } catch (err) {
         console.error('Failed to load configurations:', err);
       }
@@ -1706,10 +1702,6 @@ sudo netplan apply`;
         config['HOMEPAGE_VAR_PAPERLESS_USERNAME'] = document.getElementById('homepage_PAPERLESS_USERNAME').value;
         config['HOMEPAGE_VAR_PAPERLESS_PASSWORD'] = document.getElementById('homepage_PAPERLESS_PASSWORD').value;
         config['HOMEPAGE_VAR_IMMICH_API_KEY'] = document.getElementById('homepage_IMMICH_API_KEY').value;
-      } else if (journeyId === 'git-push') {
-        config['GITHUB_REPO'] = document.getElementById('git_push_REPO').value;
-      } else if (journeyId === 'git-sync') {
-        config['GITHUB_REPO'] = document.getElementById('git_sync_REPO').value;
       }
 
       try {
@@ -1761,18 +1753,13 @@ sudo netplan apply`;
       initConsoleLogs(title, `/api/run?action=${sseAction}&services=${selected.join(',')}`);
     }
 
-    // Trigger configured single-command tasks (tailscale, homepage, git-push, sync)
+    // Trigger configured single-command tasks (tailscale, homepage, etc.)
     async function runConfiguredAction(action, title) {
-      let journeyId = action;
-      if (action === 'git-push') journeyId = 'git-push';
-      if (action === 'sync') journeyId = 'git-sync';
-      
-      const saved = await saveConfigForJourney(journeyId);
+      const saved = await saveConfigForJourney(action);
       if (!saved) {
         alert('Failed to save configuration settings. Aborting task execution.');
         return;
       }
-
       initConsoleLogs(title || `${action} running`, `/api/run?action=${action}`);
     }
 
@@ -1929,23 +1916,7 @@ sudo netplan apply`;
     fetchStatus();
     loadConfig();
 
-    // Sync and cache Git configurations in localStorage
-    const setupGitSyncListeners = () => {
-      const syncRepo = document.getElementById('git_sync_REPO');
-      const pushRepo = document.getElementById('git_push_REPO');
 
-      if (syncRepo && pushRepo) {
-        syncRepo.addEventListener('input', (e) => {
-          localStorage.setItem('GITHUB_REPO', e.target.value);
-          pushRepo.value = e.target.value;
-        });
-        pushRepo.addEventListener('input', (e) => {
-          localStorage.setItem('GITHUB_REPO', e.target.value);
-          syncRepo.value = e.target.value;
-        });
-      }
-    };
-    setupGitSyncListeners();
     
     // Poll containers status updates
     setInterval(fetchStatus, 15000);
@@ -2187,7 +2158,7 @@ sudo netplan apply`;
         ],
         links: ['media_qbittorrent', 'media_radarr', 'media_sonarr'],
         editCommands: [
-          { label: 'Edit compose file', cmd: 'nano ~/homeserver/media/docker-compose.yml' },
+          { label: 'Edit compose file', cmd: 'nano /opt/homeserver/media/docker-compose.yml' },
           { label: 'Restart service', cmd: 'docker restart media_jellyfin' },
           { label: 'View live logs', cmd: 'docker logs -f media_jellyfin' },
           { label: 'Open config folder', cmd: 'cd ${SYSTEM_DATA_DIR}/jellyfin/config && ls' }
@@ -2224,7 +2195,7 @@ sudo netplan apply`;
         ],
         links: ['media_prowlarr', 'media_radarr', 'media_sonarr'],
         editCommands: [
-          { label: 'Edit compose file', cmd: 'nano ~/homeserver/media/docker-compose.yml' },
+          { label: 'Edit compose file', cmd: 'nano /opt/homeserver/media/docker-compose.yml' },
           { label: 'Restart service', cmd: 'docker restart media_qbittorrent' },
           { label: 'View live logs', cmd: 'docker logs -f media_qbittorrent' },
           { label: 'Open config folder', cmd: 'ls ${SYSTEM_DATA_DIR}/qbittorrent' }
@@ -2264,7 +2235,7 @@ sudo netplan apply`;
         ],
         links: ['nextcloud_db', 'nextcloud_cron', 'redis'],
         editCommands: [
-          { label: 'Edit compose file', cmd: 'nano ~/homeserver/nextcloud/docker-compose.yml' },
+          { label: 'Edit compose file', cmd: 'nano /opt/homeserver/nextcloud/docker-compose.yml' },
           { label: 'Run occ command', cmd: 'docker exec -u www-data nextcloud_app php occ <command>' },
           { label: 'Restart service', cmd: 'docker restart nextcloud_app' },
           { label: 'View live logs', cmd: 'docker logs -f nextcloud_app' }
@@ -2306,7 +2277,7 @@ sudo netplan apply`;
         ],
         links: ['immich_machine_learning', 'redis', 'database'],
         editCommands: [
-          { label: 'Edit compose file', cmd: 'nano ~/homeserver/immich/docker-compose.yml' },
+          { label: 'Edit compose file', cmd: 'nano /opt/homeserver/immich/docker-compose.yml' },
           { label: 'Restart service', cmd: 'docker restart immich_server' },
           { label: 'View live logs', cmd: 'docker logs -f immich_server' },
           { label: 'Check ML service', cmd: 'docker logs -f immich_machine_learning' }
@@ -2348,7 +2319,7 @@ sudo netplan apply`;
         ],
         links: [],
         editCommands: [
-          { label: 'Edit compose file', cmd: 'nano ~/homeserver/utility/docker-compose.yml' },
+          { label: 'Edit compose file', cmd: 'nano /opt/homeserver/utility/docker-compose.yml' },
           { label: 'Restart service', cmd: 'docker restart utility_vaultwarden' },
           { label: 'View live logs', cmd: 'docker logs -f utility_vaultwarden' },
           { label: 'Backup vault data', cmd: 'cp -r ${SYSTEM_DATA_DIR}/vaultwarden /backup/vaultwarden_$(date +%Y%m%d)' }
@@ -2377,7 +2348,7 @@ sudo netplan apply`;
         ],
         links: [],
         editCommands: [
-          { label: 'Edit compose file', cmd: 'nano ~/homeserver/utility/docker-compose.yml' },
+          { label: 'Edit compose file', cmd: 'nano /opt/homeserver/utility/docker-compose.yml' },
           { label: 'Tailscale status', cmd: 'docker exec utility_tailscale tailscale status' },
           { label: 'Re-authenticate', cmd: 'docker exec utility_tailscale tailscale up --authkey=<YOUR_KEY>' },
           { label: 'Enable exit node', cmd: 'docker exec utility_tailscale tailscale up --advertise-exit-node' }

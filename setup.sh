@@ -37,175 +37,25 @@ restore_ownership() {
 
 # Helper to write/update GitHub config in .env
 save_github_config() {
-  local repo="$1"
-  local temp_env
-  temp_env=$(mktemp)
-  
-  if [ -f .env ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-      if [[ "$line" =~ ^GITHUB_REPO= ]]; then
-        echo "GITHUB_REPO=${repo}" >> "$temp_env"
-      elif [[ "$line" =~ ^GITHUB_TOKEN= ]]; then
-        continue
-      else
-        echo "$line" >> "$temp_env"
-      fi
-    done < .env
-    
-    if ! grep -q "^GITHUB_REPO=" "$temp_env"; then
-      echo "GITHUB_REPO=${repo}" >> "$temp_env"
-    fi
-    mv "$temp_env" .env
-  else
-    cat << EOF > .env
-# ==============================================================================
-# GLOBAL HOMESERVER ENVIRONMENT CONFIGURATION (.ENV)
-# ==============================================================================
-GITHUB_REPO=${repo}
-EOF
-  fi
-  restore_ownership
+  # Git sync is disabled.
+  return 0
 }
 
 # ------------------------------------------------------------------------------
 # GIT FETCH TIMESTAMP HELPERS
 # ------------------------------------------------------------------------------
 save_fetch_timestamp() {
-  TZ="Asia/Kolkata" date "+%Y-%m-%d %H:%M:%S IST" > .last_fetch_timestamp 2>/dev/null || true
-  if [ -n "${SUDO_UID:-}" ]; then
-    chown "${SUDO_UID}:${SUDO_GID}" .last_fetch_timestamp 2>/dev/null || true
-  fi
+  return 0
 }
 
 show_last_fetch_timestamp() {
-  if [ -f .last_fetch_timestamp ]; then
-    local last_ts
-    last_ts=$(cat .last_fetch_timestamp)
-    echo -e "Last Git Fetch: ${YELLOW}${last_ts}${NC}"
-  else
-    echo -e "Last Git Fetch: ${YELLOW}Never / Unknown${NC}"
-  fi
+  return 0
 }
 
 # Function to download and sync configurations from GitHub
 sync_from_github() {
-  echo -e "${BLUE}======================================================================${NC}"
-  echo -e "${GREEN}          HOMESERVER CONFIGURATION SYNCHRONIZER (GITHUB BALL)${NC}"
-  echo -e "${BLUE}======================================================================${NC}"
-
-  # Load variables from .env if it exists
-  if [ -f .env ]; then
-    # Parse GITHUB_ variables safely
-    eval "$(grep -E "^GITHUB_" .env | sed 's/^/export /' || true)"
-  fi
-
-  # Strip quotes from GITHUB_REPO if it exists
-  GITHUB_REPO=$(echo "${GITHUB_REPO:-}" | sed 's/^"//;s/"$//')
-
-  if [ -z "${GITHUB_REPO:-}" ] || [ "$GITHUB_REPO" = "username/repo-name" ]; then
-    read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
-    GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
-  fi
-
-  # Save configuration immediately to .env
-  save_github_config "$GITHUB_REPO"
-
-  # Validate system requirements for sync, installing automatically if running as root
-  if ! command -v unzip &>/dev/null || ! command -v rsync &>/dev/null; then
-    if [ "$EUID" -eq 0 ]; then
-      echo -e "${YELLOW}Missing unzip/rsync utilities. Attempting automatic installation...${NC}"
-      if command -v apt-get &>/dev/null; then
-        apt-get update && apt-get install -y unzip rsync
-      elif command -v dnf &>/dev/null; then
-        dnf install -y unzip rsync
-      elif command -v yum &>/dev/null; then
-        yum install -y unzip rsync
-      elif command -v pacman &>/dev/null; then
-        pacman -Sy --noconfirm unzip rsync
-      else
-        echo -e "${RED}Error: Package manager not found. Please install 'unzip' and 'rsync' manually.${NC}"
-        exit 1
-      fi
-    else
-      echo -e "${RED}Error: 'unzip' and 'rsync' utilities are required but not installed.${NC}"
-      echo -e "Please install them manually, or run 'sudo ./setup.sh' to have them installed automatically.${NC}"
-      exit 1
-    fi
-  fi
-
-  echo -e "Fetching latest configuration from: ${YELLOW}https://github.com/${GITHUB_REPO}${NC}..."
-  
-  # Download archive ZIP
-  HTTP_CODE=0
-  SUCCESS=false
-  
-  for branch in "main" "master"; do
-    echo -e "Checking branch: ${BLUE}$branch${NC}..."
-    HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
-    
-    if [ "$HTTP_CODE" -eq 200 ]; then
-      SUCCESS=true
-      break
-    else
-      rm -f config_temp.zip
-    fi
-  done
-
-  if [ "$SUCCESS" = false ]; then
-    echo -e "${RED}Error: Failed to download repository archive (HTTP status: $HTTP_CODE).${NC}"
-    if [ -f config_temp.zip ]; then
-      echo -e "${YELLOW}GitHub API Response:${NC}"
-      cat config_temp.zip || true
-      echo ""
-      rm -f config_temp.zip
-    fi
-    echo -e "Suggestions:"
-    echo -e "2. Check that the repository owner and name ($GITHUB_REPO) are spelled correctly."
-    echo -e "3. Ensure the repository has a 'main' or 'master' branch."
-    exit 1
-  fi
-
-  echo -e "Extracting configurations..."
-  rm -rf temp_extract
-  mkdir -p temp_extract
-  unzip -q config_temp.zip -d temp_extract
-
-  # Get the generated directory name in zip (e.g. username-reponame-hash)
-  SOURCE_DIR=$(find temp_extract -maxdepth 1 -type d | grep -v "temp_extract$" | head -n 1)
-
-  if [ -z "$SOURCE_DIR" ]; then
-    echo -e "${RED}Error: Failed to locate extracted source directory.${NC}"
-    rm -rf config_temp.zip temp_extract
-    exit 1
-  fi
-
-  # Safely sync files to workspace root, avoiding database/media state and secrets overwrite
-  echo -e "Deploying files to homeserver workspace..."
-  rsync -av \
-    --include='appdata/' \
-    --include='appdata/homepage/***' \
-    --exclude='appdata/*' \
-    --exclude='.git*' \
-    --exclude='.env*' \
-    --exclude='*/*.env*' \
-    --exclude='data/' \
-    --exclude='temp_extract/' \
-    --exclude='config_temp.zip' \
-    "$SOURCE_DIR/" ./
-
-  # Clean up temporary files
-  rm -rf config_temp.zip temp_extract
-  save_fetch_timestamp
-  echo -e "${GREEN}✔ Configuration sync completed successfully!${NC}\n"
+  return 0
 }
-
-# ------------------------------------------------------------------------------
-# 0. HYBRID SYNC OPTION (RUNS AS NON-ROOT)
-# ------------------------------------------------------------------------------
-if [[ "${1:-}" == "--sync" ]]; then
-  sync_from_github
-  exit 0
-fi
 
 # Load variables from .env if it exists to preserve current configuration early
 if [ -f .env ]; then
@@ -747,10 +597,10 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing Appdata directory: ${SYSTEM_DATA_DIR}${NC}"
   else
     if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      SYSTEM_DATA_DIR="./appdata"
+      SYSTEM_DATA_DIR="/srv/homeserver/appdata"
     else
-      read -rp "Enter Appdata directory (SSD/fast storage) [default: ./appdata]: " USER_SYS_DIR
-      SYSTEM_DATA_DIR="${USER_SYS_DIR:-./appdata}"
+      read -rp "Enter Appdata directory (SSD/fast storage) [default: /srv/homeserver/appdata]: " USER_SYS_DIR
+      SYSTEM_DATA_DIR="${USER_SYS_DIR:-/srv/homeserver/appdata}"
     fi
   fi
 
@@ -795,10 +645,10 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing Immich DB directory: ${DB_DATA_LOCATION}${NC}"
   else
     if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      DB_DATA_LOCATION="./appdata/immich/postgres"
+      DB_DATA_LOCATION="/srv/homeserver/appdata/immich/postgres"
     else
-      read -rp "Enter Immich database directory (SSD/fast storage) [default: ./appdata/immich/postgres]: " USER_DB_LOC
-      DB_DATA_LOCATION="${USER_DB_LOC:-./appdata/immich/postgres}"
+      read -rp "Enter Immich database directory (SSD/fast storage) [default: /srv/homeserver/appdata/immich/postgres]: " USER_DB_LOC
+      DB_DATA_LOCATION="${USER_DB_LOC:-/srv/homeserver/appdata/immich/postgres}"
     fi
   fi
 
@@ -843,10 +693,10 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing Nextcloud DB directory: ${NEXTCLOUD_DB_LOCATION}${NC}"
   else
     if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      NEXTCLOUD_DB_LOCATION="./appdata/nextcloud/postgres"
+      NEXTCLOUD_DB_LOCATION="/srv/homeserver/appdata/nextcloud/postgres"
     else
-      read -rp "Enter Nextcloud database directory (SSD/fast storage) [default: ./appdata/nextcloud/postgres]: " USER_NC_DB
-      NEXTCLOUD_DB_LOCATION="${USER_NC_DB:-./appdata/nextcloud/postgres}"
+      read -rp "Enter Nextcloud database directory (SSD/fast storage) [default: /srv/homeserver/appdata/nextcloud/postgres]: " USER_NC_DB
+      NEXTCLOUD_DB_LOCATION="${USER_NC_DB:-/srv/homeserver/appdata/nextcloud/postgres}"
     fi
   fi
 
@@ -984,7 +834,10 @@ prompt_and_generate_configs() {
     KOPIA_ADMIN_PASS=$(openssl rand -hex 16 2>/dev/null || echo "admin_kopia_pass_123")
     generated_kopia_pass=true
   fi
-
+  # Resolve directories to absolute paths
+  SYSTEM_DATA_DIR=$(mkdir -p "$SYSTEM_DATA_DIR" && cd "$SYSTEM_DATA_DIR" && pwd)
+  DB_DATA_LOCATION=$(mkdir -p "$DB_DATA_LOCATION" && cd "$DB_DATA_LOCATION" && pwd)
+  NEXTCLOUD_DB_LOCATION=$(mkdir -p "$NEXTCLOUD_DB_LOCATION" && cd "$NEXTCLOUD_DB_LOCATION" && pwd)
 
   echo -e "Writing and unifying environment configuration files..."
 
@@ -1051,7 +904,7 @@ EOF
 IMMICH_VERSION=${IMMICH_VERSION}
 UPLOAD_LOCATION=${UPLOAD_LOCATION}
 PHOTO_BACKUP_LOCATION=${PHOTO_BACKUP_LOCATION}
-DB_DATA_LOCATION=../appdata/immich/postgres
+DB_DATA_LOCATION=${DB_DATA_LOCATION}
 DB_PASSWORD=${IMMICH_DB_PASS}
 DB_USERNAME=${DB_USERNAME}
 DB_DATABASE_NAME=${DB_DATABASE_NAME}
@@ -1066,7 +919,7 @@ POSTGRES_DB=${POSTGRES_DB}
 POSTGRES_USER=${POSTGRES_USER}
 POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASS}
 NEXTCLOUD_DATA_LOCATION=${NEXTCLOUD_DATA_LOCATION}
-NEXTCLOUD_DB_LOCATION=../appdata/nextcloud/postgres
+NEXTCLOUD_DB_LOCATION=${NEXTCLOUD_DB_LOCATION}
 EOF
   echo -e "${GREEN}✔ Configured nextcloud/.env file.${NC}"
 
@@ -1076,7 +929,7 @@ EOF
 PUID=${PUID}
 PGID=${PGID}
 TZ=${TZ}
-SYSTEM_DATA_DIR=../appdata
+SYSTEM_DATA_DIR=${SYSTEM_DATA_DIR}
 MEDIA_DIR=${MEDIA_DIR}
 PAPERLESS_PORT=${PAPERLESS_PORT}
 PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}
@@ -1092,7 +945,7 @@ PUID=${PUID}
 PGID=${PGID}
 TZ=${TZ}
 MEDIA_DIR=${MEDIA_DIR}
-SYSTEM_DATA_DIR=../appdata
+SYSTEM_DATA_DIR=${SYSTEM_DATA_DIR}
 EOF
   echo -e "${GREEN}✔ Configured media/.env file.${NC}"
 
@@ -1103,7 +956,7 @@ PUID=${PUID}
 PGID=${PGID}
 TZ=${TZ}
 MEDIA_DIR=${MEDIA_DIR}
-SYSTEM_DATA_DIR=../appdata
+SYSTEM_DATA_DIR=${SYSTEM_DATA_DIR}
 KOPIA_ADMIN_PASSWORD=${KOPIA_ADMIN_PASS}
 EOF
   echo -e "${GREEN}✔ Configured storage/.env file.${NC}"
@@ -1148,50 +1001,8 @@ EOF
 # SILENT GITHUB SYNCHRONIZER
 # ------------------------------------------------------------------------------
 sync_from_github_silent() {
-  local repo="${GITHUB_REPO:-arunkarshan/HomeServerConfiguration}"
-
-  echo -e "Silently syncing configurations from: ${YELLOW}https://github.com/${repo}${NC}..."
-  
-  if ! command -v unzip &>/dev/null || ! command -v rsync &>/dev/null; then
-    if [ "$EUID" -eq 0 ]; then
-      if command -v apt-get &>/dev/null; then
-        apt-get update && apt-get install -y unzip rsync
-      elif command -v dnf &>/dev/null; then
-        dnf install -y unzip rsync
-      elif command -v yum &>/dev/null; then
-        yum install -y unzip rsync
-      elif command -v pacman &>/dev/null; then
-        pacman -Sy --noconfirm unzip rsync
-      fi
-    fi
-  fi
-
-  local success=false
-  for branch in "main" "master"; do
-    local http_code=0
-    http_code=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
-    
-    if [ "$http_code" -eq 200 ]; then
-      success=true
-      break
-    else
-      rm -f config_temp.zip
-    fi
-  done
-
-  if [ "$success" = true ]; then
-    mkdir -p config_temp_dir
-    unzip -q config_temp.zip -d config_temp_dir
-    local top_dir
-    top_dir=$(find config_temp_dir -mindepth 1 -maxdepth 1 -type d | head -n 1)
-    rsync -a --exclude='.git' --exclude='.env*' --exclude='*/*.env*' "${top_dir}/" ./
-    rm -rf config_temp_dir config_temp.zip
-    save_fetch_timestamp
-    echo -e "${GREEN}✔ Repository synchronized successfully.${NC}"
-  else
-    echo -e "${RED}Error: Failed to silently download repository archive. Sync skipped.${NC}"
-  fi
-  restore_ownership
+  # Git silent sync is disabled.
+  return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -1721,63 +1532,8 @@ action_docker_prune() {
 # PORTAL ACTION 11: PUSH CONFIGURATIONS TO GITHUB
 # ------------------------------------------------------------------------------
 action_git_push() {
-  echo -e "\n${BLUE}=== Push Local Configurations to GitHub ===${NC}"
-  if [ ! -d ".git" ]; then
-    echo -e "${RED}Error: This directory is not a Git repository. Cannot push to GitHub.${NC}"
-    return 1
-  fi
-
-  # Show status
-  echo -e "${BLUE}Current repository status:${NC}"
-  git status -s
-
-  # Check if there are changes
-  if [ -z "$(git status --porcelain)" ]; then
-    echo -e "\n${GREEN}No local changes detected to push.${NC}"
-    return 0
-  fi
-
-  echo ""
-  read -rp "Do you want to commit and push all local changes? (y/n) [default: y]: " GIT_CONFIRM
-  GIT_CONFIRM="${GIT_CONFIRM:-y}"
-  if [[ ! "$GIT_CONFIRM" =~ ^[Yy]$ ]]; then
-    echo -e "Aborted."
-    return 0
-  fi
-
-  read -rp "Enter commit message [default: Update homeserver configurations]: " COMMIT_MSG
-  COMMIT_MSG="${COMMIT_MSG:-Update homeserver configurations}"
-
-  # Stage all tracked/untracked files (respecting .gitignore)
-  git add -A
-
-  # Commit changes
-  git commit -m "$COMMIT_MSG"
-
-  # Load github configs from .env
-  local repo=""
-  if [ -f .env ]; then
-    repo=$(grep -E "^GITHUB_REPO=" .env | cut -d'=' -f2- | sed 's/^"//;s/"$//' || true)
-  fi
-
-  # Fallback to defaults or git credentials if not in .env
-  repo="${repo:-arunkarshan/HomeServerConfiguration}"
-
-  echo -e "\n${BLUE}Pushing to GitHub repo: $repo...${NC}"
-  
-  # Temporarily disable exit-on-error to handle push failures gracefully
-  set +e
-  # Standard push (using SSH keys or Credential Helper)
-  git push origin main
-  local push_status=$?
-  set -e
-
-  if [ $push_status -eq 0 ]; then
-    echo -e "\n${GREEN}✔ Successfully pushed configurations to GitHub!${NC}"
-  else
-    echo -e "\n${RED}Failed to push configurations to GitHub.${NC}"
-  fi
-  restore_ownership
+  # Git configurations push is disabled.
+  return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -2821,7 +2577,7 @@ EOF
   # Configure cron jobs
   echo -e "Re-indexing user crontab for scheduled power tasks..."
   local temp_cron
-  temp_cron=$(mktemp)
+  temp_cron=$(mktemp 2>/dev/null || echo "/tmp/temp_cron_$$")
   crontab -l 2>/dev/null | grep -v "power_schedule.sh" > "$temp_cron" || true
 
   if [ "$enable_shutdown" = "true" ]; then
@@ -2845,7 +2601,19 @@ EOF
     echo -e "${GREEN}✔ Scheduled shutdown cron entry added for ${shutdown_time} (Days: ${cron_days})${NC}"
   fi
 
-  crontab "$temp_cron"
+  # Try to load via crontab
+  if ! crontab "$temp_cron" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️ crontab command failed. Trying system cron directory (/etc/cron.d)...${NC}"
+    if [ "$EUID" -eq 0 ] && [ -d "/etc/cron.d" ]; then
+      # In /etc/cron.d, each line must contain user name as 6th field (e.g. root)
+      sed -E 's/^([0-9*,/-]+[[:space:]]+[0-9*,/-]+[[:space:]]+[0-9*,/-]+[[:space:]]+[0-9*,/-]+[[:space:]]+[0-9*,/-]+)[[:space:]]+(.*)$/\1 root \2/' "$temp_cron" > /etc/cron.d/homeserver_power_schedule
+      echo -e "${GREEN}✔ Power schedule successfully written to /etc/cron.d/homeserver_power_schedule${NC}"
+    else
+      echo -e "${RED}[ERROR] Failed to save cron schedule. Cannot write to crontab or /etc/cron.d${NC}"
+      rm -f "$temp_cron"
+      return 1
+    fi
+  fi
   rm -f "$temp_cron"
   echo -e "${GREEN}✔ System power schedule configuration completed successfully!${NC}"
 }

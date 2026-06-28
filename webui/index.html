@@ -436,14 +436,7 @@
                 <span style="font-size: 1.4rem;">📥</span>
                 <span style="font-size: 0.82rem; font-weight: 600;">Check & Pull Updates</span>
               </button>
-              <button class="btn btn-secondary" onclick="triggerJourney('git-push')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                <span style="font-size: 1.4rem;">📤</span>
-                <span style="font-size: 0.82rem; font-weight: 600;">Push Configs to Git</span>
-              </button>
-              <button class="btn btn-secondary" onclick="triggerJourney('git-sync')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                <span style="font-size: 1.4rem;">🔄</span>
-                <span style="font-size: 0.82rem; font-weight: 600;">Fetch Configs from Git</span>
-              </button>
+
               <button class="btn btn-secondary" onclick="triggerJourney('docker-install')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
                 <span style="font-size: 1.4rem;">🐳</span>
                 <span style="font-size: 0.82rem; font-weight: 600;">Install Docker Engine</span>
@@ -984,54 +977,7 @@
       </section>
 
       <!-- JOURNEY: Push Git -->
-      <section id="journey-git-push" class="journey-pane">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2>Push Configurations to GitHub</h2>
-              <div class="card-subtitle">Backs up and pushes your local configuration files to remote Git repository</div>
-            </div>
-          </div>
 
-          <div class="form-section" style="border: none; background: transparent; margin-bottom: 1.5rem;">
-            <div class="form-section-body" style="grid-template-columns: 1fr; gap: 1.25rem; padding: 0;">
-              <div class="form-group">
-                <label for="git_push_REPO">GitHub Repository</label>
-                <input type="text" id="git_push_REPO" placeholder="e.g. owner/repo">
-              </div>
-            </div>
-          </div>
-
-          <div class="btn-actions-footer">
-            <button class="btn btn-primary" onclick="runConfiguredAction('git-push', 'Pushing local configurations to Git')">Push Configurations</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- JOURNEY: Fetch Git -->
-      <section id="journey-git-sync" class="journey-pane">
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h2>Fetch Configurations from GitHub</h2>
-              <div class="card-subtitle">Pulls latest configuration updates from your remote Git repository</div>
-            </div>
-          </div>
-
-          <div class="form-section" style="border: none; background: transparent; margin-bottom: 1.5rem;">
-            <div class="form-section-body" style="grid-template-columns: 1fr; gap: 1.25rem; padding: 0;">
-              <div class="form-group">
-                <label for="git_sync_REPO">GitHub Repository</label>
-                <input type="text" id="git_sync_REPO" placeholder="e.g. owner/repo">
-              </div>
-            </div>
-          </div>
-
-          <div class="btn-actions-footer">
-            <button class="btn btn-primary" onclick="runConfiguredAction('sync', 'Fetching configurations from GitHub')">Fetch Configurations</button>
-          </div>
-        </div>
-      </section>
 
       <!-- JOURNEY: Suite Reference Guide -->
       <section id="journey-guide" class="journey-pane">
