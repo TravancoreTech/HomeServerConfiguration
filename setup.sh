@@ -2688,6 +2688,56 @@ if files:
                                     config['dns'] = [x.strip() for x in parts[1:-1].split(',')]
     except Exception as e:
         pass
+        
+# Fallback to live system details if values are empty
+if not config['interface']:
+    import glob, os
+    devs = [os.path.basename(d) for d in glob.glob('/sys/class/net/*')]
+    usable = [d for d in devs if d != 'lo' and not d.startswith('docker') and not d.startswith('veth') and not d.startswith('br-') and not d.startswith('tailscale')]
+    if usable:
+        config['interface'] = usable[0]
+
+if config['interface']:
+    import subprocess
+    # Get IP address
+    if not config['address']:
+        try:
+            out = subprocess.check_output(f"ip -o -4 addr show dev {config['interface']}", shell=True).decode()
+            for line in out.splitlines():
+                parts = line.split()
+                if len(parts) >= 4:
+                    config['address'] = parts[3]
+                    break
+        except Exception:
+            pass
+    
+    # Get Gateway
+    if not config['gateway']:
+        try:
+            out = subprocess.check_output(f"ip route show default dev {config['interface']}", shell=True).decode()
+            for line in out.splitlines():
+                parts = line.split()
+                if 'default' in parts and 'via' in parts:
+                    idx = parts.index('via')
+                    if len(parts) > idx + 1:
+                        config['gateway'] = parts[idx+1]
+                        break
+        except Exception:
+            pass
+    
+    # Get DNS
+    if not config['dns']:
+        try:
+            dns_list = []
+            if os.path.exists('/etc/resolv.conf'):
+                with open('/etc/resolv.conf', 'r') as f_dns:
+                    for line in f_dns:
+                        if line.strip().startswith('nameserver'):
+                            dns_list.append(line.split()[1])
+            config['dns'] = dns_list
+        except Exception:
+            pass
+
 print(json.dumps(config))
 " 2>/dev/null || echo "null")
   else
@@ -2832,6 +2882,12 @@ action_set_static_ip() {
   mkdir -p /etc/netplan/backup/
   cp -f /etc/netplan/*.yaml /etc/netplan/backup/ 2>/dev/null || true
   cp -f /etc/netplan/*.yml /etc/netplan/backup/ 2>/dev/null || true
+
+  if [ -d /etc/cloud ]; then
+    echo -e "Disabling cloud-init network configuration to prevent overrides..."
+    mkdir -p /etc/cloud/cloud.cfg.d/
+    echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+  fi
 
   rm -f /etc/netplan/*.yaml /etc/netplan/*.yml
 
