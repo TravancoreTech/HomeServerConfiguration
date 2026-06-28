@@ -1,9 +1,9 @@
     :root {
-      --bg-base: #060913;
-      --bg-surface: rgba(15, 23, 42, 0.45);
-      --bg-card: rgba(30, 41, 59, 0.4);
-      --border-color: rgba(255, 255, 255, 0.08);
-      --border-glow: rgba(99, 102, 241, 0.15);
+      --bg-base: #08090d;
+      --bg-surface: rgba(13, 17, 30, 0.45);
+      --bg-card: rgba(13, 17, 30, 0.3);
+      --border-color: rgba(255, 255, 255, 0.05);
+      --border-glow: rgba(99, 102, 241, 0.2);
       --text-primary: #f8fafc;
       --text-secondary: #94a3b8;
       --text-muted: #64748b;
@@ -17,19 +17,19 @@
       
       --font-sans: 'Outfit', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
-      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 
       /* Custom theme variables */
-      --bg-input: rgba(10, 15, 30, 0.6);
-      --bg-sidebar: rgba(10, 15, 30, 0.8);
+      --bg-input: rgba(10, 15, 30, 0.5);
+      --bg-sidebar: rgba(8, 9, 13, 0.95);
       --logo-gradient: linear-gradient(to right, #ffffff, #c7d2fe);
       --text-highlight: #c7d2fe;
-      --card-shadow: rgba(0, 0, 0, 0.2);
+      --card-shadow: rgba(0, 0, 0, 0.4);
       
       --accent-indigo-text: #a5b4fc;
       --menu-active-color: #a5b4fc;
       --menu-hover-bg: rgba(255, 255, 255, 0.03);
-      --bg-badge: rgba(99, 102, 241, 0.15);
+      --bg-badge: rgba(99, 102, 241, 0.12);
       --warning-banner-text: #fda4af;
       --caution-banner-text: #fef3c7;
       --caution-banner-h3: #fcd34d;
@@ -195,9 +195,10 @@
     /* Sidebar Styling */
     .sidebar {
       background: var(--bg-sidebar);
-      border-right: 1px solid var(--border-color);
-      backdrop-filter: blur(20px);
-      padding: 2rem 1.5rem;
+      border-right: 1px solid rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(35px);
+      -webkit-backdrop-filter: blur(35px);
+      padding: 2.5rem 1.75rem;
       display: flex;
       flex-direction: column;
       gap: 2rem;
@@ -390,20 +391,21 @@
       font-weight: 500;
       text-align: left;
       cursor: pointer;
-      transition: var(--transition);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       width: 100%;
     }
 
     .menu-item:hover {
-      background: var(--menu-hover-bg);
+      background: rgba(255, 255, 255, 0.03);
       color: var(--text-primary);
-      transform: translateX(3px);
+      transform: translateX(4px);
     }
 
     .menu-item.active {
-      background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, rgba(56, 189, 248, 0.03) 100%);
-      border-color: rgba(99, 102, 241, 0.3);
-      color: var(--menu-active-color);
+      background: linear-gradient(90deg, rgba(99, 102, 241, 0.12) 0%, rgba(56, 189, 248, 0.02) 100%);
+      border-color: rgba(99, 102, 241, 0.15);
+      color: #fff;
+      font-weight: 600;
       box-shadow: inset 3px 0 0 var(--accent-indigo);
     }
 
@@ -411,7 +413,7 @@
       width: 18px;
       height: 18px;
       color: var(--text-muted);
-      transition: var(--transition);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .menu-item:hover svg, .menu-item.active svg {
@@ -430,13 +432,20 @@
 
     /* Card Styling */
     .card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
+      background: rgba(13, 17, 30, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
       padding: 1.75rem;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 4px 30px var(--card-shadow);
-      transition: var(--transition);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .card:hover {
+      border-color: rgba(99, 102, 241, 0.15);
+      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5), 0 0 1px rgba(99, 102, 241, 0.15);
+      transform: translateY(-2px);
     }
 
     .card-header {
@@ -795,19 +804,23 @@
     }
 
     .metric-card {
-      background: rgba(30, 41, 59, 0.25);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 1.25rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 18px;
+      padding: 1.5rem;
       display: flex;
       flex-direction: column;
-      gap: 0.4rem;
-      transition: var(--transition);
+      gap: 0.5rem;
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .metric-card:hover {
-      border-color: rgba(99, 102, 241, 0.15);
-      background: rgba(30, 41, 59, 0.35);
+      border-color: rgba(99, 102, 241, 0.2);
+      background: rgba(255, 255, 255, 0.04);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35), 0 0 1px rgba(99, 102, 241, 0.2);
     }
 
     .metric-title {
@@ -1112,27 +1125,30 @@
     /* Dashboard Containers Status Grid */
     .dashboard-containers-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 1rem;
-      margin-top: 0.5rem;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-top: 0.75rem;
     }
     
     .dashboard-container-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 16px;
+      padding: 1.25rem;
       display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      gap: 0.75rem;
-      transition: var(--transition);
+      flex-direction: row;
+      align-items: center;
+      gap: 1rem;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
     
     .dashboard-container-card:hover {
-      border-color: var(--border-glow);
-      box-shadow: 0 4px 12px var(--card-shadow);
-      transform: translateY(-2px);
+      border-color: rgba(99, 102, 241, 0.25);
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35), 0 0 1px rgba(99, 102, 241, 0.25);
+      transform: translateY(-3px);
     }
     
     .dashboard-container-header {
