@@ -164,6 +164,7 @@ function handleGetRoute(req, res) {
         },
         temp: parseFloat((40 + Math.random() * 8).toFixed(1)),
         uptime: "up 2 days, 14 hours, 5 minutes",
+        os: "macOS Dev (Darwin)",
         disks: [
           { device: '/dev/disk1s1s1', fstype: 'apfs', size: '228.3 GiB', used: '162.1 GiB', avail: '66.2 GiB', percent: '71%', mount: '/' },
           { device: '/dev/disk3s1', fstype: 'apfs', size: '931.5 GiB', used: '452.0 GiB', avail: '479.5 GiB', percent: '49%', mount: '/Volumes/Storage' }
@@ -202,8 +203,16 @@ function handleGetRoute(req, res) {
       UPTIME_VAL=\$(uptime -p 2>/dev/null || uptime | awk '{print "up", \$3, \$4}' | tr -d ',')
       if [ -z "\$UPTIME_VAL" ]; then UPTIME_VAL="up 0 hours"; fi
 
+      # 5. OS version name
+      OS_NAME="Linux"
+      if [ -f /etc/os-release ]; then
+        OS_NAME=\$(grep -E "^PRETTY_NAME=" /etc/os-release | cut -d'=' -f2 | tr -d '"')
+      else
+        OS_NAME=\$(uname -sr)
+      fi
+
       # Format output
-      echo "\$CPU_USAGE|\$MEM_TOTAL|\$MEM_USED|\$MEM_PCT|\$CPU_TEMP|\$UPTIME_VAL"
+      echo "\$CPU_USAGE|\$MEM_TOTAL|\$MEM_USED|\$MEM_PCT|\$CPU_TEMP|\$UPTIME_VAL|\$OS_NAME"
     `;
 
     exec(statsCmd, (err, stdout) => {
@@ -226,6 +235,7 @@ function handleGetRoute(req, res) {
       const memPct = parseFloat(parts[3]);
       const temp = parseFloat(parts[4]);
       const uptime = parts[5];
+      const osName = parts[6] || 'Linux Host';
 
       // Fetch storage devices usage (df -hP)
       exec('df -hP', (dfErr, dfStdout) => {
@@ -257,6 +267,7 @@ function handleGetRoute(req, res) {
           },
           temp,
           uptime,
+          os: osName,
           disks
         };
 

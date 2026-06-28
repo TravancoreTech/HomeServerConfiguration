@@ -2722,10 +2722,12 @@ sudo netplan apply`;
         const vitalsRam = document.getElementById('vitals-ram-val');
         const vitalsTemp = document.getElementById('vitals-temp-val');
         const vitalsUptime = document.getElementById('vitals-uptime-val');
+        const vitalsOS = document.getElementById('vitals-os-val');
         if (vitalsCpu) vitalsCpu.textContent = `${stats.cpu}%`;
         if (vitalsRam) vitalsRam.textContent = `${stats.memory.percent}%`;
         if (vitalsTemp) vitalsTemp.textContent = `${stats.temp}°C`;
         if (vitalsUptime && stats.uptime) vitalsUptime.textContent = stats.uptime;
+        if (vitalsOS && stats.os) vitalsOS.textContent = stats.os;
 
         // 2. Update System Page Detailed Vitals
         const sysCpuVal = document.getElementById('sys-cpu-val');

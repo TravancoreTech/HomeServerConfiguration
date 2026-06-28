@@ -293,13 +293,6 @@
               <div class="metric-detail" id="stats-vpn-desc">Secure remote access VPN tunnel is inactive</div>
             </div>
 
-            <!-- Auto-mount status card -->
-            <div class="metric-card" id="card-auto-mount" style="border-left: 4px solid var(--accent-purple);">
-              <div class="metric-title">Storage Mounts</div>
-              <div class="metric-value" id="stats-mount">Portable</div>
-              <div class="metric-detail" id="stats-mount-desc">External filesystems tracking</div>
-            </div>
-
             <!-- CPU Load status card -->
             <div class="metric-card" id="card-cpu-load" style="border-left: 4px solid var(--accent-indigo); cursor: pointer;" onclick="triggerJourney('system')">
               <div class="metric-title">CPU Load</div>
@@ -326,6 +319,13 @@
               <div class="metric-title">System Uptime</div>
               <div class="metric-value" id="vitals-uptime-val" style="font-size: 1.15rem; word-break: break-word;">Loading...</div>
               <div class="metric-detail" id="vitals-uptime-desc">Continuous OS online telemetry</div>
+            </div>
+
+            <!-- Host OS environment card -->
+            <div class="metric-card" id="card-os-info" style="border-left: 4px solid var(--accent-indigo);">
+              <div class="metric-title">Operating System</div>
+              <div class="metric-value" id="vitals-os-val" style="font-size: 1.15rem; word-break: break-word;">Loading...</div>
+              <div class="metric-detail" id="vitals-os-desc">Host server kernel environment</div>
             </div>
 
           </div>
