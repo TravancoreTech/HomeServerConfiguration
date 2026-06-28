@@ -1012,7 +1012,17 @@
           }
         }
 
-        // Populate form inputs if current config matches static mode
+        // Populate form inputs with current config or sensible defaults
+        const txtIp = document.getElementById('netplan_ip_cidr');
+        const txtGw = document.getElementById('netplan_gateway');
+        const txtDns1 = document.getElementById('netplan_dns1');
+        const txtDns2 = document.getElementById('netplan_dns2');
+
+        if (txtIp) txtIp.value = cur.address || '';
+        if (txtGw) txtGw.value = cur.gateway || '';
+        if (txtDns1) txtDns1.value = (cur.dns && cur.dns[0]) ? cur.dns[0] : '1.1.1.1';
+        if (txtDns2) txtDns2.value = (cur.dns && cur.dns[1]) ? cur.dns[1] : '8.8.8.8';
+
         if (cur.interface) {
           if (!cur.dhcp) {
             // Check Static Radio
@@ -1021,15 +1031,6 @@
               radStatic.checked = true;
               toggleNetplanFields('static');
             }
-            const txtIp = document.getElementById('netplan_ip_cidr');
-            const txtGw = document.getElementById('netplan_gateway');
-            const txtDns1 = document.getElementById('netplan_dns1');
-            const txtDns2 = document.getElementById('netplan_dns2');
-
-            if (txtIp) txtIp.value = cur.address || '';
-            if (txtGw) txtGw.value = cur.gateway || '';
-            if (txtDns1) txtDns1.value = (cur.dns && cur.dns[0]) ? cur.dns[0] : '';
-            if (txtDns2) txtDns2.value = (cur.dns && cur.dns[1]) ? cur.dns[1] : '';
           } else {
             // Check DHCP Radio
             const radDhcp = document.querySelector('input[name="netplan_mode"][value="dhcp"]');
@@ -1075,19 +1076,21 @@
       if (mode === 'dhcp') {
         queryUrl = `/api/run?action=netplan-dhcp&iface=${encodeURIComponent(interface_name)}`;
       } else {
-        const ip_cidr = document.getElementById('netplan_ip_cidr').value.trim();
+        let ip_cidr = document.getElementById('netplan_ip_cidr').value.trim();
         const gateway = document.getElementById('netplan_gateway').value.trim();
-        const dns1 = document.getElementById('netplan_dns1').value.trim();
-        const dns2 = document.getElementById('netplan_dns2').value.trim();
+        let dns1 = document.getElementById('netplan_dns1').value.trim();
+        let dns2 = document.getElementById('netplan_dns2').value.trim();
 
-        if (!ip_cidr || !gateway || !dns1) {
-          alert('IP Address/Subnet, Gateway, and Primary DNS are required for static IP configuration.');
+        if (!dns1) dns1 = '1.1.1.1';
+        if (!dns2) dns2 = '8.8.8.8';
+
+        if (!ip_cidr || !gateway) {
+          alert('IP Address and Gateway are required for static IP configuration.');
           return;
         }
 
         if (!ip_cidr.includes('/')) {
-          alert('Subnet CIDR suffix is required (e.g., 192.168.1.100/24).');
-          return;
+          ip_cidr = ip_cidr + '/24';
         }
 
         queryUrl = `/api/run?action=netplan-static&iface=${encodeURIComponent(interface_name)}&ip=${encodeURIComponent(ip_cidr)}&gw=${encodeURIComponent(gateway)}&dns1=${encodeURIComponent(dns1)}&dns2=${encodeURIComponent(dns2)}`;
