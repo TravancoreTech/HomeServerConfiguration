@@ -12,6 +12,9 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <!-- Floating animated background blobs -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
 
   <!-- ===== RECONNECT OVERLAY (shown while server restarts) ===== -->
   <div id="restart-overlay" style="
@@ -242,14 +245,36 @@
       <!-- JOURNEY: Dashboard Overview -->
       <section id="journey-dashboard" class="journey-pane active">
         <div class="idle-welcome">
-          <div class="welcome-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-            <div>
-              <h2>Welcome to Homeserver Operations</h2>
-              <p style="color: var(--text-secondary);">Manage, configure, and maintain your homeserver stack through this guided interface.</p>
-            </div>
-            <div style="display: flex; gap: 0.75rem;">
-              <button class="btn btn-secondary" onclick="shutdownHostMachine()" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.5rem 0.9rem; font-size: 0.85rem;">🛑 Power Off Host</button>
-              <button class="btn btn-secondary" onclick="rebootHostMachine()" style="background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 0.5rem 0.9rem; font-size: 0.85rem;">🔄 Reboot Host</button>
+          <!-- Parallax Glassmorphism Hero Section -->
+          <div class="hero-parallax-card" style="
+            position: relative;
+            height: 220px;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(56, 189, 248, 0.1));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            padding: 2.5rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          ">
+            <div style="position: absolute; right: 10%; top: -20%; width: 250px; height: 250px; border-radius: 50%; background: var(--accent-purple); opacity: 0.2; filter: blur(50px); pointer-events: none;"></div>
+            <div style="position: absolute; right: -5%; bottom: -30%; width: 200px; height: 200px; border-radius: 50%; background: var(--accent-blue); opacity: 0.2; filter: blur(40px); pointer-events: none;"></div>
+            
+            <div style="position: relative; z-index: 10; width: 100%;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+                <div>
+                  <h2 style="font-size: 2.2rem; font-weight: 800; color: #fff; letter-spacing: -0.04em; margin-bottom: 0.5rem; text-shadow: 0 2px 10px rgba(0,0,0,0.2);">Homeserver Operations</h2>
+                  <p style="color: rgba(255, 255, 255, 0.85); font-size: 0.95rem; font-weight: 500;">Complete orchestrator control portal & metrics suite.</p>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                  <button class="btn btn-secondary" onclick="shutdownHostMachine()" style="background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); color: #fff; padding: 0.65rem 1.25rem; font-size: 0.88rem; font-weight: 700; border-radius: 10px; backdrop-filter: blur(10px); transition: var(--transition);">🛑 Power Off</button>
+                  <button class="btn btn-secondary" onclick="rebootHostMachine()" style="background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #fff; padding: 0.65rem 1.25rem; font-size: 0.88rem; font-weight: 700; border-radius: 10px; backdrop-filter: blur(10px); transition: var(--transition);">🔄 Reboot Host</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -472,56 +497,68 @@
 
       <!-- JOURNEY: Detailed Container Metadata & Architecture Info -->
       <section id="journey-docker-detail" class="journey-pane">
-        <div class="card">
+        <div class="card" style="position: relative; overflow: hidden; background: linear-gradient(135deg, rgba(99, 102, 241, 0.02) 0%, rgba(255, 255, 255, 0.01) 100%); border-radius: 20px; border: 1px solid rgba(255,255,255,0.05); padding: 1.75rem; box-shadow: 0 10px 40px rgba(0,0,0,0.25);">
+          <!-- Back button -->
           <div style="margin-bottom: 1.5rem;">
-            <a href="javascript:void(0)" onclick="triggerJourney('docker')" style="color: var(--accent-indigo-text); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
-              ← Back to Containers List
+            <a href="javascript:void(0)" onclick="closeContainerDetails()" style="color: var(--accent-indigo-text); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.9rem;">
+              <span>←</span> Back to Containers List
             </a>
           </div>
-          <div class="card-header" style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <div id="detail-icon-container" style="font-size: 2.2rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 12px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; user-select: none; position: relative;">
+
+          <!-- Header Section -->
+          <div class="card-header" style="margin-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+              <div id="detail-icon-container" style="font-size: 2.2rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; user-select: none; position: relative;">
                 <span id="detail-icon" style="display: block;">🎬</span>
                 <img id="detail-logo" src="" onload="this.previousElementSibling.style.display='none'; this.style.display='block';" onerror="this.style.display='none';" style="display: none; width: 100%; height: 100%; object-fit: contain;" />
               </div>
               <div>
-                <h2 id="detail-service-name" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">Jellyfin Media Server</h2>
-                <div id="detail-container-name" style="font-size: 0.82rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 0.15rem;">media_jellyfin</div>
+                <h2 id="detail-service-name" style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); margin: 0; letter-spacing: -0.02em;">Jellyfin Media Server</h2>
+                <div id="detail-container-name" style="font-size: 0.85rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 0.25rem;">media_jellyfin</div>
               </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <span id="detail-status-badge" class="container-status-badge badge-up">Running</span>
-              <span id="detail-status-dot" class="status-dot up"></span>
+
+            <!-- Control Buttons & Status Badge -->
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.02); padding: 0.5rem 0.85rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.04);">
+                <span id="detail-status-dot" class="status-dot up" style="width: 8px; height: 8px;"></span>
+                <span id="detail-status-badge" style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary);">Running</span>
+              </div>
+              <div style="display: flex; gap: 0.35rem;">
+                <button class="badge-btn" onclick="runContainerControlAction('start')" style="background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.2); color: var(--accent-green); padding: 0.5rem 0.95rem; font-size: 0.82rem;">▶ Start</button>
+                <button class="badge-btn" onclick="runContainerControlAction('stop')" style="background: rgba(244,63,94,0.1); border-color: rgba(244,63,94,0.2); color: var(--accent-red); padding: 0.5rem 0.95rem; font-size: 0.82rem;">■ Stop</button>
+                <button class="badge-btn" onclick="runContainerControlAction('restart')" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.2); color: var(--accent-orange); padding: 0.5rem 0.95rem; font-size: 0.82rem;">🔁 Restart</button>
+              </div>
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 2rem; align-items: start;">
+          <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 2rem; align-items: start; margin-bottom: 2rem;">
             <!-- Column 1: Info and Mounts -->
             <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
-                <h3 style="font-size: 0.95rem; color: var(--accent-indigo-text); font-weight: 600; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">Deployment Info</h3>
-                <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem;">
-                  <div style="display: flex; justify-content: space-between;">
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04); border-radius: 14px;">
+                <h3 style="font-size: 0.95rem; color: var(--accent-indigo); font-weight: 700; margin-bottom: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.5rem;">Deployment Info</h3>
+                <div style="display: flex; flex-direction: column; gap: 0.85rem; font-size: 0.85rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: var(--text-muted);">Suite Group:</span>
-                    <span id="detail-group" style="font-weight: 600; color: var(--text-primary);">Media Suite</span>
+                    <span id="detail-group" style="font-weight: 700; color: var(--text-primary);">Media Suite</span>
                   </div>
-                  <div style="display: flex; justify-content: space-between;">
-                    <span style="color: var(--text-muted);">Docker Image:</span>
-                    <span id="detail-image" style="font-weight: 500; font-family: var(--font-mono); color: var(--text-highlight);">jellyfin/jellyfin:latest</span>
+                  <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                    <span style="color: var(--text-muted); flex-shrink: 0;">Docker Image:</span>
+                    <span id="detail-image" style="font-weight: 500; font-family: var(--font-mono); color: var(--text-highlight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right;">jellyfin/jellyfin:latest</span>
                   </div>
                 </div>
               </div>
 
-              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
-                <h3 style="font-size: 0.95rem; color: var(--accent-blue); font-weight: 600; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">Connected Volumes & Paths</h3>
-                <div id="detail-mounts-list" style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.82rem;">
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04); border-radius: 14px;">
+                <h3 style="font-size: 0.95rem; color: var(--accent-blue); font-weight: 700; margin-bottom: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.5rem;">Connected Volumes & Paths</h3>
+                <div id="detail-mounts-list" style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.82rem;">
                   <!-- Dynamically generated mount info -->
                 </div>
               </div>
 
-              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px;">
-                <h3 style="font-size: 0.95rem; color: var(--accent-purple); font-weight: 600; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 0.4rem;">Linked & Sub-Services</h3>
-                <div id="detail-links-list" style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.82rem;">
+              <div style="padding: 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04); border-radius: 14px;">
+                <h3 style="font-size: 0.95rem; color: var(--accent-purple); font-weight: 700; margin-bottom: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 0.5rem;">Linked & Sub-Services</h3>
+                <div id="detail-links-list" style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.82rem;">
                   <!-- Linked services info -->
                 </div>
               </div>
@@ -529,16 +566,32 @@
 
             <!-- Column 2: Docker Compose Code -->
             <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="font-size: 0.95rem; color: var(--text-primary); font-weight: 600;">Docker Compose Configuration</h3>
-                <button class="badge-btn" onclick="copyDetailCompose()">📋 Copy Snippet</button>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                <h3 style="font-size: 0.95rem; color: var(--text-primary); font-weight: 700;">Docker Compose Configuration</h3>
+                <button class="badge-btn" onclick="copyDetailCompose()" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; border-radius: 6px;">📋 Copy Snippet</button>
               </div>
-              <pre id="detail-compose-code" style="background: #030712; padding: 1.25rem; border: 1px solid var(--border-color); border-radius: 8px; font-family: var(--font-mono); font-size: 0.8rem; color: #a5b4fc; overflow-x: auto; max-height: 480px; white-space: pre; line-height: 1.5;"></pre>
+              <pre id="detail-compose-code" style="background: #030712; padding: 1.25rem; border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; font-family: var(--font-mono); font-size: 0.8rem; color: #a5b4fc; overflow-x: auto; max-height: 480px; white-space: pre; line-height: 1.5; margin: 0;"></pre>
+            </div>
+          </div>
+
+          <!-- Bottom Section: Live logs console inside page -->
+          <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-indigo); animation: blink 1.2s infinite;"></div>
+                <h3 style="font-size: 0.95rem; color: var(--text-primary); font-weight: 700; margin: 0;">Live Container Execution Logs</h3>
+              </div>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button class="badge-btn" onclick="toggleLogsPauseState()" id="btn-logs-pause" style="padding: 0.3rem 0.65rem; font-size: 0.75rem; border-radius: 6px;">⏸ Pause Stream</button>
+                <button class="badge-btn" onclick="clearDetailLogsConsole()" style="padding: 0.3rem 0.65rem; font-size: 0.75rem; border-radius: 6px; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.06);">🧹 Clear</button>
+              </div>
+            </div>
+            <div id="detail-logs-console" style="background: #04060d; border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; height: 260px; overflow-y: auto; padding: 1.25rem; font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.5; color: #38bdf8;">
+              Connecting to live container logs...
             </div>
           </div>
         </div>
       </section>
-
       <!-- JOURNEY: Install (From scratch) -->
       <section id="journey-install" class="journey-pane">
         <div class="card">

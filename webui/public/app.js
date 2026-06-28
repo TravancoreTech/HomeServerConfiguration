@@ -593,29 +593,21 @@
               containers.sort((a, b) => a.name.localeCompare(b.name)).forEach(({ name, status, isUp, isError, details }) => {
                 const dbCard = document.createElement('div');
                 dbCard.className = 'dashboard-container-card';
-                dbCard.style.cssText = 'display: flex; flex-direction: row; align-items: flex-start; padding: 1.25rem; gap: 1rem; border-radius: 12px; min-height: auto; cursor: pointer;';
-                dbCard.onclick = (e) => {
-                  if (e.target.tagName.toLowerCase() !== 'a') {
-                    showContainerDetails(name, status, isUp, details);
-                  }
+                dbCard.style.cssText = 'display: flex; flex-direction: row; align-items: center; padding: 1.1rem; gap: 1rem; border-radius: 12px; min-height: auto; cursor: pointer;';
+                dbCard.onclick = () => {
+                  showContainerDetails(name, status, isUp, details);
                 };
                 dbCard.innerHTML = `
-                  <div class="service-card-icon" style="font-size: 1.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex-shrink: 0; user-select: none; position: relative;">
+                  <div class="service-card-icon" style="font-size: 1.85rem; padding: 0.5rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; user-select: none; position: relative;">
                     <span class="fallback-emoji" style="display: block;">${details.icon}</span>
                     <img src="/logos/logo_${getLogoKey(name)}.png" onload="this.previousElementSibling.style.display='none'; this.style.display='block';" onerror="this.style.display='none';" style="display: none; width: 100%; height: 100%; object-fit: contain;" />
                   </div>
-                  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0;">
+                  <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0; justify-content: center;">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
                       <span class="dashboard-container-name" style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${details.name}</span>
                       <span class="status-dot ${isUp ? 'up' : (isError ? 'down' : 'down')}" style="background-color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; box-shadow: 0 0 6px ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')}; flex-shrink: 0;"></span>
                     </div>
-                    <span style="color: var(--text-muted); font-size: 0.75rem; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem; margin-bottom: 0.5rem;" title="${name}">${name}</span>
-                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem;">
-                      <span style="font-weight: 600; color: ${isUp ? 'var(--accent-green)' : (isError ? 'var(--accent-red)' : 'var(--accent-orange)')};">${isUp ? 'Running' : (isError ? 'Error' : 'Stopped')}</span>
-                      <a href="javascript:void(0)" onclick="triggerLogs('${name}')" style="color: var(--accent-indigo-text); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
-                        View Log ↗
-                      </a>
-                    </div>
+                    <span style="color: var(--text-muted); font-size: 0.75rem; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.15rem;" title="${name}">${name}</span>
                   </div>
                 `;
                 grid.appendChild(dbCard);
@@ -2393,11 +2385,123 @@ sudo netplan apply`;
       // Populate Compose code block
       currentDetailCompose = meta.compose;
       document.getElementById('detail-compose-code').textContent = meta.compose;
+
+      // Start streaming live logs for this container on details page
+      streamContainerDetailLogs(name);
     }
 
     function copyDetailCompose() {
       navigator.clipboard.writeText(currentDetailCompose);
       alert('Docker Compose code block copied to clipboard!');
+    }
+
+    let detailLogsSSE = null;
+    let detailLogsPaused = false;
+
+    function streamContainerDetailLogs(containerName) {
+      if (detailLogsSSE) {
+        detailLogsSSE.close();
+      }
+      detailLogsPaused = false;
+      const consoleEl = document.getElementById('detail-logs-console');
+      if (consoleEl) {
+        consoleEl.innerHTML = `[Logs stream connected: ${containerName}]\nStreaming live execution console logs...\n\n`;
+      }
+      
+      const btnPause = document.getElementById('btn-logs-pause');
+      if (btnPause) btnPause.textContent = '⏸ Pause Stream';
+
+      detailLogsSSE = new EventSource(`/api/logs?container=${encodeURIComponent(containerName)}`);
+      detailLogsSSE.onmessage = function(e) {
+        if (detailLogsPaused) return;
+        const line = e.data;
+        if (consoleEl) {
+          const isErr = line.includes('[ERROR]') || line.includes('Failed') || line.includes('Error');
+          const span = document.createElement('span');
+          span.style.color = isErr ? 'var(--accent-red)' : '#38bdf8';
+          span.textContent = line + '\n';
+          consoleEl.appendChild(span);
+          
+          consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+      };
+      
+      detailLogsSSE.onerror = function() {
+        if (consoleEl) {
+          const span = document.createElement('span');
+          span.style.color = 'var(--text-muted)';
+          span.textContent = '\n[Connection closed or service offline]\n';
+          consoleEl.appendChild(span);
+        }
+        if (detailLogsSSE) detailLogsSSE.close();
+      };
+    }
+
+    function toggleLogsPauseState() {
+      detailLogsPaused = !detailLogsPaused;
+      const btnPause = document.getElementById('btn-logs-pause');
+      if (btnPause) {
+        btnPause.textContent = detailLogsPaused ? '▶ Resume Stream' : '⏸ Pause Stream';
+      }
+    }
+
+    function clearDetailLogsConsole() {
+      const consoleEl = document.getElementById('detail-logs-console');
+      if (consoleEl) {
+        consoleEl.innerHTML = '[Console cleared]\n';
+      }
+    }
+
+    function closeContainerDetails() {
+      if (detailLogsSSE) {
+        detailLogsSSE.close();
+        detailLogsSSE = null;
+      }
+      triggerJourney('docker');
+    }
+
+    async function runContainerControlAction(action) {
+      const containerName = document.getElementById('detail-container-name').textContent;
+      if (!containerName) return;
+
+      const confirmMsg = `Are you sure you want to ${action} container ${containerName}?`;
+      if (!confirm(confirmMsg)) return;
+
+      try {
+        const consoleEl = document.getElementById('detail-logs-console');
+        if (consoleEl) {
+          const span = document.createElement('span');
+          span.style.color = 'var(--text-highlight)';
+          span.textContent = `\n[Command sent: docker ${action} ${containerName}]\nExecuting...\n`;
+          consoleEl.appendChild(span);
+          consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        const res = await fetch(`/api/container-action?container=${encodeURIComponent(containerName)}&action=${action}`);
+        if (!res.ok) {
+          const errData = await res.json();
+          alert(`Failed: ${errData.error || 'Server error'}`);
+          return;
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          if (consoleEl) {
+            const span = document.createElement('span');
+            span.style.color = 'var(--accent-green)';
+            span.textContent = `\n✔ Container ${action} command sent successfully!\n`;
+            consoleEl.appendChild(span);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+          }
+          // Refresh docker status
+          setTimeout(() => {
+            fetchStatus();
+          }, 1500);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Failed to send control command.');
+      }
     }
 
     // Consolidated System Administration tab switching

@@ -119,6 +119,37 @@ function handleGetRoute(req, res) {
     return;
   }
 
+  // API Route: Start, Stop, or Restart Docker Containers
+  if (pathname === '/api/container-action') {
+    if (isMac) {
+      // Mock success for development
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, mock: true }));
+      return;
+    }
+    const service = parsedUrl.searchParams.get('container');
+    const containerAction = parsedUrl.searchParams.get('action'); // start, stop, restart
+    if (!service || !['start', 'stop', 'restart'].includes(containerAction)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid parameters' }));
+      return;
+    }
+
+    exec('docker ps > /dev/null 2>&1', (err) => {
+      const cmd = err ? `sudo docker ${containerAction} ${service}` : `docker ${containerAction} ${service}`;
+      exec(cmd, (execErr, stdout) => {
+        if (execErr) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: execErr.message }));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, output: stdout.trim() }));
+        }
+      });
+    });
+    return;
+  }
+
   // API Route: Get detailed host system statistics (vitals, storage)
   if (pathname === '/api/system-stats') {
     if (isMac) {
