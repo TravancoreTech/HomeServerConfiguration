@@ -3023,6 +3023,25 @@ main_menu() {
 # MAIN SCRIPT ENTRY POINT
 # ==============================================================================
 
+# Handle read-only info commands FIRST - before any privilege/root checks.
+# These commands only read system state and do not require root.
+if [ $# -gt 0 ]; then
+  export NON_INTERACTIVE="true"
+  case "$1" in
+    --netplan-info)
+      action_netplan_info
+      exit 0
+      ;;
+    --samba-info)
+      action_samba_info
+      exit 0
+      ;;
+    --system-stats)
+      # system-stats is handled in routes.js directly; but if called here, pass through
+      ;;
+  esac
+fi
+
 if [ "$(uname)" != "Darwin" ]; then
   if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}Error: Please run this script with sudo or as root to handle installation and system checks.${NC}"
@@ -3050,7 +3069,7 @@ if [ ! -f .env ]; then
   prompt_and_generate_configs
 fi
 
-# Check if CLI arguments were passed
+# Handle remaining CLI arguments (requires root/sudo)
 if [ $# -gt 0 ]; then
   export NON_INTERACTIVE="true"
   case "$1" in
