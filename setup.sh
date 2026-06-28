@@ -155,7 +155,12 @@ sync_from_github() {
   for branch in "main" "master"; do
     echo -e "Checking branch: ${BLUE}$branch${NC}..."
     if [ -n "${GITHUB_TOKEN:-}" ]; then
-      HTTP_CODE=$(curl -s -w "%{http_code}" -H "Authorization: token $GITHUB_TOKEN" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
+      HTTP_CODE=$(curl -s -w "%{http_code}" -H "Authorization: Bearer $GITHUB_TOKEN" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
+      if [ "$HTTP_CODE" -eq 401 ] || [ "$HTTP_CODE" -eq 403 ]; then
+        echo -e "${YELLOW}Warning: Token-based request failed (HTTP $HTTP_CODE). Retrying anonymously...${NC}"
+        rm -f config_temp.zip
+        HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
+      fi
     else
       HTTP_CODE=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$GITHUB_REPO/zipball/$branch" -o config_temp.zip)
     fi
@@ -1209,7 +1214,12 @@ sync_from_github_silent() {
   for branch in "main" "master"; do
     local http_code=0
     if [ -n "$token" ]; then
-      http_code=$(curl -s -w "%{http_code}" -H "Authorization: token $token" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
+      http_code=$(curl -s -w "%{http_code}" -H "Authorization: Bearer $token" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
+      if [ "$http_code" -eq 401 ] || [ "$http_code" -eq 403 ]; then
+        echo -e "${YELLOW}Warning: Token-based request failed (HTTP $http_code). Retrying anonymously...${NC}"
+        rm -f config_temp.zip
+        http_code=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
+      fi
     else
       http_code=$(curl -s -w "%{http_code}" -L "https://api.github.com/repos/$repo/zipball/$branch" -o config_temp.zip)
     fi
