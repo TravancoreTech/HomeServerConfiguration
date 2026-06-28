@@ -1508,6 +1508,16 @@
                   </select>
                 </div>
 
+                <!-- No-interface error banner (hidden by default, shown by JS) -->
+                <div id="netplan-no-iface-banner" style="display: none; align-items: flex-start; gap: 0.75rem; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 10px; padding: 0.9rem 1rem; margin-top: -0.5rem;">
+                  <span style="font-size: 1.2rem;">⚠️</span>
+                  <div>
+                    <div style="color: #f87171; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem;">No network interfaces detected</div>
+                    <div style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 0.6rem;">The server could not detect any usable network interfaces. This can happen if the network service is still starting up.</div>
+                    <button class="btn btn-secondary" style="padding: 0.35rem 0.9rem; font-size: 0.8rem;" onclick="loadNetplanState()">🔄 Refresh</button>
+                  </div>
+                </div>
+
                 <div id="netplan-static-fields" style="display: none; flex-direction: column; gap: 1.25rem;">
                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
@@ -1544,7 +1554,7 @@
             </div>
 
             <div class="btn-actions-footer">
-              <button class="btn btn-primary" onclick="applyNetplanConfig()">Apply Network Configuration</button>
+              <button id="netplan-apply-btn" class="btn btn-primary" onclick="applyNetplanConfig()">Apply Network Configuration</button>
             </div>
           </div>
 
