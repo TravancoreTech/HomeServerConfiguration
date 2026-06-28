@@ -151,71 +151,7 @@
       });
     }
 
-    // Toggle dashboard config
-    function toggleDashboardWidgetConfig() {
-      const el = document.getElementById('dashboard-widget-config');
-      el.style.display = el.style.display === 'none' ? 'block' : 'none';
-    }
 
-    function toggleVolumeSettingsConfig() {
-      const el = document.getElementById('dashboard-volumes-config');
-      el.style.display = el.style.display === 'none' ? 'block' : 'none';
-    }
-
-    async function applyCustomVolumeSettings() {
-      const jellyfinExtra = document.getElementById('volume_JELLYFIN_EXTRA_DIR').value.trim();
-      const photoBackup = document.getElementById('volume_PHOTO_BACKUP_LOCATION').value.trim();
-      const uploadLoc = document.getElementById('volume_UPLOAD_LOCATION').value.trim();
-      const nextcloudLoc = document.getElementById('volume_NEXTCLOUD_DATA_LOCATION').value.trim();
-
-      const config = {
-        JELLYFIN_EXTRA_DIR: jellyfinExtra,
-        PHOTO_BACKUP_LOCATION: photoBackup,
-        UPLOAD_LOCATION: uploadLoc,
-        NEXTCLOUD_DATA_LOCATION: nextcloudLoc
-      };
-
-      const servicesToRecreate = [];
-      if (jellyfinExtra !== (cachedConfig.JELLYFIN_EXTRA_DIR || '')) {
-        servicesToRecreate.push('jellyfin');
-      }
-      if (photoBackup !== (cachedConfig.PHOTO_BACKUP_LOCATION || '') || uploadLoc !== (cachedConfig.UPLOAD_LOCATION || '')) {
-        servicesToRecreate.push('immich-server');
-      }
-      if (nextcloudLoc !== (cachedConfig.NEXTCLOUD_DATA_LOCATION || '')) {
-        servicesToRecreate.push('nextcloud-app');
-      }
-
-      if (servicesToRecreate.length > 0) {
-        const confirmMsg = `The following services need to be reconfigured and restarted for paths to take effect: ${servicesToRecreate.join(', ')}. Proceed?`;
-        if (!confirm(confirmMsg)) return;
-      }
-
-      try {
-        const res = await fetch('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config)
-        });
-        const data = await res.json();
-        if (data.success) {
-          cachedConfig = { ...cachedConfig, ...config };
-          if (servicesToRecreate.length > 0) {
-            toggleVolumeSettingsConfig();
-            triggerJourney('dashboard');
-            initConsoleLogs(`Reconfiguring services: ${servicesToRecreate.join(', ')}`, `/api/run?action=reconfigure&services=${servicesToRecreate.join(',')}`);
-          } else {
-            alert('Volume settings saved successfully. No container restarts needed.');
-            toggleVolumeSettingsConfig();
-            loadConfig();
-          }
-        } else {
-          alert('Failed to save settings: ' + data.error);
-        }
-      } catch (err) {
-        alert('Error communicating with backend: ' + err.message);
-      }
-    }
 
     // Checkbox selections helpers
     function checkAll(val, prefix) {
@@ -1625,36 +1561,9 @@ sudo netplan apply`;
           document.getElementById('ts-authkey-display').value = 'Not configured';
         }
 
-        if (data.HOMEPAGE_VAR_QBITTORRENT_PASSWORD) {
-          document.getElementById('homepage_QBITTORRENT_PASSWORD').value = data.HOMEPAGE_VAR_QBITTORRENT_PASSWORD;
-        }
-        if (data.HOMEPAGE_VAR_PAPERLESS_USERNAME) {
-          document.getElementById('homepage_PAPERLESS_USERNAME').value = data.HOMEPAGE_VAR_PAPERLESS_USERNAME;
-        }
-        if (data.HOMEPAGE_VAR_PAPERLESS_PASSWORD) {
-          document.getElementById('homepage_PAPERLESS_PASSWORD').value = data.HOMEPAGE_VAR_PAPERLESS_PASSWORD;
-        }
-        if (data.HOMEPAGE_VAR_IMMICH_API_KEY) {
-          document.getElementById('homepage_IMMICH_API_KEY').value = data.HOMEPAGE_VAR_IMMICH_API_KEY;
-        }
-
         const repoVal = data.GITHUB_REPO || localStorage.getItem('GITHUB_REPO') || 'arunkarshan/HomeServerConfiguration';
         document.getElementById('git_push_REPO').value = repoVal;
         document.getElementById('git_sync_REPO').value = repoVal;
-
-        // Populate volume config settings
-        if (data.JELLYFIN_EXTRA_DIR) {
-          document.getElementById('volume_JELLYFIN_EXTRA_DIR').value = data.JELLYFIN_EXTRA_DIR;
-        }
-        if (data.PHOTO_BACKUP_LOCATION) {
-          document.getElementById('volume_PHOTO_BACKUP_LOCATION').value = data.PHOTO_BACKUP_LOCATION;
-        }
-        if (data.UPLOAD_LOCATION) {
-          document.getElementById('volume_UPLOAD_LOCATION').value = data.UPLOAD_LOCATION;
-        }
-        if (data.NEXTCLOUD_DATA_LOCATION) {
-          document.getElementById('volume_NEXTCLOUD_DATA_LOCATION').value = data.NEXTCLOUD_DATA_LOCATION;
-        }
       } catch (err) {
         console.error('Failed to load configurations:', err);
       }
