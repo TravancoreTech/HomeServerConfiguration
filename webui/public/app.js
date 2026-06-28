@@ -1031,17 +1031,16 @@
             const radStatic = document.querySelector('input[name="netplan_mode"][value="static"]');
             if (radStatic) {
               radStatic.checked = true;
-              toggleNetplanFields('static');
             }
           } else {
             // Check DHCP Radio
             const radDhcp = document.querySelector('input[name="netplan_mode"][value="dhcp"]');
             if (radDhcp) {
               radDhcp.checked = true;
-              toggleNetplanFields('dhcp');
             }
           }
         }
+        updateNetplanGuide();
       } catch (err) {
         console.error('Failed to load Netplan state:', err);
         // Populate the dropdown with an error state so the user knows it failed to load
@@ -1055,68 +1054,73 @@
       }
     }
 
-    function toggleNetplanFields(mode) {
-      const staticFields = document.getElementById('netplan-static-fields');
-      if (staticFields) {
-        staticFields.style.display = (mode === 'static') ? 'flex' : 'none';
+    function updateNetplanGuide() {
+      const modeRadio = document.querySelector('input[name="netplan_mode"]:checked');
+      const mode = modeRadio ? modeRadio.value : 'dhcp';
+      const ifaceSelect = document.getElementById('netplan_iface_select');
+      const iface = ifaceSelect ? ifaceSelect.value : 'eth0';
+
+      const staticInputs = document.getElementById('netplan-static-inputs-section');
+      if (staticInputs) {
+        staticInputs.style.display = (mode === 'static') ? 'flex' : 'none';
+      }
+
+      let yaml = '';
+      if (mode === 'dhcp') {
+        yaml = `network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ${iface}:
+      dhcp4: yes`;
+      } else {
+        let ip = (document.getElementById('netplan_ip_cidr')?.value || '').trim() || '192.168.1.100/24';
+        if (!ip.includes('/')) ip = ip + '/24';
+        const gw = (document.getElementById('netplan_gateway')?.value || '').trim() || '192.168.1.1';
+        const dns1 = (document.getElementById('netplan_dns1')?.value || '').trim() || '1.1.1.1';
+        const dns2 = (document.getElementById('netplan_dns2')?.value || '').trim();
+
+        yaml = `network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ${iface}:
+      dhcp4: no
+      addresses:
+        - ${ip}
+      routes:
+        - to: default
+          via: ${gw}
+      nameservers:
+        addresses:
+          - ${dns1}`;
+        if (dns2) {
+          yaml += `
+          - ${dns2}`;
+        }
+      }
+
+      const preview = document.getElementById('netplan-yaml-preview');
+      if (preview) {
+        preview.textContent = yaml;
       }
     }
 
-    function applyNetplanConfig() {
-      const radChecked = document.querySelector('input[name="netplan_mode"]:checked');
-      const mode = radChecked ? radChecked.value : 'dhcp';
-      const ifaceSelect = document.getElementById('netplan_iface_select');
-      const interface_name = ifaceSelect ? ifaceSelect.value : '';
-
-      // Check if the dropdown is empty or only has the placeholder "No interfaces found" option
-      if (!interface_name || (ifaceSelect && ifaceSelect.options.length === 1 && ifaceSelect.options[0].value === '')) {
-        alert('No network interfaces were detected. Please ensure the server has a network interface available and refresh the page.');
-        return;
-      }
-
-      let queryUrl = '';
-      if (mode === 'dhcp') {
-        queryUrl = `/api/run?action=netplan-dhcp&iface=${encodeURIComponent(interface_name)}`;
-      } else {
-        let ip_cidr = document.getElementById('netplan_ip_cidr').value.trim();
-        const gateway = document.getElementById('netplan_gateway').value.trim();
-        let dns1 = document.getElementById('netplan_dns1').value.trim();
-        let dns2 = document.getElementById('netplan_dns2').value.trim();
-
-        if (!dns1) dns1 = '1.1.1.1';
-        if (!dns2) dns2 = '8.8.8.8';
-
-        if (!ip_cidr || !gateway) {
-          alert('IP Address and Gateway are required for static IP configuration.');
-          return;
-        }
-
-        if (!ip_cidr.includes('/')) {
-          ip_cidr = ip_cidr + '/24';
-        }
-
-        queryUrl = `/api/run?action=netplan-static&iface=${encodeURIComponent(interface_name)}&ip=${encodeURIComponent(ip_cidr)}&gw=${encodeURIComponent(gateway)}&dns1=${encodeURIComponent(dns1)}&dns2=${encodeURIComponent(dns2)}`;
-      }
-
-      const confirmMsg = mode === 'static' 
-        ? "Warning: Applying a static IP can temporarily disconnect the server and close your session. You will need to access the WebUI using the new IP address if it changes. Proceed?"
-        : "Warning: Applying DHCP will reload interfaces. Proceed?";
+    function copyNetplanGuide() {
+      const yaml = document.getElementById('netplan-yaml-preview').textContent;
+      const commands = `sudo mkdir -p /etc/cloud/cloud.cfg.d
+echo "network: {config: disabled}" | sudo tee /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+cat << 'EOF' | sudo tee /etc/netplan/01-netcfg.yaml
+${yaml}
+EOF
+sudo netplan apply`;
       
-      if (!confirm(confirmMsg)) return;
-
-      const applyBtn = document.getElementById('netplan-apply-btn');
-      const loader = document.getElementById('netplan-loader');
-      const restartBtnContainer = document.getElementById('netplan-restart-container');
-
-      if (applyBtn) applyBtn.style.display = 'none';
-      if (loader) loader.style.display = 'flex';
-      if (restartBtnContainer) restartBtnContainer.style.display = 'none';
-
-      streamPaneConsole(queryUrl, 'sys-terminal-body', (success) => {
-        if (loader) loader.style.display = 'none';
-        if (restartBtnContainer) restartBtnContainer.style.display = 'block';
-        if (applyBtn) applyBtn.style.display = 'inline-block';
+      navigator.clipboard.writeText(commands).then(() => {
+        alert('Commands copied! You can paste directly into your terminal/SSH session.');
+      }).catch(() => {
+        alert('Failed to copy. Please manually select and copy text.');
       });
+    }
     // Local Terminal Helpers for independent pages
     function copyPaneConsole(id) {
       const text = document.getElementById(id).innerText;

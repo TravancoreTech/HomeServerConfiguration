@@ -1447,14 +1447,7 @@
 
           <!-- SYSTEM SUB-TAB: Network Configuration -->
           <div id="sys-tab-content-network" class="sys-tab-pane" style="display: none;">
-            <!-- Netplan not supported state -->
-            <div id="netplan-unsupported-banner" class="warning-banner" style="display: none; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); color: var(--warning-banner-text); margin-bottom: 1.5rem;">
-              <h3 style="color: var(--accent-red);">⚠️ Netplan Not Supported</h3>
-              <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.88rem;">
-                Netplan command utility is not installed or supported on this host. This feature is tailored for system deployments using Netplan (typically Ubuntu/Debian).
-              </p>
-            </div>
-
+            
             <!-- Current IP details card -->
             <div id="netplan-current-display" style="margin-bottom: 2rem; background: linear-gradient(135deg, rgba(99, 102, 241, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
               <h4 style="color: var(--accent-indigo); margin-bottom: 1.25rem; font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
@@ -1488,90 +1481,84 @@
               </div>
             </div>
 
-            <!-- Configuration Form -->
-            <div class="form-section" style="border: none; background: transparent; padding: 0; margin-bottom: 1.5rem;">
-              <div class="form-section-body" style="grid-template-columns: 1fr; gap: 1.25rem; padding: 0;">
-                <div class="form-group">
-                  <label>IP Configuration Mode</label>
-                  <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
-                    <label class="toggle-container" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                      <input type="radio" name="netplan_mode" value="dhcp" checked onchange="toggleNetplanFields('dhcp')" style="accent-color: var(--accent-indigo);">
-                      <span style="color: var(--text-primary); font-size: 0.9rem;">Dynamic IP (DHCP)</span>
-                    </label>
-                    <label class="toggle-container" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
-                      <input type="radio" name="netplan_mode" value="static" onchange="toggleNetplanFields('static')" style="accent-color: var(--accent-indigo);">
-                      <span style="color: var(--text-primary); font-size: 0.9rem;">Static IP Configuration</span>
-                    </label>
+            <!-- Restructured Form: Interface and parameters selection -->
+            <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 1.5rem; margin-bottom: 1rem;">
+              <!-- Parameter Inputs -->
+              <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <h4 style="color: var(--text-primary); font-size: 0.95rem; font-weight: 700; margin-bottom: 1.25rem;">Configure Targets</h4>
+                  
+                  <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label>IP Configuration Mode</label>
+                    <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+                      <label class="toggle-container" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="radio" name="netplan_mode" value="dhcp" checked onchange="updateNetplanGuide()" style="accent-color: var(--accent-indigo);">
+                        <span style="color: var(--text-primary); font-size: 0.9rem;">Dynamic IP (DHCP)</span>
+                      </label>
+                      <label class="toggle-container" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="radio" name="netplan_mode" value="static" onchange="updateNetplanGuide()" style="accent-color: var(--accent-indigo);">
+                        <span style="color: var(--text-primary); font-size: 0.9rem;">Static IP</span>
+                      </label>
+                    </div>
                   </div>
-                </div>
 
-                <div class="form-group">
-                  <label for="netplan_iface_select">Network Interface</label>
-                  <select id="netplan_iface_select" style="width: 100%; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); padding: 0.65rem; font-family: monospace;">
-                    <!-- Options populated dynamically -->
-                  </select>
-                </div>
-
-                <!-- No-interface error banner (hidden by default, shown by JS) -->
-                <div id="netplan-no-iface-banner" style="display: none; align-items: flex-start; gap: 0.75rem; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 10px; padding: 0.9rem 1rem; margin-top: -0.5rem;">
-                  <span style="font-size: 1.2rem;">⚠️</span>
-                  <div>
-                    <div style="color: #f87171; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem;">No network interfaces detected</div>
-                    <div style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 0.6rem;">The server could not detect any usable network interfaces. This can happen if the network service is still starting up.</div>
-                    <button class="btn btn-secondary" style="padding: 0.35rem 0.9rem; font-size: 0.8rem;" onclick="loadNetplanState()">🔄 Refresh</button>
+                  <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label for="netplan_iface_select">Network Interface</label>
+                    <select id="netplan_iface_select" onchange="updateNetplanGuide()" style="width: 100%; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-primary); padding: 0.65rem; font-family: monospace;">
+                      <!-- Options populated dynamically -->
+                    </select>
                   </div>
-                </div>
 
-                <div id="netplan-static-fields" style="display: none; flex-direction: column; gap: 1.25rem;">
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                  <div id="netplan-static-inputs-section" style="display: none; flex-direction: column; gap: 1rem;">
                     <div class="form-group">
                       <label for="netplan_ip_cidr">Static IP Address / Subnet</label>
-                      <input type="text" id="netplan_ip_cidr" placeholder="e.g. 192.168.1.100/24">
-                      <span class="form-tip">Must include CIDR prefix suffix (e.g. /24).</span>
+                      <input type="text" id="netplan_ip_cidr" placeholder="e.g. 192.168.1.100/24" oninput="updateNetplanGuide()">
                     </div>
                     <div class="form-group">
                       <label for="netplan_gateway">Gateway IP Address</label>
-                      <input type="text" id="netplan_gateway" placeholder="e.g. 192.168.1.1">
-                    </div>
-                  </div>
-
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div class="form-group">
-                      <label for="netplan_dns1">Primary DNS Nameserver</label>
-                      <input type="text" id="netplan_dns1" placeholder="e.g. 8.8.8.8">
+                      <input type="text" id="netplan_gateway" placeholder="e.g. 192.168.1.1" oninput="updateNetplanGuide()">
                     </div>
                     <div class="form-group">
-                      <label for="netplan_dns2">Secondary DNS Nameserver (Optional)</label>
-                      <input type="text" id="netplan_dns2" placeholder="e.g. 1.1.1.1">
+                      <label for="netplan_dns1">Primary DNS</label>
+                      <input type="text" id="netplan_dns1" placeholder="e.g. 1.1.1.1" oninput="updateNetplanGuide()">
+                    </div>
+                    <div class="form-group">
+                      <label for="netplan_dns2">Secondary DNS (Optional)</label>
+                      <input type="text" id="netplan_dns2" placeholder="e.g. 8.8.8.8" oninput="updateNetplanGuide()">
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <!-- Connectivity Warning Banner -->
-            <div class="warning-banner" style="background: rgba(245, 158, 11, 0.06); border-color: rgba(245, 158, 11, 0.2); color: var(--caution-banner-text); margin-bottom: 1.5rem;">
-              <h3 style="color: var(--caution-banner-h3);">⚠️ Warning: Potential Connectivity Loss</h3>
-              <p style="margin-top: 0.5rem; line-height: 1.6; font-size: 0.85rem;">
-                Applying network configurations will temporarily disconnect host connections. Verify static values are correct before executing.
-              </p>
-              <p style="margin-top: 0.35rem; line-height: 1.6; font-size: 0.82rem; color: #fbbf24; font-weight: 500;">
-                ℹ️ Note: Cloud-init network configurations will be automatically disabled to prevent system overrides upon reboot.
-              </p>
-            </div>
-
-            <div class="btn-actions-footer" style="display: flex; align-items: center; gap: 1rem;">
-              <button id="netplan-apply-btn" class="btn btn-primary" onclick="applyNetplanConfig()">Apply Network Configuration</button>
-              
-              <!-- Loader (hidden by default) -->
-              <div id="netplan-loader" style="display: none; align-items: center; gap: 0.6rem; color: var(--text-muted); font-size: 0.88rem;">
-                <div style="width: 18px; height: 18px; border: 2px solid transparent; border-top-color: var(--accent-indigo); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
-                <span>Applying configuration, please wait...</span>
+                <!-- Connectivity Warning Box -->
+                <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); color: var(--caution-banner-text); border-radius: 10px; padding: 0.85rem; margin-top: 1rem; font-size: 0.78rem; line-height: 1.5;">
+                  ⚠️ Applying a static IP configuration will change the host machine's IP address. Make sure you connect to the new IP address via SSH/Browser after applying.
+                </div>
               </div>
 
-              <!-- Restart Service Button (hidden by default) -->
-              <div id="netplan-restart-container" style="display: none;">
-                <button class="btn btn-secondary" onclick="restartNetworkWebui()" style="background: var(--accent-indigo); color: white; border: 1px solid var(--accent-indigo);">🔁 Restart network and WebUI service</button>
+              <!-- Code Snippet / Step-by-Step Terminal Guide -->
+              <div style="background: #080b13; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <h4 style="color: var(--accent-indigo); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">Configuration Guide</h4>
+                    <button class="badge-btn" onclick="copyNetplanGuide()" style="padding: 0.3rem 0.65rem; font-size: 0.75rem; border-radius: 6px;">📋 Copy Commands</button>
+                  </div>
+                  
+                  <div style="font-family: 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.6; color: #a5b4fc; overflow-y: auto; max-height: 400px; padding-right: 0.5rem;">
+                    <span style="color: #64748b;"># Paste this entire snippet in your SSH terminal:</span><br><br>
+                    
+                    <span style="color: #64748b;"># 1. Disable cloud-init network configuration (prevent overrides on boot)</span><br>
+                    <span style="color: #f43f5e;">sudo mkdir -p /etc/cloud/cloud.cfg.d</span><br>
+                    <span style="color: #f43f5e;">echo "network: {config: disabled}" | sudo tee /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg</span><br><br>
+                    
+                    <span style="color: #64748b;"># 2. Write configuration to Netplan YAML file</span><br>
+                    <span style="color: #38bdf8;">cat &lt;&lt; 'EOF' | sudo tee /etc/netplan/01-netcfg.yaml</span><br>
+                    <pre id="netplan-yaml-preview" style="background: rgba(255,255,255,0.02); padding: 0.75rem; border-radius: 8px; color: #facc15; border: 1px solid rgba(255,255,255,0.03); margin: 0.5rem 0; font-family: monospace; overflow-x: auto; font-size: 0.78rem; line-height: 1.4;"></pre>
+                    <span style="color: #38bdf8;">EOF</span><br><br>
+                    
+                    <span style="color: #64748b;"># 3. Apply changes</span><br>
+                    <span style="color: #f43f5e;">sudo netplan apply</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
