@@ -144,13 +144,16 @@ function handleGetRoute(req, res) {
 
     // On Linux: execute native commands to fetch host metrics
     const statsCmd = `
-      # 1. CPU Usage
-      CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\\([0-9.]*\\)%* id.*/\\1/" | awk '{print 100 - $1}')
+      # 1. CPU Usage (robust idle-extraction looping)
+      CPU_IDLE=$(top -bn1 | grep -i "cpu(s)" | awk -F',' '{for(i=1;i<=NF;i++){if($i ~ /id/){print $i}}}' | awk '{print $1}')
+      if [ -z "$CPU_IDLE" ]; then CPU_IDLE=100; fi
+      CPU_USAGE=$(awk -v idle="$CPU_IDLE" 'BEGIN {print 100 - idle}')
       if [ -z "$CPU_USAGE" ]; then CPU_USAGE=0; fi
 
-      # 2. Memory Usage (MB)
-      read MEM_TOTAL MEM_USED <<< $(free -m | awk 'NR==2{print $2, $3}')
-      if [ -z "$MEM_TOTAL" ]; then MEM_TOTAL=1; MEM_USED=0; fi
+      # 2. Memory Usage (MB) - POSIX-compliant assignment
+      MEM_TOTAL=$(free -m | awk 'NR==2{print $2}')
+      MEM_USED=$(free -m | awk 'NR==2{print $3}')
+      if [ -z "$MEM_TOTAL" ] || [ "$MEM_TOTAL" -eq 0 ]; then MEM_TOTAL=1; MEM_USED=0; fi
       MEM_PCT=$(awk -v total="$MEM_TOTAL" -v used="$MEM_USED" 'BEGIN {printf "%.1f", (used*100)/total}')
 
       # 3. CPU Temperature
@@ -192,7 +195,7 @@ function handleGetRoute(req, res) {
         const disks = [];
         if (!dfErr) {
           dfStdout.split('\n').forEach(line => {
-            const cols = line.trim().split(/\\s+/);
+            const cols = line.trim().split(/\s+/);
             if (cols.length >= 6 && cols[0].startsWith('/dev/')) {
               disks.push({
                 device: cols[0],
