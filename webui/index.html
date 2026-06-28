@@ -1659,22 +1659,21 @@
             </div>
           </div>
 
-          <!-- Common Execution Terminal Console for Network/Power/Maintenance actions -->
-          <div id="sys-terminal-container" style="display: none; margin-top: 2rem;">
-            <div class="terminal-header" id="sys-terminal-header">
-              <div class="terminal-dots">
-                <div class="terminal-dot red"></div>
-                <div class="terminal-dot yellow"></div>
-                <div class="terminal-dot green"></div>
+          <!-- Floating Execution Terminal Console -->
+          <div id="sys-terminal-container" style="display: none; position: fixed; bottom: 20px; right: 20px; width: 450px; height: 320px; min-width: 300px; min-height: 200px; background: #080b13; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); z-index: 9999; flex-direction: column; overflow: hidden; resize: both;">
+            <div class="terminal-header" id="sys-terminal-header" style="cursor: move; margin-top: 0; padding: 0.75rem 1rem; user-select: none; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.01);">
+              <div class="terminal-dots" style="margin-right: 0.5rem; display: flex; gap: 0.35rem;">
+                <div class="terminal-dot red" onclick="toggleSystemTerminal(false)" style="cursor: pointer;" title="Close"></div>
+                <div class="terminal-dot yellow" onclick="minimizeSystemTerminal()" style="cursor: pointer;" title="Minimize"></div>
+                <div class="terminal-dot green" onclick="maximizeSystemTerminal()" style="cursor: pointer;" title="Maximize"></div>
               </div>
-              <div style="font-family: var(--font-sans); font-weight: 600;">System Administrative Operations Terminal</div>
-              <div class="terminal-actions">
-                <span class="term-link" onclick="copyPaneConsole('sys-terminal-body')">Copy Logs</span>
-                <span class="term-link" onclick="clearPaneConsole('sys-terminal-body')">Clear</span>
-                <span class="term-link" onclick="toggleSystemTerminal(false)" style="color: #f87171; margin-left: 0.5rem; font-weight: bold;">✕ Hide</span>
+              <div style="font-family: var(--font-sans); font-size: 0.8rem; font-weight: 600; color: var(--text-primary); flex-grow: 1; text-align: center; margin-right: 2rem;">Operations Console</div>
+              <div class="terminal-actions" style="gap: 0.5rem;">
+                <span class="term-link" onclick="copyPaneConsole('sys-terminal-body')" style="font-size: 0.72rem;">Copy</span>
+                <span class="term-link" onclick="clearPaneConsole('sys-terminal-body')" style="font-size: 0.72rem;">Clear</span>
               </div>
             </div>
-            <div class="terminal-body" id="sys-terminal-body" style="min-height: 220px; max-height: 350px; color: #38bdf8;">Console is idle. Operations logs will output here.</div>
+            <div class="terminal-body" id="sys-terminal-body" style="flex-grow: 1; padding: 1rem; overflow-y: auto; font-family: monospace; font-size: 0.78rem; line-height: 1.4; color: #38bdf8; margin: 0; border: none; border-radius: 0; min-height: 0;">Console is idle. Operations logs will output here.</div>
           </div>
         </div>
       </section>

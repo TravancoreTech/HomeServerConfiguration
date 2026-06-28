@@ -2630,11 +2630,11 @@ curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfigurat
       if (forceShow !== undefined) {
         show = forceShow;
       } else {
-        show = (container.style.display === 'none');
+        show = (container.style.display === 'none' || container.style.display === '');
       }
 
       if (show) {
-        container.style.display = 'block';
+        container.style.display = 'flex';
         if (btn) {
           btn.style.background = 'rgba(56, 189, 248, 0.15)';
           btn.style.borderColor = '#38bdf8';
@@ -2649,3 +2649,100 @@ curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfigurat
         }
       }
     }
+
+    let isTermMinimized = false;
+    let originalHeight = '320px';
+    function minimizeSystemTerminal() {
+      const container = document.getElementById('sys-terminal-container');
+      const body = document.getElementById('sys-terminal-body');
+      if (!container || !body) return;
+      
+      if (!isTermMinimized) {
+        originalHeight = container.style.height || '320px';
+        container.style.height = '42px';
+        body.style.display = 'none';
+        container.style.resize = 'none';
+        isTermMinimized = true;
+      } else {
+        container.style.height = originalHeight;
+        body.style.display = 'block';
+        container.style.resize = 'both';
+        isTermMinimized = false;
+      }
+    }
+
+    let isTermMaximized = false;
+    let prevWidth = '450px', prevHeight = '320px', prevTop = '', prevLeft = '';
+    function maximizeSystemTerminal() {
+      const container = document.getElementById('sys-terminal-container');
+      if (!container) return;
+
+      if (!isTermMaximized) {
+        prevWidth = container.style.width || '450px';
+        prevHeight = container.style.height || '320px';
+        prevTop = container.style.top;
+        prevLeft = container.style.left;
+
+        container.style.width = '80vw';
+        container.style.height = '80vh';
+        container.style.top = '10vh';
+        container.style.left = '10vw';
+        container.style.bottom = 'auto';
+        container.style.right = 'auto';
+        isTermMaximized = true;
+      } else {
+        container.style.width = prevWidth;
+        container.style.height = prevHeight;
+        container.style.top = prevTop;
+        container.style.left = prevLeft;
+        isTermMaximized = false;
+      }
+    }
+
+    function makeElementDraggable(elmnt, header) {
+      let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+      if (header) {
+        header.onmousedown = dragMouseDown;
+      } else {
+        elmnt.onmousedown = dragMouseDown;
+      }
+
+      function dragMouseDown(e) {
+        if (e.target.classList.contains('terminal-dot') || e.target.classList.contains('term-link')) {
+          return;
+        }
+        e = e || window.event;
+        e.preventDefault();
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+      }
+
+      function elementDrag(e) {
+        e = e || window.event;
+        e.preventDefault();
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+        elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        elmnt.style.bottom = "auto";
+        elmnt.style.right = "auto";
+      }
+
+      function closeDragElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
+      }
+    }
+
+    // Initialize dragging
+    setTimeout(() => {
+      const termContainer = document.getElementById('sys-terminal-container');
+      const termHeader = document.getElementById('sys-terminal-header');
+      if (termContainer && termHeader) {
+        makeElementDraggable(termContainer, termHeader);
+      }
+    }, 100);
