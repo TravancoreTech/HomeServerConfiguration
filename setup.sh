@@ -3178,7 +3178,7 @@ if [ $# -gt 0 ]; then
     --host-reboot)
       echo -e "Rebooting host machine..."
       if [ "$(uname)" != "Darwin" ]; then
-        (sleep 2 && reboot) &
+        (sleep 2 && shutdown -r now) &
       else
         echo -e "[DEV MODE] Simulating host reboot..."
       fi
@@ -3187,7 +3187,7 @@ if [ $# -gt 0 ]; then
     --host-shutdown)
       echo -e "Shutting down host machine..."
       if [ "$(uname)" != "Darwin" ]; then
-        (sleep 2 && poweroff) &
+        (sleep 2 && shutdown -h now) &
       else
         echo -e "[DEV MODE] Simulating host shutdown..."
       fi
