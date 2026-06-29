@@ -1219,7 +1219,6 @@ print_successful_urls() {
   echo -e "  - Jellyfin:             http://${SERVER_IP}:8096"
   echo -e "  - Immich Photos:        http://${SERVER_IP}:2283"
   echo -e "  - File Browser:         http://${SERVER_IP}:8082"
-  echo -e "  - Samba Manager:        http://${SERVER_IP}:5000"
   echo -e "  - Uptime Kuma:          http://${SERVER_IP}:3001"
   echo -e "  - MeTube YT Downloader: http://${SERVER_IP}:8087"
   echo -e "  - Navidrome Music:      http://${SERVER_IP}:4533"
@@ -2098,7 +2097,6 @@ action_nuke_selected() {
     case "$service" in
       heimdall) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/heimdall" ;;
       homarr) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/homarr" ;;
-      samba-manager) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/samba-manager" ;;
       homepage) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/homepage" ;;
       jellyfin) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/jellyfin" ;;
       qbittorrent) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/qbittorrent" ;;

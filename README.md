@@ -80,17 +80,17 @@ This single command installs Node.js, downloads the suite, and starts the WebUI 
 **Option A — Short URL (quick)**
 
 ```bash
-curl -fsSL https://tinyurl.com/22qdg5nm | sudo bash
+curl -fsSL https://tinyurl.com/s5f94bc9 | sudo bash
 ```
 
 **Option B — Full GitHub URL (recommended if you want to verify the source)**
 
 ```bash
 # Inspect the script first (always good practice before piping to bash)
-curl -fsSL https://raw.githubusercontent.com/arunkarshan/HomeServerConfiguration/main/bootstrap.sh | less
+curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfiguration/main/bootstrap.sh | less
 
 # Then run it once you're satisfied
-curl -fsSL https://raw.githubusercontent.com/arunkarshan/HomeServerConfiguration/main/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfiguration/main/bootstrap.sh | sudo bash
 ```
 
 > Both URLs point to the exact same script. Option A redirects to Option B via TinyURL.
@@ -184,7 +184,6 @@ Go to **Deploy & Setup → Install (From scratch)**. Fill in your server IP, tim
 | Service | Container | Port | Description |
 |---|---|---|---|
 | [FileBrowser](https://filebrowser.org) | `storage_filebrowser` | `8082` | Web-based file manager for your media drives |
-| [Samba Manager](https://github.com/lyarinet/Samba-Manager) | `storage_samba_manager` | `5000` | Web GUI for managing Samba file shares |
 | [Kopia](https://kopia.io) | `storage_kopia` | `51515` | Fast, encrypted, deduplicated backup engine |
 | [Backrest](https://github.com/garethgeorge/backrest) | `storage_backrest` | `9898` | Web UI and scheduler for Restic backups |
 
@@ -398,7 +397,7 @@ To restore on a new machine: bootstrap ➔ git pull ➔ redeploy.
 
 ```bash
 # Full restore workflow
-curl -fsSL https://raw.githubusercontent.com/arunkarshan/HomeServerConfiguration/main/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfiguration/main/bootstrap.sh | sudo bash
 # Then in WebUI: Fetch Configs from Git -> Install (From scratch)
 ```
 

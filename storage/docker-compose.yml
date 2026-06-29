@@ -70,23 +70,6 @@ services:
       - default
       - homeserver_network
 
-  samba-manager:
-    container_name: storage_samba_manager
-    image: lyarinet/samba-manager:latest
-    restart: always
-    ports:
-      - "5000:5000"
-      - "139:139"
-      - "445:445"
-    volumes:
-      - ${SYSTEM_DATA_DIR:-../appdata}/samba-manager/config:/etc/samba
-      - ${SYSTEM_DATA_DIR:-../appdata}/samba-manager/logs:/var/log/samba
-      - /mnt/hdd:/shares/hdd
-      - /mnt/hdd6t:/shares/hdd6t
-    networks:
-      - default
-      - homeserver_network
-
 networks:
   homeserver_network:
     external: true
