@@ -2,8 +2,11 @@
 # ==============================================================================
 # HOMEPAGE CONFIGURATION AUTO-CONFIGURATOR
 # ==============================================================================
-# This script runs after a delay to extract API keys from running service
-# configurations (Radarr, Sonarr, etc.) and updates homepage's services.yaml.
+# Copies config files from the repo's appdata/homepage/ into wherever the
+# running Homepage container actually mounts its /app/config directory.
+# Detects the real mount path via `docker inspect` so it always lands in the
+# right place regardless of how SYSTEM_DATA_DIR is configured.
+# Also auto-extracts API keys from Radarr/Sonarr config.xml files.
 # ==============================================================================
 
 set -euo pipefail
@@ -15,83 +18,115 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Load environment variables from .env to get SYSTEM_DATA_DIR
-SYSTEM_DATA_DIR=""
-if [ -f ".env" ]; then
-  # Safely parse SYSTEM_DATA_DIR
-  SYSTEM_DATA_DIR=$(grep '^SYSTEM_DATA_DIR=' .env | cut -d= -f2- | sed 's/^"//;s/"$//' || true)
+# ------------------------------------------------------------------------------
+# 1. Determine target directory
+#    Primary:  docker inspect the running container to find the real bind-mount
+#    Fallback: SYSTEM_DATA_DIR from .env → ./appdata
+# ------------------------------------------------------------------------------
+TARGET_DIR=""
+
+# Try to get the actual mount source from a running container
+if command -v docker &>/dev/null; then
+  CONTAINER_NAMES=("dashboard_homepage" "homepage")
+  for cname in "${CONTAINER_NAMES[@]}"; do
+    if docker inspect "$cname" &>/dev/null 2>&1; then
+      DETECTED=$(docker inspect "$cname" \
+        --format '{{range .Mounts}}{{if eq .Destination "/app/config"}}{{.Source}}{{end}}{{end}}' \
+        2>/dev/null || true)
+      if [ -n "$DETECTED" ]; then
+        TARGET_DIR="$DETECTED"
+        echo -e "${GREEN}✔ Detected Homepage config mount: $TARGET_DIR${NC}"
+        break
+      fi
+    fi
+  done
 fi
 
-TARGET_DIR="${SYSTEM_DATA_DIR:-./appdata}/homepage"
-echo -e "${BLUE}Target directory for Homepage: $TARGET_DIR${NC}"
+# Fallback: derive from SYSTEM_DATA_DIR in .env
+if [ -z "$TARGET_DIR" ]; then
+  SYSTEM_DATA_DIR=""
+  if [ -f ".env" ]; then
+    SYSTEM_DATA_DIR=$(grep '^SYSTEM_DATA_DIR=' .env | cut -d= -f2- | sed 's/^"//;s/"$//' || true)
+  fi
+  TARGET_DIR="${SYSTEM_DATA_DIR:-./appdata}/homepage"
+  echo -e "${YELLOW}Container not running or not found. Using fallback path: $TARGET_DIR${NC}"
+fi
 
-# Pre-create folder
+echo -e "${BLUE}Syncing Homepage config files to: $TARGET_DIR${NC}"
 mkdir -p "$TARGET_DIR"
 
-# Always sync services.yaml to target directory to ensure it has the latest service listing
-if [ -f "appdata/homepage/services.yaml" ]; then
-  cp "appdata/homepage/services.yaml" "$TARGET_DIR/services.yaml"
-else
-  echo -e "${RED}Error: Template services.yaml not found at appdata/homepage/services.yaml${NC}"
+# ------------------------------------------------------------------------------
+# 2. Copy config files from repo → target directory
+#    services.yaml is always overwritten (it's the source of truth).
+#    Other files are backed up first to preserve any manual edits.
+# ------------------------------------------------------------------------------
+SOURCE_DIR="appdata/homepage"
+
+if [ ! -f "$SOURCE_DIR/services.yaml" ]; then
+  echo -e "${RED}Error: Source file not found at $SOURCE_DIR/services.yaml${NC}"
+  echo -e "${RED}Make sure you are running this script from the repo root directory.${NC}"
   exit 1
 fi
 
-# Copy other configuration templates, creating backups if they exist to protect user edits
+# Always overwrite services.yaml — it is the canonical service list
+cp "$SOURCE_DIR/services.yaml" "$TARGET_DIR/services.yaml"
+echo -e "${GREEN}✔ services.yaml synced${NC}"
+
+# Back up and overwrite remaining config files
 for file in bookmarks.yaml settings.yaml widgets.yaml docker.yaml; do
-  if [ -f "appdata/homepage/$file" ]; then
+  if [ -f "$SOURCE_DIR/$file" ]; then
     if [ -f "$TARGET_DIR/$file" ]; then
       cp "$TARGET_DIR/$file" "$TARGET_DIR/${file}.user.bak" || true
     fi
-    echo "Syncing template $file to $TARGET_DIR..."
-    cp "appdata/homepage/$file" "$TARGET_DIR/$file"
+    cp "$SOURCE_DIR/$file" "$TARGET_DIR/$file"
+    echo -e "${GREEN}✔ $file synced${NC}"
   fi
 done
 
 SERVICES_YAML="$TARGET_DIR/services.yaml"
-echo -e "${BLUE}Configuring Homepage services.yaml at $SERVICES_YAML...${NC}"
 
-# 1. Parse Radarr API Key
-# Radarr stores config in appdata/radarr/config.xml or appdata/Radarr/config.xml
-# Checking both lowercase and uppercase paths
+# ------------------------------------------------------------------------------
+# 3. Auto-inject Radarr API key
+# ------------------------------------------------------------------------------
 RADARR_CONFIG=""
-if [ -f "appdata/radarr/config.xml" ]; then
-  RADARR_CONFIG="appdata/radarr/config.xml"
-elif [ -f "appdata/Radarr/config.xml" ]; then
-  RADARR_CONFIG="appdata/Radarr/config.xml"
-fi
+for path in "appdata/radarr/config.xml" "appdata/Radarr/config.xml"; do
+  [ -f "$path" ] && RADARR_CONFIG="$path" && break
+done
 
 if [ -n "$RADARR_CONFIG" ]; then
   RADARR_KEY=$(sed -n 's|.*<ApiKey>\(.*\)</ApiKey>.*|\1|p' "$RADARR_CONFIG" 2>/dev/null || true)
   if [ -n "$RADARR_KEY" ]; then
     echo -e "Found Radarr API Key: ${GREEN}${RADARR_KEY:0:4}...${NC}"
-    # Replace key in services.yaml
-    sed -i.bak "s|key: YOUR_RADARR_API_KEY|key: $RADARR_KEY|g" "$SERVICES_YAML" || sed -i "" "s|key: YOUR_RADARR_API_KEY|key: $RADARR_KEY|g" "$SERVICES_YAML"
+    sed -i.bak "s|key: YOUR_RADARR_API_KEY|key: $RADARR_KEY|g" "$SERVICES_YAML" \
+      || sed -i "" "s|key: YOUR_RADARR_API_KEY|key: $RADARR_KEY|g" "$SERVICES_YAML"
   fi
 fi
 
-# 2. Parse Sonarr API Key
+# ------------------------------------------------------------------------------
+# 4. Auto-inject Sonarr API key
+# ------------------------------------------------------------------------------
 SONARR_CONFIG=""
-if [ -f "appdata/sonarr/config.xml" ]; then
-  SONARR_CONFIG="appdata/sonarr/config.xml"
-elif [ -f "appdata/Sonarr/config.xml" ]; then
-  SONARR_CONFIG="appdata/Sonarr/config.xml"
-fi
+for path in "appdata/sonarr/config.xml" "appdata/Sonarr/config.xml"; do
+  [ -f "$path" ] && SONARR_CONFIG="$path" && break
+done
 
 if [ -n "$SONARR_CONFIG" ]; then
   SONARR_KEY=$(sed -n 's|.*<ApiKey>\(.*\)</ApiKey>.*|\1|p' "$SONARR_CONFIG" 2>/dev/null || true)
   if [ -n "$SONARR_KEY" ]; then
     echo -e "Found Sonarr API Key: ${GREEN}${SONARR_KEY:0:4}...${NC}"
-    # Replace key in services.yaml
-    sed -i.bak "s|key: YOUR_SONARR_API_KEY|key: $SONARR_KEY|g" "$SERVICES_YAML" || sed -i "" "s|key: YOUR_SONARR_API_KEY|key: $SONARR_KEY|g" "$SERVICES_YAML"
+    sed -i.bak "s|key: YOUR_SONARR_API_KEY|key: $SONARR_KEY|g" "$SERVICES_YAML" \
+      || sed -i "" "s|key: YOUR_SONARR_API_KEY|key: $SONARR_KEY|g" "$SERVICES_YAML"
   fi
 fi
 
-# Clean up any backup files created by sed
+# Clean up sed backup files
 rm -f "${SERVICES_YAML}.bak" 2>/dev/null || true
 
-# Restore file ownership to the original sudo user
+# ------------------------------------------------------------------------------
+# 5. Restore file ownership to the invoking sudo user
+# ------------------------------------------------------------------------------
 if [ -n "${SUDO_USER:-}" ]; then
-  chown "${SUDO_UID}:${SUDO_GID}" "$SERVICES_YAML" 2>/dev/null || true
+  chown "${SUDO_UID}:${SUDO_GID}" "$TARGET_DIR"/*.yaml 2>/dev/null || true
 fi
 
-echo -e "${GREEN}✔ Homepage configuration updated successfully!${NC}"
+echo -e "${GREEN}✔ Homepage configuration synced successfully to $TARGET_DIR${NC}"
