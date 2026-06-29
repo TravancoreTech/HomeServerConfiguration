@@ -80,7 +80,7 @@ This single command installs Node.js, downloads the suite, and starts the WebUI 
 **Option A — Short URL (quick)**
 
 ```bash
-curl -fsSL https://tinyurl.com/s5f94bc9 | sudo bash
+curl -fsSL https://tinyurl.com/2aj7eauh | sudo bash
 ```
 
 **Option B — Full GitHub URL (recommended if you want to verify the source)**

@@ -1547,15 +1547,21 @@ install_cockpit_samba_gui() {
   echo -e "Adding 45Drives package repository for File Sharing plugin..."
   if command -v apt-get &>/dev/null; then
     # For Debian/Ubuntu
-    curl -sSL https://repo.45drives.com/setup | bash
-    apt-get update
-    apt-get install -y cockpit-file-sharing
-    echo -e "${GREEN}✔ 45Drives Cockpit File Sharing plugin installed successfully!${NC}"
+    if setup_45drives_repo; then
+      apt-get update
+      apt-get install -y cockpit-file-sharing
+      echo -e "${GREEN}✔ 45Drives Cockpit File Sharing plugin installed successfully!${NC}"
+    else
+      echo -e "${RED}Error: Failed to configure 45Drives repository.${NC}"
+    fi
   elif [ -d /etc/yum.repos.d/ ] || command -v dnf &>/dev/null; then
     # For CentOS/RHEL/Fedora
-    curl -sSL https://repo.45drives.com/setup | bash
-    dnf install -y cockpit-file-sharing || yum install -y cockpit-file-sharing
-    echo -e "${GREEN}✔ 45Drives Cockpit File Sharing plugin installed successfully!${NC}"
+    if setup_45drives_repo; then
+      dnf install -y cockpit-file-sharing || yum install -y cockpit-file-sharing
+      echo -e "${GREEN}✔ 45Drives Cockpit File Sharing plugin installed successfully!${NC}"
+    else
+      echo -e "${RED}Error: Failed to configure 45Drives repository.${NC}"
+    fi
   else
     echo -e "${YELLOW}Warning: Automatic repository setup not supported for this distro.${NC}"
     echo -e "Please install the cockpit-file-sharing plugin manually from: https://github.com/45Drives/cockpit-file-sharing"
@@ -2517,6 +2523,55 @@ except Exception as e:
 }
 
 # ------------------------------------------------------------------------------
+# Helper to cleanly configure the 45Drives repository without breaking on unsupported distros like noble (Ubuntu 24.04)
+setup_45drives_repo() {
+  # Clean up any malformed files that might block apt updates
+  rm -f /etc/apt/sources.list.d/45drives-enterprise-*.list || true
+  rm -f /etc/apt/sources.list.d/45drives.list || true
+  rm -f /etc/apt/sources.list.d/45drives.sources || true
+
+  if command -v apt-get &>/dev/null; then
+    echo -e "Detecting Debian/Ubuntu version for 45Drives repository..."
+    local distro="ubuntu"
+    if grep -q '^ID=debian' /etc/os-release; then
+      distro="debian"
+    fi
+
+    local codename="jammy"
+    if grep -q '^VERSION_CODENAME=' /etc/os-release; then
+      codename=$(grep '^VERSION_CODENAME=' /etc/os-release | cut -d= -f2 | tr -d '"')
+    fi
+
+    echo -e "Detected distribution: ${distro}, codename: ${codename}"
+
+    # Verify and set fallback codename for unsupported releases
+    local target_codename="$codename"
+    if [ "$distro" = "ubuntu" ]; then
+      if [ "$codename" != "focal" ] && [ "$codename" != "jammy" ]; then
+        echo -e "${YELLOW}Warning: Ubuntu ${codename} is not officially supported by 45Drives. Falling back to jammy packages (fully compatible).${NC}"
+        target_codename="jammy"
+      fi
+    elif [ "$distro" = "debian" ]; then
+      if [ "$codename" != "bookworm" ] && [ "$codename" != "bullseye" ]; then
+        echo -e "${YELLOW}Warning: Debian ${codename} is not officially supported by 45Drives. Falling back to bookworm packages (fully compatible).${NC}"
+        target_codename="bookworm"
+      fi
+    fi
+
+    # Set up keys and source list manually to guarantee correctness
+    echo -e "Configuring GPG keyring for 45Drives..."
+    mkdir -p /usr/share/keyrings
+    curl -sSL https://repo.45drives.com/key/gpg.asc | gpg --dearmor --yes -o /usr/share/keyrings/45drives-archive-keyring.gpg || true
+
+    echo -e "Writing 45Drives source list for ${distro} (${target_codename})..."
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/45drives-archive-keyring.gpg] https://repo.45drives.com/enterprise/${distro} ${target_codename} main" > /etc/apt/sources.list.d/45drives-enterprise.list
+    return 0
+  else
+    # Fallback to standard installer on RHEL/Yum based systems
+    curl -sSL https://repo.45drives.com/setup | bash
+  fi
+}
+
 # PORTAL ACTION 20.5: COCKPIT WEB CONSOLE
 # ------------------------------------------------------------------------------
 action_install_cockpit() {
@@ -2545,7 +2600,7 @@ action_install_cockpit() {
 
   # 2. Add 45Drives repository
   echo -e "${BLUE}Configuring 45Drives repository...${NC}"
-  if curl -sSL https://repo.45drives.com/setup | bash; then
+  if setup_45drives_repo; then
     echo -e "${GREEN}✔ 45Drives repository configured.${NC}"
     apt-get update -qq || true
     
