@@ -756,10 +756,10 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing media directory: ${MEDIA_DIR}${NC}"
   else
     if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      MEDIA_DIR="./data/media"
+      MEDIA_DIR="/mnt/hdd6t/media"
     else
-      read -rp "Enter Media directory (HDD/mass storage) [default: ./data/media]: " USER_MEDIA_DIR
-      MEDIA_DIR="${USER_MEDIA_DIR:-./data/media}"
+      read -rp "Enter Media directory (HDD/mass storage) [default: /mnt/hdd6t/media]: " USER_MEDIA_DIR
+      MEDIA_DIR="${USER_MEDIA_DIR:-/mnt/hdd6t/media}"
     fi
   fi
 
@@ -768,10 +768,10 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing Immich photos directory: ${UPLOAD_LOCATION}${NC}"
   else
     if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      UPLOAD_LOCATION="./data/immich/photos"
+      UPLOAD_LOCATION="/mnt/hdd/immich/photos"
     else
-      read -rp "Enter Immich photos directory (HDD/mass storage) [default: ./data/immich/photos]: " USER_UPLOAD
-      UPLOAD_LOCATION="${USER_UPLOAD:-./data/immich/photos}"
+      read -rp "Enter Immich photos directory (HDD/mass storage) [default: /mnt/hdd/immich/photos]: " USER_UPLOAD
+      UPLOAD_LOCATION="${USER_UPLOAD:-/mnt/hdd/immich/photos}"
     fi
   fi
 
@@ -780,10 +780,10 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing Immich photo backup path: ${PHOTO_BACKUP_LOCATION}${NC}"
   else
     if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      PHOTO_BACKUP_LOCATION="./data/PhotoBackup"
+      PHOTO_BACKUP_LOCATION="/mnt/hdd/PhotoBackup"
     else
-      read -rp "Enter Immich photo backup path (HDD/mass storage) [default: ./data/PhotoBackup]: " USER_PHOTO_BACKUP
-      PHOTO_BACKUP_LOCATION="${USER_PHOTO_BACKUP:-./data/PhotoBackup}"
+      read -rp "Enter Immich photo backup path (HDD/mass storage) [default: /mnt/hdd/PhotoBackup]: " USER_PHOTO_BACKUP
+      PHOTO_BACKUP_LOCATION="${USER_PHOTO_BACKUP:-/mnt/hdd/PhotoBackup}"
     fi
   fi
 
@@ -920,6 +920,14 @@ prompt_and_generate_configs() {
     fi
   fi
 
+  # Homarr Secret Prompt
+  if [ -n "${HOMARR_SECRET_KEY:-}" ]; then
+    echo -e "${GREEN}✔ Reusing existing secret key for Homarr.${NC}"
+    HOMARR_SECRET="$HOMARR_SECRET_KEY"
+  else
+    HOMARR_SECRET=$(openssl rand -hex 32 2>/dev/null || echo "homarr_secret_123_random_chars_64_characters_long_for_security_key")
+  fi
+
   # GitHub repo prompt
   if [ -n "${GITHUB_REPO:-}" ] && [ "$GITHUB_REPO" != "username/repo-name" ]; then
     echo -e "${GREEN}✔ Reusing existing GitHub repository: ${GITHUB_REPO}${NC}"
@@ -1026,6 +1034,9 @@ POSTGRES_PASSWORD=${NEXTCLOUD_DB_PASS}
 PAPERLESS_PORT=${PAPERLESS_PORT}
 PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET}
 PAPERLESS_TIME_ZONE=${PAPERLESS_TIME_ZONE}
+
+# Homarr Configuration
+HOMARR_SECRET_KEY=${HOMARR_SECRET}
 
 # Kopia Configuration
 KOPIA_ADMIN_PASSWORD=${KOPIA_ADMIN_PASS}
@@ -1202,11 +1213,13 @@ print_successful_urls() {
   echo -e "\n${GREEN}======================================================================${NC}"
   echo -e "${GREEN}✔ Active services are accessible at the URLs below:${NC}"
   echo -e "  - Homepage Dashboard:   http://${SERVER_IP}"
+  echo -e "  - Homarr Dashboard:     http://${SERVER_IP}:7575"
   echo -e "  - Heimdall Dashboard:   http://${SERVER_IP}:8081"
   echo -e "  - Nextcloud:            http://${SERVER_IP}:8080"
   echo -e "  - Jellyfin:             http://${SERVER_IP}:8096"
   echo -e "  - Immich Photos:        http://${SERVER_IP}:2283"
   echo -e "  - File Browser:         http://${SERVER_IP}:8082"
+  echo -e "  - Samba Manager:        http://${SERVER_IP}:5000"
   echo -e "  - Uptime Kuma:          http://${SERVER_IP}:3001"
   echo -e "  - MeTube YT Downloader: http://${SERVER_IP}:8087"
   echo -e "  - Navidrome Music:      http://${SERVER_IP}:4533"
@@ -2084,6 +2097,8 @@ action_nuke_selected() {
   for service in "${selected_services[@]}"; do
     case "$service" in
       heimdall) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/heimdall" ;;
+      homarr) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/homarr" ;;
+      samba-manager) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/samba-manager" ;;
       homepage) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/homepage" ;;
       jellyfin) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/jellyfin" ;;
       qbittorrent) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/qbittorrent" ;;
@@ -2501,6 +2516,118 @@ except Exception as e:
   echo -e "Restarting Samba daemon..."
   systemctl restart smbd || service smbd restart || rc-service smbd restart || true
   echo -e "${GREEN}✔ Share '$name' removed successfully!${NC}"
+}
+
+# ------------------------------------------------------------------------------
+# PORTAL ACTION 20.5: COCKPIT WEB CONSOLE
+# ------------------------------------------------------------------------------
+action_install_cockpit() {
+  echo -e "\n${BLUE}=== Installing and Configuring Cockpit Console & Plugins ===${NC}"
+  
+  if [ "$(uname)" = "Darwin" ]; then
+    echo -e "${YELLOW}[DEV MODE] Simulating Cockpit core and plugins installation...${NC}"
+    echo -e "${GREEN}✔ [DEV MODE] Cockpit installed successfully.${NC}"
+    return 0
+  fi
+
+  if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}Error: Cockpit installation must be run as root (or with sudo).${NC}"
+    return 1
+  fi
+
+  # 1. Update apt and install cockpit and cockpit-podman
+  echo -e "${BLUE}Installing Cockpit, Podman plugin, and Samba dependencies...${NC}"
+  apt-get update -qq || true
+  if apt-get install -y cockpit cockpit-podman samba; then
+    echo -e "${GREEN}✔ Core Cockpit, Podman plugin, and Samba installed successfully.${NC}"
+  else
+    echo -e "${RED}Error: Failed to install Core Cockpit.${NC}"
+    return 1
+  fi
+
+  # 2. Add 45Drives repository
+  echo -e "${BLUE}Configuring 45Drives repository...${NC}"
+  if curl -sSL https://repo.45drives.com/setup | bash; then
+    echo -e "${GREEN}✔ 45Drives repository configured.${NC}"
+    apt-get update -qq || true
+    
+    # 3. Install 45Drives Cockpit plugins
+    echo -e "${BLUE}Installing cockpit-file-sharing, cockpit-navigator, and cockpit-identities...${NC}"
+    if apt-get install -y cockpit-file-sharing cockpit-navigator cockpit-identities; then
+      echo -e "${GREEN}✔ 45Drives Cockpit plugins installed successfully.${NC}"
+    else
+      echo -e "${YELLOW}Warning: Failed to install 45Drives plugins via repository.${NC}"
+    fi
+  else
+    echo -e "${RED}Error: Failed to configure 45Drives repository. Skipping 45Drives plugins.${NC}"
+  fi
+
+  # 4. Enable and start Cockpit socket
+  echo -e "${BLUE}Enabling and starting Cockpit systemd socket...${NC}"
+  systemctl daemon-reload
+  systemctl enable --now cockpit.socket
+  
+  # Check if Cockpit is active
+  if systemctl is-active --quiet cockpit.socket; then
+    local SERVER_IP="${SERVER_IP:-$(hostname -I | awk '{print $1}')}"
+    echo -e "\n${GREEN}✔ Cockpit is live and running!${NC}"
+    echo -e "  Access the web console at: ${YELLOW}https://${SERVER_IP}:9090${NC}"
+  else
+    echo -e "${RED}Error: Cockpit socket failed to start.${NC}"
+  fi
+}
+
+action_cockpit_info() {
+  local installed="false"
+  local active="false"
+  local has_podman="false"
+  local has_file_sharing="false"
+  local has_identities="false"
+  local has_navigator="false"
+
+  if [ "$(uname)" = "Darwin" ]; then
+    # Dev mode mock
+    installed="true"
+    active="true"
+    has_podman="true"
+    has_file_sharing="true"
+    has_identities="true"
+    has_navigator="true"
+  else
+    if command -v cockpit-bridge &>/dev/null || [ -d /usr/share/cockpit ]; then
+      installed="true"
+    fi
+    if systemctl is-active --quiet cockpit.socket 2>/dev/null || systemctl is-active --quiet cockpit 2>/dev/null; then
+      active="true"
+    fi
+    
+    # Check plugins
+    if [ -d /usr/share/cockpit/podman ]; then
+      has_podman="true"
+    fi
+    if [ -d /usr/share/cockpit/file-sharing ]; then
+      has_file_sharing="true"
+    fi
+    if [ -d /usr/share/cockpit/identities ]; then
+      has_identities="true"
+    fi
+    if [ -d /usr/share/cockpit/navigator ]; then
+      has_navigator="true"
+    fi
+  fi
+
+  cat << EOF
+{
+  "installed": $installed,
+  "active": $active,
+  "plugins": {
+    "podman": $has_podman,
+    "file_sharing": $has_file_sharing,
+    "identities": $has_identities,
+    "navigator": $has_navigator
+  }
+}
+EOF
 }
 
 # ------------------------------------------------------------------------------
@@ -3001,9 +3128,10 @@ main_menu() {
     echo -e " 12) Run system updates and maintenance (OS upgrade & reboot check)"
     echo -e " 13) Show container status and disk usage (System Vitals)"
     echo -e " 14) Backup server configurations (.env and app configs)"
+    echo -e " 15) Install/Configure Cockpit Management Console"
     echo -e "  0) Exit"
     echo -e "${BLUE}======================================================================${NC}"
-    read -rp "Please enter your choice (0-14): " MENU_CHOICE
+    read -rp "Please enter your choice (0-15): " MENU_CHOICE
 
     case "$MENU_CHOICE" in
       1) action_sync_latest ;;
@@ -3020,6 +3148,7 @@ main_menu() {
       12) action_system_maintenance ;;
       13) action_show_status ;;
       14) action_backup_configs ;;
+      15) action_install_cockpit ;;
       0) echo -e "${GREEN}Exiting management portal. Goodbye!${NC}"; exit 0 ;;
       *) echo -e "${RED}Invalid option. Please try again.${NC}" ;;
     esac
@@ -3109,6 +3238,12 @@ if [ $# -gt 0 ]; then
       ;;
     --install-samba)
       action_install_samba
+      ;;
+    --install-cockpit)
+      action_install_cockpit
+      ;;
+    --cockpit-info)
+      action_cockpit_info
       ;;
     --sys-maintenance)
       action_system_maintenance

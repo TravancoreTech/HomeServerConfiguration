@@ -67,7 +67,8 @@ services:
       - "21027:21027/udp"
     volumes:
       - ${SYSTEM_DATA_DIR:-../appdata}/syncthing:/config
-      - ${MEDIA_DIR:-../data}:/data
+      - /mnt/hdd:/mnt/hdd
+      - /mnt/hdd6t:/mnt/hdd6t
 
   pairdrop:
     container_name: utility_pairdrop

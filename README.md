@@ -184,6 +184,7 @@ Go to **Deploy & Setup → Install (From scratch)**. Fill in your server IP, tim
 | Service | Container | Port | Description |
 |---|---|---|---|
 | [FileBrowser](https://filebrowser.org) | `storage_filebrowser` | `8082` | Web-based file manager for your media drives |
+| [Samba Manager](https://github.com/lyarinet/Samba-Manager) | `storage_samba_manager` | `5000` | Web GUI for managing Samba file shares |
 | [Kopia](https://kopia.io) | `storage_kopia` | `51515` | Fast, encrypted, deduplicated backup engine |
 | [Backrest](https://github.com/garethgeorge/backrest) | `storage_backrest` | `9898` | Web UI and scheduler for Restic backups |
 
@@ -215,6 +216,7 @@ Go to **Deploy & Setup → Install (From scratch)**. Fill in your server IP, tim
 | Service | Container | Port | Description |
 |---|---|---|---|
 | [Homepage](https://gethomepage.dev) | `dashboard_homepage` | `80` | Live metrics dashboard (bound to root port) |
+| [Homarr](https://homarr.dev) | `dashboard_homarr` | `7575` | Modern server landing dashboard portal |
 | [Heimdall](https://heimdall.site) | `dashboard_heimdall` | `8081` | Visual app launcher portal |
 
 > Homepage reads live container metrics via the Docker socket and is configured via `appdata/homepage/`.

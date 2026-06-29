@@ -16,7 +16,8 @@ services:
       - "8082:80"
     volumes:
       - ${SYSTEM_DATA_DIR:-../appdata}/filebrowser/filebrowser.db:/database.db
-      - ${MEDIA_DIR:-../data}:/srv/local  # Local media files library
+      - /mnt/hdd:/srv/local/hdd
+      - /mnt/hdd6t:/srv/local/hdd6t
     networks:
       - default
       - homeserver_network
@@ -65,6 +66,23 @@ services:
       - ${SYSTEM_DATA_DIR:-../appdata}/backrest/tmp:/tmp
       - /mnt:/mnt
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+      - homeserver_network
+
+  samba-manager:
+    container_name: storage_samba_manager
+    image: lyarinet/samba-manager:latest
+    restart: always
+    ports:
+      - "5000:5000"
+      - "139:139"
+      - "445:445"
+    volumes:
+      - ${SYSTEM_DATA_DIR:-../appdata}/samba-manager/config:/etc/samba
+      - ${SYSTEM_DATA_DIR:-../appdata}/samba-manager/logs:/var/log/samba
+      - /mnt/hdd:/shares/hdd
+      - /mnt/hdd6t:/shares/hdd6t
     networks:
       - default
       - homeserver_network

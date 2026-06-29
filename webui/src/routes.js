@@ -119,6 +119,13 @@ function handleGetRoute(req, res) {
     return;
   }
 
+  // API Route: Get Cockpit Details
+  if (pathname === '/api/cockpit') {
+    const child = spawnSetup(['--cockpit-info'], { cwd: path.join(__dirname, '../..') });
+    pipeProcessOutput(child, res);
+    return;
+  }
+
   // API Route: Start, Stop, or Restart Docker Containers
   if (pathname === '/api/container-action') {
     if (isMac) {
@@ -399,6 +406,7 @@ function handleGetRoute(req, res) {
       case 'backup': args = ['--backup']; break;
       case 'tailscale': args = ['--tailscale']; break;
       case 'samba': args = ['--install-samba']; break;
+      case 'cockpit': args = ['--install-cockpit']; break;
       case 'maintenance': args = ['--sys-maintenance']; break;
       case 'install-docker': args = ['--install-docker']; break;
       case 'sync': args = ['--sync']; break;

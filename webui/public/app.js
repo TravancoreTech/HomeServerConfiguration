@@ -75,6 +75,7 @@
           'system': 'System Administration',
           'tailscale': 'Tailscale VPN',
           'samba': 'Samba Shares',
+          'cockpit': 'Cockpit Web Console',
           'app-config': 'App Configuration',
           'guide': 'Suite Reference Guide',
           'usage': 'App Setup & Usage',
@@ -127,6 +128,11 @@
       // Load Samba State if needed
       if (paneId === 'samba') {
         loadSambaState();
+      }
+
+      // Load Cockpit State if needed
+      if (paneId === 'cockpit') {
+        loadCockpitState();
       }
 
       // Load Netplan State if needed
@@ -1022,6 +1028,52 @@
     function installSamba() {
       triggerJourney('dashboard');
       initConsoleLogs('Installing Samba Share Service', '/api/run?action=samba');
+    }
+
+    async function loadCockpitState() {
+      const statusText = document.getElementById('cockpit-status-text');
+      const installBtn = document.getElementById('btn-install-cockpit');
+      if (!statusText) return;
+
+      try {
+        statusText.innerHTML = '<span style="color: var(--text-muted);">Querying server for Cockpit status...</span>';
+        const res = await fetch('/api/cockpit');
+        const data = await res.json();
+
+        if (data.installed) {
+          let pluginList = [];
+          if (data.plugins) {
+            if (data.plugins.podman === true || data.plugins.podman === "true") pluginList.push('Podman');
+            if (data.plugins.file_sharing === true || data.plugins.file_sharing === "true") pluginList.push('File Sharing');
+            if (data.plugins.identities === true || data.plugins.identities === "true") pluginList.push('Identities');
+            if (data.plugins.navigator === true || data.plugins.navigator === "true") pluginList.push('Navigator');
+          }
+          
+          let statusHtml = `🟢 <strong>Cockpit is installed</strong><br>`;
+          statusHtml += `Socket Status: ${data.active ? '<span style="color: var(--accent-green);">Active / Running</span>' : '<span style="color: var(--accent-red);">Inactive</span>'}<br>`;
+          if (pluginList.length > 0) {
+            statusHtml += `Installed Plugins: <span style="color: var(--text-highlight);">${pluginList.join(', ')}</span>`;
+          } else {
+            statusHtml += `Installed Plugins: <span style="color: var(--text-muted);">None</span>`;
+          }
+          statusText.innerHTML = statusHtml;
+          if (installBtn) {
+            installBtn.textContent = 'Reinstall / Update Cockpit';
+          }
+        } else {
+          statusText.innerHTML = '🔴 <strong>Cockpit is not installed</strong> on the host server. Click the button below to install Cockpit, Podman plugin, and the 45Drives suite (File Sharing, Navigator, Identities).';
+          if (installBtn) {
+            installBtn.textContent = 'Install & Configure Cockpit';
+          }
+        }
+      } catch (err) {
+        statusText.innerHTML = '<span style="color: var(--accent-red);">Error communicating with host backend to query Cockpit status.</span>';
+      }
+    }
+
+    function installCockpit() {
+      triggerJourney('dashboard');
+      initConsoleLogs('Installing Cockpit Web Console and Plugins', '/api/run?action=cockpit');
     }
 
     // Netplan Network Configuration functions

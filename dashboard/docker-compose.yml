@@ -43,6 +43,24 @@ services:
       - default
       - homeserver_network
 
+  homarr:
+    container_name: dashboard_homarr
+    image: ghcr.io/homarr-labs/homarr:latest
+    restart: always
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_KEY}
+    ports:
+      - "7575:7575"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${SYSTEM_DATA_DIR:-../appdata}/homarr:/appdata
+    networks:
+      - default
+      - homeserver_network
+
 networks:
   homeserver_network:
     external: true
