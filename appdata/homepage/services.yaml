@@ -76,7 +76,7 @@
 
     - Local Tracker:
         icon: bittorrent.png
-        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8000/announce
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8000
         container: media_local_tracker
         description: Private BitTorrent Tracker
 
@@ -85,6 +85,11 @@
         href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8089
         container: media_torrent_generator
         description: Local Torrent Creator
+
+    - Flaresolverr:
+        icon: cloudflare.png
+        container: media_flaresolverr
+        description: Cloudflare Bypass Proxy
 
 - Personal Storage:
     - Nextcloud:
@@ -204,8 +209,7 @@
         href: https://{{HOMEPAGE_VAR_SERVER_IP}}:9090
         description: Linux Host Admin Console
 
-    - WebUI Console:
-        icon: portainer.png
-        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8888
-        description: Homeserver Operations Portal
-
+    - Tailscale:
+        icon: tailscale.png
+        href: https://login.tailscale.com/admin
+        description: Secure Mesh VPN (Host Service)

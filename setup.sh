@@ -2210,6 +2210,15 @@ action_nuke_selected() {
   fi
 
   echo -e "${GREEN}✔ Selected services nuked and reinstalled successfully!${NC}"
+
+  # Re-apply Homepage dashboard configuration after nuke+redeploy
+  if [ -f "./configure_homepage.sh" ]; then
+    echo -e "
+${BLUE}Refreshing Homepage dashboard configuration...${NC}"
+    chmod +x ./configure_homepage.sh
+    ./configure_homepage.sh || true
+  fi
+
   restore_ownership
 }
 

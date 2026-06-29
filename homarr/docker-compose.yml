@@ -18,9 +18,7 @@ services:
       - "8081:7575"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ${SYSTEM_DATA_DIR:-../appdata}/homarr/configs:/app/data/configs
-      - ${SYSTEM_DATA_DIR:-../appdata}/homarr/data:/data
-      - ${SYSTEM_DATA_DIR:-../appdata}/homarr/icons:/app/public/icons
+      - ${SYSTEM_DATA_DIR:-../appdata}/homarr:/appdata
     networks:
       - default
       - homeserver_network

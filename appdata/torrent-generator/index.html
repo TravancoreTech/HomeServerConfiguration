@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Torrent Creator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19; --card: rgba(17,24,39,0.7); --border: rgba(255,255,255,0.08);
+      --text: #f3f4f6; --muted: #9ca3af;
+      --p: #6366f1; --p2: #4f46e5; --s: #ec4899; --ok: #10b981;
+      --head: 'Outfit','Inter',sans-serif; --body: 'Inter',sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:var(--body);min-height:100vh;
+      display:flex;flex-direction:column;align-items:center;overflow-x:hidden;
+      background-image:radial-gradient(circle at 50% -20%,rgba(99,102,241,.25) 0%,transparent 60%),
+        radial-gradient(circle at 10% 80%,rgba(236,72,153,.08) 0%,transparent 40%)}
+    header{width:100%;max-width:840px;padding:3rem 1.5rem 1.5rem;text-align:center}
+    h1{font-family:var(--head);font-size:2.75rem;font-weight:700;
+      background:linear-gradient(135deg,#fff 0%,#a5b4fc 100%);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+      margin-bottom:.5rem;letter-spacing:-.025em}
+    p.subtitle{color:var(--muted);font-size:1.1rem}
+    main{width:100%;max-width:840px;padding:0 1.5rem 4rem;display:flex;flex-direction:column;gap:1.5rem}
+    .card{background:var(--card);border:1px solid var(--border);backdrop-filter:blur(16px);
+      -webkit-backdrop-filter:blur(16px);border-radius:1.25rem;padding:2rem;
+      box-shadow:0 10px 30px -10px rgba(0,0,0,.5),inset 0 1px 1px rgba(255,255,255,.05);
+      transition:all .3s cubic-bezier(.4,0,.2,1)}
+    .card:hover{box-shadow:0 15px 40px -10px rgba(0,0,0,.6),0 0 25px rgba(99,102,241,.15);
+      border-color:rgba(99,102,241,.2)}
+    h2{font-family:var(--head);font-size:1.2rem;font-weight:600;margin-bottom:1.25rem;
+      display:flex;align-items:center;gap:.5rem}
+    .form-group{margin-bottom:1.25rem}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    label{display:block;font-size:.875rem;font-weight:500;margin-bottom:.5rem}
+    input[type="text"],select{width:100%;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.1);
+      color:var(--text);padding:.75rem 1rem;border-radius:.625rem;font-family:var(--body);
+      font-size:.95rem;transition:all .2s}
+    input[type="text"]:focus,select:focus{outline:none;border-color:var(--p);
+      box-shadow:0 0 0 2px rgba(99,102,241,.2);background:rgba(15,23,42,.8)}
+    select option{background:#0f172a}
+    .help-text{font-size:.8rem;color:var(--muted);margin-top:.35rem}
+    .toggle-row{display:flex;align-items:center;gap:.75rem;margin-top:.25rem}
+    .toggle{position:relative;width:44px;height:24px;flex-shrink:0}
+    .toggle input{opacity:0;width:0;height:0}
+    .toggle-slider{position:absolute;inset:0;background:rgba(255,255,255,.1);border-radius:24px;
+      cursor:pointer;transition:background .2s}
+    .toggle-slider::before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;
+      background:#fff;border-radius:50%;transition:transform .2s}
+    .toggle input:checked+.toggle-slider{background:var(--p)}
+    .toggle input:checked+.toggle-slider::before{transform:translateX(20px)}
+    .toggle-label{font-size:.875rem;color:var(--muted)}
+    .dropzone{border:2px dashed rgba(255,255,255,.15);border-radius:1rem;padding:3rem 2rem;
+      text-align:center;cursor:pointer;background:rgba(15,23,42,.2);transition:all .3s;
+      display:flex;flex-direction:column;align-items:center;gap:1rem}
+    .dropzone.dragover{border-color:var(--p);background:rgba(99,102,241,.05)}
+    .dropzone svg{width:48px;height:48px;color:var(--p);transition:transform .3s}
+    .dropzone:hover svg{transform:translateY(-5px)}
+    .dropzone p.mt{font-size:1.1rem;font-weight:500}
+    .dropzone p.st{font-size:.875rem;color:var(--muted)}
+    #file-input{display:none}
+    .file-strip{display:flex;align-items:center;justify-content:space-between;
+      background:rgba(15,23,42,.5);border:1px solid rgba(255,255,255,.08);
+      border-radius:.75rem;padding:1rem 1.25rem;margin-bottom:1.25rem}
+    .file-strip-l{display:flex;align-items:center;gap:.75rem}
+    .file-strip-l svg{width:32px;height:32px;color:var(--p);flex-shrink:0}
+    .fname{font-weight:500;font-size:.95rem;word-break:break-all}
+    .fsize{font-size:.8rem;color:var(--muted);margin-top:.15rem}
+    .btn-rm{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.25);color:#f87171;
+      border-radius:.5rem;padding:.5rem;cursor:pointer;flex-shrink:0;transition:all .2s}
+    .btn-rm:hover{background:rgba(239,68,68,.25)}
+    .progress-wrap{background:rgba(255,255,255,.06);border-radius:999px;height:6px;overflow:hidden;margin-bottom:.5rem}
+    .progress-bar{height:100%;background:linear-gradient(90deg,var(--p),var(--s));border-radius:999px;width:0%;transition:width .1s}
+    .progress-label{font-size:.8rem;color:var(--muted);text-align:center}
+    .btn-gen{width:100%;padding:.875rem 1.5rem;background:linear-gradient(135deg,var(--p),var(--s));
+      border:none;border-radius:.75rem;color:#fff;font-size:1rem;font-weight:600;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;gap:.5rem;transition:all .2s;
+      box-shadow:0 4px 15px rgba(99,102,241,.3)}
+    .btn-gen:hover{opacity:.9;transform:translateY(-1px)}
+    .btn-gen:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .badge{display:inline-flex;align-items:center;gap:.5rem;background:rgba(16,185,129,.15);
+      border:1px solid rgba(16,185,129,.3);color:#34d399;padding:.5rem 1rem;
+      border-radius:999px;font-size:.875rem;font-weight:500;margin-bottom:1.5rem}
+    .igrid{display:grid;grid-template-columns:130px 1fr;gap:.5rem 1rem;margin-bottom:1.5rem}
+    .ilabel{font-size:.8rem;color:var(--muted);align-self:center}
+    .ival{font-size:.875rem;word-break:break-all}
+    .ihash{font-family:monospace;font-size:.8rem;letter-spacing:.02em;color:var(--p)}
+    .actions{display:flex;gap:.75rem;flex-wrap:wrap}
+    .btn-a{flex:1;padding:.75rem 1rem;border-radius:.75rem;border:1px solid rgba(255,255,255,.1);
+      color:var(--text);background:rgba(255,255,255,.05);font-size:.9rem;font-weight:500;
+      cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.5rem;
+      transition:all .2s;min-width:150px}
+    .btn-a:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);transform:translateY(-1px)}
+    .btn-dl{background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3);color:#a5b4fc}
+    .btn-mg{background:rgba(236,72,153,.1);border-color:rgba(236,72,153,.3);color:#f9a8d4}
+    .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);
+      background:rgba(17,24,39,.95);border:1px solid var(--p);padding:.75rem 1.5rem;
+      border-radius:.5rem;font-size:.9rem;font-weight:500;z-index:100;opacity:0;
+      transition:all .3s cubic-bezier(.16,1,.3,1);white-space:nowrap;
+      box-shadow:0 10px 25px -5px rgba(0,0,0,.5)}
+    .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+    .inst{display:flex;flex-direction:column;gap:.75rem;padding-left:1.25rem;
+      color:var(--muted);font-size:.9rem;line-height:1.6}
+    .inst li strong{color:var(--text)}
+    code{background:rgba(255,255,255,.08);padding:.15em .4em;border-radius:.3em;
+      font-family:monospace;font-size:.85em;color:#a5b4fc}
+    footer{text-align:center;padding:2rem;color:rgba(255,255,255,.25);font-size:.8rem;margin-top:auto}
+    .acc-hdr{display:flex;justify-content:space-between;align-items:center;cursor:pointer;
+      user-select:none;margin-bottom:0}
+    .acc-body{max-height:0;overflow:hidden;transition:max-height .3s cubic-bezier(0,1,0,1)}
+    .acc-body.open{max-height:800px;transition:max-height .5s ease-in-out;margin-top:1.25rem}
+    .chevron{transition:transform .3s}
+    .chevron.r{transform:rotate(180deg)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🧲 Local Torrent Creator</h1>
+    <p class="subtitle">Standards-compliant BitTorrent v1 — pure browser SHA1 hashing, no internet required.</p>
+  </header>
+
+  <main>
+    <!-- Settings -->
+    <div class="card">
+      <div class="acc-hdr" id="acc-hdr">
+        <h2>
+          <svg style="width:20px;height:20px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Tracker &amp; Torrent Settings
+        </h2>
+        <svg class="chevron r" id="chevron" style="width:20px;height:20px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </div>
+      <div class="acc-body open" id="acc-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="t1">Internal Announce URL (Docker Network)</label>
+            <input type="text" id="t1" value="http://media_local_tracker:8000/announce">
+            <p class="help-text">Used by qBittorrent, Radarr, Sonarr inside the Docker compose network.</p>
+          </div>
+          <div class="form-group">
+            <label for="t2">LAN Announce URL (External Clients)</label>
+            <input type="text" id="t2" value="">
+            <p class="help-text">Auto-filled with your server's IP. Used by clients outside Docker on your LAN.</p>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ps">Piece Size</label>
+            <select id="ps">
+              <option value="262144">256 KiB — &lt; 1 GB</option>
+              <option value="524288" selected>512 KiB — 1–4 GB</option>
+              <option value="1048576">1 MiB — 4–8 GB</option>
+              <option value="2097152">2 MiB — 8–16 GB</option>
+              <option value="4194304">4 MiB — 16–64 GB</option>
+              <option value="8388608">8 MiB — 64+ GB</option>
+            </select>
+            <p class="help-text">Larger pieces = smaller .torrent file, slower initial hash check.</p>
+          </div>
+          <div class="form-group">
+            <label>Options</label>
+            <div class="toggle-row">
+              <label class="toggle">
+                <input type="checkbox" id="priv" checked>
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">Private torrent — disables DHT/PEX (required for private trackers)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Creator -->
+    <div class="card">
+      <h2>
+        <svg style="width:20px;height:20px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V4a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        Create Torrent
+      </h2>
+
+      <div class="dropzone" id="dropzone">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        <div><p class="mt">Drag &amp; drop your media file here</p><p class="st">or click to browse — any file type accepted</p></div>
+        <input type="file" id="file-input">
+      </div>
+
+      <div id="details" style="display:none">
+        <div class="file-strip">
+          <div class="file-strip-l">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+            <div><div class="fname" id="fname">-</div><div class="fsize" id="fsize">-</div></div>
+          </div>
+          <button class="btn-rm" id="btn-rm">
+            <svg style="width:20px;height:20px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div id="prog-wrap" style="display:none;margin-bottom:1.25rem">
+          <div class="progress-wrap"><div class="progress-bar" id="pbar"></div></div>
+          <p class="progress-label" id="plabel">Hashing... 0%</p>
+        </div>
+        <button class="btn-gen" id="btn-gen">
+          <svg style="width:20px;height:20px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Generate .torrent
+        </button>
+      </div>
+
+      <div id="results" style="display:none;margin-top:1.5rem">
+        <div class="badge">
+          <svg style="width:14px;height:14px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Torrent Generated Successfully!
+        </div>
+        <div class="igrid">
+          <div class="ilabel">Name</div><div class="ival" id="r-name">-</div>
+          <div class="ilabel">Info Hash</div><div class="ival ihash" id="r-hash">-</div>
+          <div class="ilabel">File Size</div><div class="ival" id="r-size">-</div>
+          <div class="ilabel">Pieces</div><div class="ival" id="r-pieces">-</div>
+          <div class="ilabel">Piece Size</div><div class="ival" id="r-ps">-</div>
+          <div class="ilabel">Primary Tracker</div><div class="ival" id="r-t1" style="color:var(--p)">-</div>
+          <div class="ilabel">LAN Tracker</div><div class="ival" id="r-t2" style="color:var(--s)">-</div>
+        </div>
+        <div class="actions">
+          <button class="btn-a btn-dl" id="btn-dl">
+            <svg style="width:18px;height:18px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download .torrent
+          </button>
+          <button class="btn-a btn-mg" id="btn-mg">
+            <svg style="width:18px;height:18px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            Copy Magnet Link
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guide -->
+    <div class="card">
+      <h2>
+        <svg style="width:20px;height:20px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        Quick Import Guide
+      </h2>
+      <ol class="inst">
+        <li><strong>Create:</strong> Drop your file, pick a piece size, click <strong>Generate .torrent</strong>. All hashing is done locally in your browser — nothing is uploaded anywhere.</li>
+        <li><strong>Import to qBittorrent:</strong> Add the <code>.torrent</code> to qBittorrent on your server. Set the save path to the directory that <em>already contains</em> the file (e.g. <code>/data/torrents/movies/</code>). qBittorrent will fast-resume instantly since the file already exists.</li>
+        <li><strong>Prowlarr integration:</strong> Add a <strong>Generic Torznab</strong> indexer in Prowlarr pointing to <code>http://media_local_tracker:8000/api</code>. This propagates to Radarr/Sonarr for import coordination.</li>
+        <li><strong>LAN clients:</strong> The LAN Announce URL (auto-filled from your server's IP) is baked into the torrent alongside the Docker-internal URL, so both work simultaneously.</li>
+      </ol>
+    </div>
+  </main>
+
+  <div class="toast" id="toast">Copied!</div>
+  <footer><p>Local-First Homeserver Stack &bull; Pure browser SHA1 hashing via Web Crypto API &bull; No internet required</p></footer>
+
+  <script>
+  // ── Bencode encoder (BEP-3) ──────────────────────────────────────────────
+  const enc = s => new TextEncoder().encode(s);
+  function cat(arrays){
+    const len = arrays.reduce((s,a)=>s+a.length,0), out=new Uint8Array(len); let off=0;
+    for(const a of arrays){out.set(a,off);off+=a.length;} return out;
+  }
+  function bencode(v){
+    if(v instanceof Uint8Array) return cat([enc(`${v.length}:`),v]);
+    if(typeof v==='string'){const b=enc(v);return cat([enc(`${b.length}:`),b]);}
+    if(typeof v==='number'||typeof v==='bigint') return enc(`i${v}e`);
+    if(Array.isArray(v)) return cat([enc('l'),...v.map(bencode),enc('e')]);
+    if(v&&typeof v==='object'){
+      const keys=Object.keys(v).sort(), parts=[enc('d')];
+      for(const k of keys){parts.push(bencode(k));parts.push(bencode(v[k]));}
+      parts.push(enc('e')); return cat(parts);
+    }
+    throw new Error('bencode: unsupported type '+typeof v);
+  }
+
+  // ── SHA-1 via Web Crypto API ──────────────────────────────────────────────
+  async function sha1hex(buf){
+    const h=await crypto.subtle.digest('SHA-1',buf);
+    return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  async function sha1bytes(buf){
+    return new Uint8Array(await crypto.subtle.digest('SHA-1',buf));
+  }
+
+  function fmtBytes(b,d=2){
+    if(!b)return '0 B'; const k=1024,s=['B','KiB','MiB','GiB','TiB'],i=Math.floor(Math.log(b)/Math.log(k));
+    return parseFloat((b/Math.pow(k,i)).toFixed(d))+' '+s[i];
+  }
+
+  // ── Torrent creation (BitTorrent v1, BEP-3) ──────────────────────────────
+  async function makeTorrent(file, ann, pieceLen, isPrivate, onProg){
+    const n = Math.ceil(file.size/pieceLen);
+    const buf = await file.arrayBuffer();
+    const all = new Uint8Array(buf);
+    const hashes = new Uint8Array(n*20);
+    for(let i=0;i<n;i++){
+      const s=i*pieceLen, e=Math.min(s+pieceLen,file.size);
+      hashes.set(await sha1bytes(all.slice(s,e)), i*20);
+      onProg((i+1)/n);
+    }
+    const info = {'length':file.size,'name':file.name,'piece length':pieceLen,'pieces':hashes};
+    if(isPrivate) info['private']=1;
+    const infoEnc = bencode(info);
+    const infoHash = await sha1hex(infoEnc);
+    const meta = {
+      'announce': ann[0]||'',
+      'announce-list': ann.map(u=>[u]),
+      'comment':'Created by Local Torrent Creator — Homeserver Suite',
+      'created by':'Homeserver Local Torrent Creator',
+      'creation date': Math.floor(Date.now()/1000),
+      'info': info
+    };
+    const torrent = bencode(meta);
+    const magnet = `magnet:?xt=urn:btih:${infoHash}&dn=${encodeURIComponent(file.name)}${ann.map(u=>'&tr='+encodeURIComponent(u)).join('')}`;
+    return {torrent, infoHash, magnet, n, pieceLen};
+  }
+
+  // ── UI ───────────────────────────────────────────────────────────────────
+  let file=null, torrentBytes=null, magnetURI=null;
+
+  const dz=document.getElementById('dropzone'), fi=document.getElementById('file-input');
+  const det=document.getElementById('details'), res=document.getElementById('results');
+  const pw=document.getElementById('prog-wrap'), pb=document.getElementById('pbar'), pl=document.getElementById('plabel');
+  const btnGen=document.getElementById('btn-gen'), btnRm=document.getElementById('btn-rm');
+  const toast=document.getElementById('toast');
+
+  // Auto-fill LAN tracker URL
+  document.getElementById('t2').value=`http://${window.location.hostname||'localhost'}:8000/announce`;
+
+  // Accordion
+  document.getElementById('acc-hdr').addEventListener('click',()=>{
+    document.getElementById('acc-body').classList.toggle('open');
+    document.getElementById('chevron').classList.toggle('r');
+  });
+
+  // Drop zone
+  dz.addEventListener('click',()=>fi.click());
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');
+    if(e.dataTransfer.files[0]) pick(e.dataTransfer.files[0]);});
+  fi.addEventListener('change',e=>{if(e.target.files[0]) pick(e.target.files[0]);});
+
+  function pick(f){
+    file=f;
+    document.getElementById('fname').textContent=f.name;
+    document.getElementById('fsize').textContent=fmtBytes(f.size);
+    dz.style.display='none'; det.style.display='block';
+    res.style.display='none'; pw.style.display='none';
+  }
+
+  btnRm.addEventListener('click',()=>{
+    file=null; fi.value='';
+    dz.style.display='flex'; det.style.display='none'; res.style.display='none';
+  });
+
+  btnGen.addEventListener('click', async()=>{
+    if(!file) return;
+    const ann=[];
+    const t1=document.getElementById('t1').value.trim();
+    const t2=document.getElementById('t2').value.trim();
+    if(t1) ann.push(t1); if(t2) ann.push(t2);
+    const pl_v=parseInt(document.getElementById('ps').value);
+    const priv=document.getElementById('priv').checked;
+
+    btnGen.disabled=true; pw.style.display='block'; pb.style.width='0%'; pl.textContent='Hashing pieces... 0%';
+    try{
+      const r = await makeTorrent(file, ann, pl_v, priv, pct=>{
+        const p=Math.round(pct*100); pb.style.width=p+'%'; pl.textContent=`Hashing pieces... ${p}%`;
+      });
+      torrentBytes=r.torrent; magnetURI=r.magnet;
+      document.getElementById('r-name').textContent=file.name;
+      document.getElementById('r-hash').textContent=r.infoHash.toUpperCase();
+      document.getElementById('r-size').textContent=fmtBytes(file.size);
+      document.getElementById('r-pieces').textContent=r.n.toLocaleString()+' pieces';
+      document.getElementById('r-ps').textContent=fmtBytes(r.pieceLen);
+      document.getElementById('r-t1').textContent=t1||'None';
+      document.getElementById('r-t2').textContent=t2||'None';
+      pw.style.display='none'; res.style.display='block';
+    }catch(e){
+      alert('Error: '+e.message); pw.style.display='none';
+    }finally{ btnGen.disabled=false; }
+  });
+
+  document.getElementById('btn-dl').addEventListener('click',()=>{
+    if(!torrentBytes) return;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([torrentBytes],{type:'application/x-bittorrent'}));
+    a.download=file.name+'.torrent'; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); showToast('Downloaded .torrent!');
+  });
+
+  document.getElementById('btn-mg').addEventListener('click',()=>{
+    if(!magnetURI) return;
+    navigator.clipboard.writeText(magnetURI).then(()=>showToast('Magnet link copied!')).catch(e=>alert(e));
+  });
+
+  function showToast(m){toast.textContent=m;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3000);}
+  </script>
+</body>
+</html>

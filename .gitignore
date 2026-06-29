@@ -9,6 +9,7 @@
 # Ignore application runtime state (active databases, configuration storage, and media)
 appdata/*
 !appdata/homepage/
+!appdata/torrent-generator/
 data/
 
 # OS specific files
