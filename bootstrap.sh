@@ -20,7 +20,7 @@ set -euo pipefail
 # ------------------------------------------------------------------------------
 # Configuration — update REPO_ZIP to your GitHub archive URL
 # ------------------------------------------------------------------------------
-REPO_ZIP="https://github.com/arunkarshan/HomeServerConfiguration/archive/refs/heads/main.zip"
+REPO_ZIP="https://github.com/TravancoreTech/HomeServerConfiguration/archive/refs/heads/main.zip"
 INSTALL_DIR="/opt/homeserver"
 SERVICE_NAME="homeserver-webui"
 WEBUI_PORT=8888
@@ -219,7 +219,7 @@ SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=Homeserver Suite Management WebUI
-Documentation=https://github.com/arunkarshan/HomeServerConfiguration
+Documentation=https://github.com/TravancoreTech/HomeServerConfiguration
 After=network-online.target
 Wants=network-online.target
 

@@ -103,8 +103,8 @@ sync_from_github() {
   GITHUB_REPO=$(echo "${GITHUB_REPO:-}" | sed 's/^"//;s/"$//')
 
   if [ -z "${GITHUB_REPO:-}" ] || [ "$GITHUB_REPO" = "username/repo-name" ]; then
-    read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
-    GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
+    read -rp "Enter GitHub repository (format: owner/repo) [default: TravancoreTech/HomeServerConfiguration]: " USER_REPO
+    GITHUB_REPO="${USER_REPO:-TravancoreTech/HomeServerConfiguration}"
   fi
 
   # Save configuration immediately to .env
@@ -933,10 +933,10 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing GitHub repository: ${GITHUB_REPO}${NC}"
   else
     if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      GITHUB_REPO="arunkarshan/HomeServerConfiguration"
+      GITHUB_REPO="TravancoreTech/HomeServerConfiguration"
     else
-      read -rp "Enter GitHub repository (format: owner/repo) [default: arunkarshan/HomeServerConfiguration]: " USER_REPO
-      GITHUB_REPO="${USER_REPO:-arunkarshan/HomeServerConfiguration}"
+      read -rp "Enter GitHub repository (format: owner/repo) [default: TravancoreTech/HomeServerConfiguration]: " USER_REPO
+      GITHUB_REPO="${USER_REPO:-TravancoreTech/HomeServerConfiguration}"
     fi
   fi
 
@@ -1159,7 +1159,7 @@ EOF
 # SILENT GITHUB SYNCHRONIZER
 # ------------------------------------------------------------------------------
 sync_from_github_silent() {
-  local repo="${GITHUB_REPO:-arunkarshan/HomeServerConfiguration}"
+  local repo="${GITHUB_REPO:-TravancoreTech/HomeServerConfiguration}"
 
   echo -e "Silently syncing configurations from: ${YELLOW}https://github.com/${repo}${NC}..."
   
