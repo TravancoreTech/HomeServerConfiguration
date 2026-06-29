@@ -997,6 +997,12 @@ prompt_and_generate_configs() {
   DB_DATA_LOCATION=$(mkdir -p "$DB_DATA_LOCATION" && cd "$DB_DATA_LOCATION" && pwd)
   NEXTCLOUD_DB_LOCATION=$(mkdir -p "$NEXTCLOUD_DB_LOCATION" && cd "$NEXTCLOUD_DB_LOCATION" && pwd)
 
+  # Ensure parent directories have traversal permissions (755) for non-root containers
+  chmod 755 "$SYSTEM_DATA_DIR" || true
+  chmod 755 "$(dirname "$SYSTEM_DATA_DIR")" || true
+  chmod 755 "$DB_DATA_LOCATION" || true
+  chmod 755 "$NEXTCLOUD_DB_LOCATION" || true
+
   echo -e "Writing and unifying environment configuration files..."
 
   # 1. Generate Global root .env
