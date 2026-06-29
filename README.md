@@ -73,59 +73,36 @@ Your Laptop / Phone
 
 > **Requirements:** Ubuntu 20.04+ or Debian 11+ server — headless is fine, no desktop needed. Run all commands over SSH from your laptop.
 
-### Step 1 — Bootstrap (gets the Management WebUI running)
 
-This single command installs Node.js, downloads the suite, and starts the WebUI as a system service. It does **not** install Docker or launch any containers — that's done through the WebUI.
+### Step 1 — Bootstrap (downloads the configuration suite)
 
-**Option A — Short URL (quick)**
+This command downloads the suite directly to your current working directory and ensures basic tools (`curl`, `unzip`) are installed:
+
+**Option A — Short URL**
+```bash
+curl -fsSL https://tinyurl.com/2aj7eauh | bash
+```
+
+**Option B — Full URL**
+```bash
+curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfiguration/main/bootstrap.sh | bash
+```
+
+---
+
+### Step 2 — Run the Interactive Setup CLI
+
+Once bootstrapped, run the interactive installer to configure your environment, install Docker, and launch your desired containers:
 
 ```bash
-curl -fsSL https://tinyurl.com/2aj7eauh | sudo bash
+sudo ./setup.sh
 ```
 
-**Option B — Full GitHub URL (recommended if you want to verify the source)**
-
-```bash
-# Inspect the script first (always good practice before piping to bash)
-curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfiguration/main/bootstrap.sh | less
-
-# Then run it once you're satisfied
-curl -fsSL https://raw.githubusercontent.com/TravancoreTech/HomeServerConfiguration/main/bootstrap.sh | sudo bash
-```
-
-> Both URLs point to the exact same script. Option A redirects to Option B via TinyURL.
-> If you are security-conscious (and you should be), use Option B so you can see exactly
-> what you're running before it executes. The script source is fully readable
-> at [bootstrap.sh](bootstrap.sh) in this repository.
-
-What it does:
-- Installs `curl`, `unzip`, and **Node.js LTS** via NodeSource
-- Downloads the suite as a zip from GitHub (no `git` required)
-- Extracts to `/opt/homeserver`
-- Creates and enables a **systemd service** (`homeserver-webui`) that survives reboots
-- Prints the URL to open in your browser
-
-When it finishes, you'll see:
-
-```
-✔ WebUI is live and running!
-
-  Open this in your browser (from your laptop):
-  http://192.168.1.x:8888
-
-```
-
-### Step 2 — Open the WebUI
-
-On **your laptop's browser**, navigate to the URL printed above. From here, everything else is managed through the portal — no more terminal needed.
-
-### Step 3 — Install Docker (via WebUI)
-
-In the sidebar, go to **Documentation & Guides → Install Docker Engine**. Click **Install Docker Engine**. The portal runs the official Docker convenience installer and streams live output.
-
-### Step 4 — Configure & Deploy (via WebUI)
-
-Go to **Deploy & Setup → Install (From scratch)**. Fill in your server IP, timezone, user IDs, and storage paths. Select the suites you want and click deploy.
+Follow the on-screen prompts to:
+1. Automatically install Docker Engine and Docker Compose V2.
+2. Select and configure storage mounts (SSD for databases, HDD for media).
+3. Select which stacks to deploy (Media, Nextcloud, Immich, Storage, Utilities, Dashboards).
+4. Auto-generate your local environment secrets (`.env`).
 
 ---
 
@@ -247,53 +224,15 @@ All stacks share a single `.env` file in the project root. It is auto-generated 
 
 ---
 
-## Management Portal (WebUI)
-
-The WebUI is a lightweight, responsive SPA (Single Page Application) that runs at `http://<your-server-ip>:8888`. It is started automatically on boot via a systemd unit.
-
-```bash
-systemctl status homeserver-webui    # check status of portal
-systemctl restart homeserver-webui   # restart portal
-journalctl -u homeserver-webui -f    # stream live portal logs
-```
-
-### Portal Sections
-
-The WebUI is structured into distinct pages accessible via the left sidebar:
-
-#### 📊 Homepage Dashboard
-* **Ecosystem Vitals**: Displays real-time aggregate widgets for total containers, running containers, stopped containers, and containers in error state.
-* **System Bulletin**: A centralized notice board showing warning alerts if containers are stopped or unhealthy, or general notices if all services are healthy.
-* **System Vitals Mini-Card**: Quick status snapshot of CPU, RAM, Temperature, and Storage. Clicking it navigates directly to the System Admin panel.
-
-#### 🐳 Docker Containers
-* **Container Cards**: Displays all containers with their real-time state, custom-mapped service icons, and direct links to view log outputs.
-* **Container Inspector**: Click on any service card to open its detailed metadata viewer:
-  * Service group classification, linked backend containers, and active image tags.
-  * Interactive **Volume Mounts Map** (mapping host directories to container mount points).
-  * **Docker Compose Viewer**: Displays the raw Docker Compose configuration block with a copy-to-clipboard button.
-
-#### ⚙️ System Administration
-The System Administration view manages host level services independent of the Docker daemon:
-* **Vitals Tab**: Real-time polling charts and grids showing exact CPU load, RAM allocation, CPU thermal temperature, and an interactive storage disk capacity table.
-* **Power Tab**: Configures automated server shutdown and wakeup schedules:
-  * **Auto Shutdown**: Configurable time (e.g. `23:30`) and schedule selection (Everyday, Weekdays, Weekends, or specific days of the week) mapped to system crontabs.
-  * **Auto Wakeup**: Configured to write to the motherboard's Real Time Clock (RTC) wake alarms (`rtcwake`), letting the hardware boot up automatically at the specified time.
-* **Network Tab**: Edits host interface settings. Easily configure DHCP or switch to a Static IP (specifying Address, Gateway, Primary & Secondary DNS) with automated validation.
-* **Maintenance Tab**: Actions to update host system packages, prune unused Docker images/volumes (Garbage Collection), and restart the WebUI process.
-* **Consolidated Terminal**: A single, clean terminal log viewer embedded at the bottom of the System page that streams output from system upgrades, Netplan updates, and Docker pruning.
-
----
-
 ## setup.sh CLI Reference
 
-`setup.sh` is the underlying bash engine. The WebUI calls it internally, but it can also be run directly from the terminal for scripting or manual administration.
+`setup.sh` is the core management utility of the Homeserver configuration suite. You run it directly from your terminal to install, configure, update, and manage all containers and host systems.
 
 ```bash
 # First-time interactive setup
 sudo ./setup.sh
 
-# Non-interactive actions (called by WebUI backend)
+# Non-interactive / scripted actions
 sudo ./setup.sh --install-docker                  # Install Docker Engine & Compose V2
 sudo ./setup.sh --update <services>                # Pull & redeploy selected services (e.g., 'all' or 'media_jellyfin')
 sudo ./setup.sh --restart <services>              # Restart selected containers
@@ -326,26 +265,13 @@ The project directory structure is modular and separates frontend assets, backen
 ```
 HomeServerConfiguration/
 │
-├── bootstrap.sh              # One-command installer (installs Node.js & spawns WebUI)
+├── bootstrap.sh              # One-command installer (downloads code and runs setup)
 ├── setup.sh                  # Core bash orchestrator (handles all system and docker actions)
 ├── configure_services.py     # Python config compiler
 ├── configure_homepage.sh     # Homepage dashboard config writer
 ├── docker-compose.yml        # Shared internal networks definition
 ├── .env                      # Global environment and secrets configuration (gitignored)
 ├── .gitignore
-│
-├── webui/                    # WebUI Node.js Server Project
-│   ├── server.js             # Lightweight web server entry point
-│   ├── index.html            # Core HTML structure & SPA shell
-│   │
-│   ├── public/               # Static Frontend Assets
-│   │   ├── app.js            # SPA logic, real-time stats polling, routes, events
-│   │   └── styles.css        # Modular CSS design system, cards, terminals, layout
-│   │
-│   └── src/                  # Backend Module files
-│       ├── config.js         # Configuration parser and env writer
-│       ├── runner.js         # Secure terminal execution and spawn processor
-│       └── routes.js         # HTTP router and SSE real-time stream endpoints
 │
 ├── media/                    # 🎬 Media suite docker-compose
 ├── immich/                   # 📸 Photo backup suite docker-compose

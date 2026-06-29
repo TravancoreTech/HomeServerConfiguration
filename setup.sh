@@ -769,10 +769,10 @@ prompt_and_generate_configs() {
     echo -e "${GREEN}✔ Reusing existing Immich photos directory: ${UPLOAD_LOCATION}${NC}"
   else
     if [ "${NON_INTERACTIVE:-}" = "true" ]; then
-      UPLOAD_LOCATION="/mnt/hdd/immich/photos"
+      UPLOAD_LOCATION="/mnt/hdd/immich"
     else
-      read -rp "Enter Immich photos directory (HDD/mass storage) [default: /mnt/hdd/immich/photos]: " USER_UPLOAD
-      UPLOAD_LOCATION="${USER_UPLOAD:-/mnt/hdd/immich/photos}"
+      read -rp "Enter Immich photos directory (HDD/mass storage) [default: /mnt/hdd/immich]: " USER_UPLOAD
+      UPLOAD_LOCATION="${USER_UPLOAD:-/mnt/hdd/immich}"
     fi
   fi
 
