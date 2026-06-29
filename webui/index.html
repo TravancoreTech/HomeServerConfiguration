@@ -81,58 +81,77 @@
     }
   </style>
 
-  <div class="app-layout">
+  <div class="app-container">
     
-    <!-- LEFT SIDEBAR -->
+    <!-- LEFT SIDEBAR: Dashboard Summary & Action Menu -->
     <aside class="sidebar">
       
-      <!-- Hidden states -->
-      <div style="display: none;">
-        <span id="sidebar-status-dot"></span>
-        <span id="sidebar-status-title"></span>
-        <span id="sidebar-status-desc"></span>
-        <button id="theme-toggle-btn"></button>
-      </div>
-      
-      <div class="sidebar-header" style="margin-bottom: 1.5rem;">
-        <div class="logo-container" style="display: flex; align-items: center; gap: 0.85rem;">
-          <img src="/logos/logo_docker.png" alt="EasyDocker Logo" style="
-            width: 38px;
-            height: 38px;
-            border-radius: 8px;
-            display: block;
-            box-shadow: 0 0 15px rgba(0, 223, 216, 0.2);
-          ">
-          <div class="logo-text">
-            <h1 style="font-size: 1.35rem; font-weight: 800; color: #fff; letter-spacing: -0.03em; line-height: 1.1;">EasyDocker</h1>
-            <div class="logo-desc" style="font-size: 0.65rem; color: #00dfd8; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 1px;">Homeserver Hub</div>
+      <div class="sidebar-header">
+        <div class="logo-container" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="logo-badge">H</div>
+            <div class="logo-text">
+              <h1>Homeserver</h1>
+              <div class="logo-desc">System Operations Portal</div>
+            </div>
           </div>
+          <button id="theme-toggle-btn" class="badge-btn" onclick="toggleTheme()" style="border-radius: 50%; width: 34px; height: 34px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 1rem; border-color: var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-primary); cursor: pointer;" title="Toggle Theme">🌓</button>
         </div>
       </div>
       
+      <!-- Containers vitals status summary -->
+      <div class="stack-status-panel" id="sidebar-status-panel" style="cursor: pointer;" onclick="triggerJourney('docker')">
+        <div class="section-title">
+          <span>System Status</span>
+        </div>
+        <div id="sidebar-status-card" style="padding: 0.75rem 1rem; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; transition: var(--transition); user-select: none;">
+          <span id="sidebar-status-dot" class="status-dot up"></span>
+          <div style="display: flex; flex-direction: column; min-width: 0;">
+            <span id="sidebar-status-title" style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary);">All Good</span>
+            <span id="sidebar-status-desc" style="font-size: 0.72rem; color: var(--text-muted);">Loading system status...</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Left sidebar Action Menu -->
       <nav class="action-groups">
         
         <div>
-          <div class="menu-category-title">Monitor & Manage</div>
+          <div class="menu-category-title">Deploy & Setup</div>
           <div class="menu-list">
             <button class="menu-item active" onclick="triggerJourney('dashboard')" id="btn-dashboard">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
               Overview Dashboard
             </button>
+            <button class="menu-item" onclick="triggerJourney('system')" id="btn-system">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
+              System Administration
+            </button>
             <button class="menu-item" onclick="triggerJourney('docker')" id="btn-docker">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
               Docker Containers
             </button>
-            <button class="menu-item" onclick="triggerJourney('system')" id="btn-system">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
-              System Administration
+            <button class="menu-item" onclick="triggerJourney('install')" id="btn-install">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              Install (From scratch)
+            </button>
+            <button class="menu-item" onclick="triggerJourney('update')" id="btn-update">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+              Selective Update
+            </button>
+            <button class="menu-item" onclick="triggerJourney('restart')" id="btn-restart">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+              Selective Restart
+            </button>
+            <button class="menu-item" onclick="triggerJourney('check-updates')" id="btn-check-updates">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+              Check & Pull Updates
             </button>
           </div>
         </div>
 
         <div>
-          <div class="menu-category-title">Services & Shares</div>
+          <div class="menu-category-title">Services & VPN</div>
           <div class="menu-list">
             <button class="menu-item" onclick="triggerJourney('tailscale')" id="btn-tailscale">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
@@ -154,8 +173,26 @@
         </div>
 
         <div>
-          <div class="menu-category-title">Guides & Docs</div>
+          <div class="menu-category-title">System & Storage</div>
           <div class="menu-list">
+            <button class="menu-item" onclick="triggerJourney('git-push')" id="btn-git-push">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"></path></svg>
+              Push Configs to Git
+            </button>
+            <button class="menu-item" onclick="triggerJourney('git-sync')" id="btn-git-sync">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+              Fetch Configs from Git
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="menu-category-title">Documentation & Guides</div>
+          <div class="menu-list">
+            <button class="menu-item" onclick="triggerJourney('docker-install')" id="btn-docker-install">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+              Install Docker Engine
+            </button>
             <button class="menu-item" onclick="triggerJourney('guide')" id="btn-guide">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
               Suite Reference Guide
@@ -169,110 +206,81 @@
 
       </nav>
 
-      <!-- Update WebUI & Configs button pinned at sidebar bottom -->
-      <div class="sidebar-profile-footer" style="
-        padding: 1.25rem 0.5rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
-        margin-top: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        align-items: center;
-        justify-content: center;
-      ">
-        <button onclick="updateWebUIAndConfigs()" title="Pull latest configuration files from Git and restart WebUI" style="
-          width: 100%;
-          padding: 0.65rem 0.85rem;
-          border-radius: 10px;
-          background: rgba(0, 223, 216, 0.08);
-          border: 1px solid rgba(0, 223, 216, 0.25);
-          color: #00dfd8;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          cursor: pointer;
-          font-family: var(--font-sans);
-          font-size: 0.82rem;
-          font-weight: 700;
-          transition: var(--transition);
-        " onmouseover="this.style.background='rgba(0, 223, 216, 0.18)'" onmouseout="this.style.background='rgba(0, 223, 216, 0.08)'">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+      <!-- Restart Portal Server button pinned at sidebar bottom -->
+      <div style="padding: 1rem 1rem 1.25rem; border-top: 1px solid var(--border-color); margin-top: auto;">
+        <button
+          id="btn-restart-server"
+          onclick="restartPortalServer()"
+          style="
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.6rem 0.9rem;
+            background: rgba(239,68,68,0.07);
+            border: 1px solid rgba(239,68,68,0.25);
+            border-radius: 10px;
+            color: #f87171;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s, transform 0.15s;
+            font-family: inherit;
+          "
+          onmouseover="this.style.background='rgba(239,68,68,0.15)';this.style.borderColor='rgba(239,68,68,0.45)';"
+          onmouseout="this.style.background='rgba(239,68,68,0.07)';this.style.borderColor='rgba(239,68,68,0.25)';"
+          title="Restart the Portal WebUI server process"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6"/>
+            <path d="M2.5 12a10 10 0 0 1 18.04-5.95L21.5 8"/>
+            <path d="M2.5 22v-6h6"/>
+            <path d="M21.5 12a10 10 0 0 1-18.04 5.95L2.5 16"/>
           </svg>
-          Update WebUI & Configs
-        </button>
-        <button onclick="restartPortalServer()" title="Just restart the WebUI server process without pulling" style="
-          background: none;
-          border: none;
-          color: rgba(255, 255, 255, 0.35);
-          font-size: 0.72rem;
-          cursor: pointer;
-          text-decoration: underline;
-        " onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='rgba(255, 255, 255, 0.35)'">
-          Just Restart WebUI
+          Restart Portal Server
         </button>
       </div>
 
     </aside>
+
     <!-- RIGHT MAIN WORKSPACE: Guided journeys based on menu selection -->
-    <div class="main-content-wrapper" style="display: flex; flex-direction: column; min-height: 100vh; background: var(--bg-base); min-width: 0;">
-      <header class="top-header-bar" style="
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1.25rem 2.5rem;
-        background: var(--bg-surface);
-        border-bottom: 1px solid var(--border-color);
-        height: 70px;
-      ">
-        <!-- Page Title -->
-        <div>
-          <h1 id="header-page-title" style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.03em; margin: 0;">Overview</h1>
-        </div>
-        
-        <!-- Utility actions -->
-        <div style="display: flex; align-items: center; gap: 0.85rem;">
-          <!-- Console Toggle button -->
-          <button id="btn-header-console" onclick="toggleGlobalConsole()" title="Toggle Task Console" style="padding: 0.5rem 0.85rem; border-radius: 8px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); color: var(--accent-indigo-text); display: flex; align-items: center; justify-content: center; gap: 0.45rem; height: 34px; cursor: pointer; transition: var(--transition); font-size: 0.78rem; font-weight: 700; font-family: var(--font-sans);" onmouseover="this.style.background='rgba(99, 102, 241, 0.18)'" onmouseout="this.style.background='rgba(99, 102, 241, 0.08)'">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="4 17 10 11 4 5"></polyline>
-              <line x1="12" y1="19" x2="20" y2="19"></line>
-            </svg>
-            Console
-          </button>
-
-          <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 4px;"></div>
-
-          <!-- Reboot Host button -->
-          <button onclick="rebootHostMachine()" title="Reboot Host Machine" style="padding: 0.5rem; border-radius: 8px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); color: var(--accent-orange); display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; cursor: pointer; transition: var(--transition);" onmouseover="this.style.background='rgba(245, 158, 11, 0.2)'" onmouseout="this.style.background='rgba(245, 158, 11, 0.1)'">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-            </svg>
-          </button>
-          <!-- Power Off button -->
-          <button onclick="shutdownHostMachine()" title="Power Off Host Machine" style="padding: 0.5rem; border-radius: 8px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: var(--accent-red); display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; cursor: pointer; transition: var(--transition);" onmouseover="this.style.background='rgba(239, 68, 68, 0.2)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.1)'">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-              <line x1="12" y1="2" x2="12" y2="12"></line>
-            </svg>
-          </button>
-          
-          <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 4px;"></div>
-          
-          <!-- Theme Toggle -->
-          <div onclick="toggleTheme()" title="Toggle Theme" style="cursor: pointer; display: flex; align-items: center; color: var(--text-secondary); transition: var(--transition); width: 34px; height: 34px; justify-content: center; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.01);" onmouseover="this.style.color='var(--text-primary)'; this.style.borderColor='var(--text-muted)';" onmouseout="this.style.color='var(--text-secondary)'; this.style.borderColor='var(--border-color)';">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-          </div>
-        </div>
-      </header>
+    <main class="main-workspace">
       
-      <main class="main-workspace" style="flex: 1; padding: 2.5rem 3rem;">
       <!-- JOURNEY: Dashboard Overview -->
       <section id="journey-dashboard" class="journey-pane active">
         <div class="idle-welcome">
+          <!-- Parallax Glassmorphism Hero Section -->
+          <div class="hero-parallax-card" style="
+            position: relative;
+            height: 220px;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(56, 189, 248, 0.1));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            padding: 2.5rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+          ">
+            <div style="position: absolute; right: 10%; top: -20%; width: 250px; height: 250px; border-radius: 50%; background: var(--accent-purple); opacity: 0.2; filter: blur(50px); pointer-events: none;"></div>
+            <div style="position: absolute; right: -5%; bottom: -30%; width: 200px; height: 200px; border-radius: 50%; background: var(--accent-blue); opacity: 0.2; filter: blur(40px); pointer-events: none;"></div>
+            
+            <div style="position: relative; z-index: 10; width: 100%;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+                <div>
+                  <h2 style="font-size: 2.2rem; font-weight: 800; color: #fff; letter-spacing: -0.04em; margin-bottom: 0.5rem; text-shadow: 0 2px 10px rgba(0,0,0,0.2);">Homeserver Operations</h2>
+                  <p style="color: rgba(255, 255, 255, 0.85); font-size: 0.95rem; font-weight: 500;">Complete orchestrator control portal & metrics suite.</p>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                  <button class="btn btn-secondary" onclick="shutdownHostMachine()" style="background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); color: #fff; padding: 0.65rem 1.25rem; font-size: 0.88rem; font-weight: 700; border-radius: 10px; backdrop-filter: blur(10px); transition: var(--transition);">🛑 Power Off</button>
+                  <button class="btn btn-secondary" onclick="rebootHostMachine()" style="background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #fff; padding: 0.65rem 1.25rem; font-size: 0.88rem; font-weight: 700; border-radius: 10px; backdrop-filter: blur(10px); transition: var(--transition);">🔄 Reboot Host</button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <!-- First-time installer suggestion banner -->
           <div id="first-time-setup-banner" class="warning-banner" style="display: none; background: rgba(99, 102, 241, 0.05); border-color: rgba(99, 102, 241, 0.2); color: var(--text-highlight);">
@@ -286,122 +294,51 @@
               </button>
             </div>
           </div>
-           <!-- Row 1: Daemons & System Vitals Grid (Single Row, Responsive, No Gray backgrounds) -->
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-top: 0.5rem;">
-            
-            <!-- Docker Daemon status card -->
-            <div class="metric-card" id="card-docker-daemon" style="border-left: 4px solid var(--accent-green);">
+          
+          <div class="dashboard-metrics-grid">
+            <div class="metric-card">
               <div class="metric-title">Docker Daemon</div>
-              <div class="metric-value" id="stats-daemon-status" style="color: var(--accent-green);">Online</div>
-              <div class="metric-detail" id="stats-daemon-desc">Daemon is ready and orchestrating container instances</div>
+              <div class="metric-value" id="stats-daemon-status">Online</div>
+              <div class="metric-detail" id="stats-daemon-desc">Service running</div>
             </div>
             
-            <!-- VPN status card -->
-            <div class="metric-card" id="card-vpn-status" style="border-left: 4px solid var(--accent-red);">
+            <div class="metric-card">
               <div class="metric-title">VPN Connectivity</div>
-              <div class="metric-value" id="stats-vpn" style="color: var(--accent-red);">Offline</div>
-              <div class="metric-detail" id="stats-vpn-desc">Secure remote access VPN tunnel is inactive</div>
+              <div class="metric-value" id="stats-vpn">Offline</div>
+              <div class="metric-detail">Secure Remote Access</div>
             </div>
 
-            <!-- CPU Load status card -->
-            <div class="metric-card" id="card-cpu-load" style="border-left: 4px solid var(--accent-indigo); cursor: pointer;" onclick="triggerJourney('system')">
-              <div class="metric-title">CPU Load</div>
-              <div class="metric-value" id="vitals-cpu-val">0%</div>
-              <div class="metric-detail" id="vitals-cpu-desc">Processor core utilization metrics</div>
+            <div class="metric-card">
+              <div class="metric-title">Auto-mount (Storage)</div>
+              <div class="metric-value" id="stats-mount">Portable</div>
             </div>
-
-            <!-- Memory status card -->
-            <div class="metric-card" id="card-ram-usage" style="border-left: 4px solid var(--accent-purple); cursor: pointer;" onclick="triggerJourney('system')">
-              <div class="metric-title">Memory Usage</div>
-              <div class="metric-value" id="vitals-ram-val">0%</div>
-              <div class="metric-detail" id="vitals-ram-desc">RAM stack memory allocation stats</div>
-            </div>
-
-            <!-- Temperature status card -->
-            <div class="metric-card" id="card-cpu-temp" style="border-left: 4px solid var(--accent-orange); cursor: pointer;" onclick="triggerJourney('system')">
-              <div class="metric-title">CPU Temperature</div>
-              <div class="metric-value" id="vitals-temp-val">0°C</div>
-              <div class="metric-detail" id="vitals-temp-desc">Core thermal health status</div>
-            </div>
-
-            <!-- Host Uptime status card -->
-            <div class="metric-card" id="card-host-uptime" style="border-left: 4px solid var(--accent-blue);">
-              <div class="metric-title">System Uptime</div>
-              <div class="metric-value" id="vitals-uptime-val" style="font-size: 1.15rem; word-break: break-word;">Loading...</div>
-              <div class="metric-detail" id="vitals-uptime-desc">Continuous OS online telemetry</div>
-            </div>
-
-            <!-- Host OS environment card -->
-            <div class="metric-card" id="card-os-info" style="border-left: 4px solid var(--accent-indigo);">
-              <div class="metric-title">Operating System</div>
-              <div class="metric-value" id="vitals-os-val" style="font-size: 1.15rem; word-break: break-word;">Loading...</div>
-              <div class="metric-detail" id="vitals-os-desc">Host server kernel environment</div>
-            </div>
-
-            <!-- Network Bandwidth status card -->
-            <div class="metric-card" id="card-net-speed" style="border-left: 4px solid var(--accent-green);">
-              <div class="metric-title">Network Traffic</div>
-              <div class="metric-value" id="vitals-net-speed-val" style="font-size: 1.15rem; word-break: break-word;">↓ 0 B/s  ↑ 0 B/s</div>
-              <div class="metric-detail" id="vitals-net-speed-desc">Real-time RX/TX network transfer</div>
-            </div>
-
           </div>
 
-          <!-- Advanced Diagnostics Collapsible Widget -->
-          <div class="card" style="margin-top: 1.5rem;">
-            <div class="card-header" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;" onclick="const el = document.getElementById('advanced-diagnostics-body'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; this.querySelector('.chevron-indicator').textContent = el.style.display === 'none' ? '▾' : '▴';">
-              <div>
-                <h2>Advanced Diagnostics & Telemetry</h2>
-                <div class="card-subtitle">Detailed node state, network parameters, and system processes</div>
+          <!-- Clickable Host System Vitals Nutshell Card -->
+          <div class="card" style="margin-top: 1.5rem; cursor: pointer; border-color: rgba(99, 102, 241, 0.15); background: rgba(99, 102, 241, 0.01); transition: border-color 0.2s, box-shadow 0.2s;" 
+               onclick="triggerJourney('system')"
+               onmouseover="this.style.borderColor='var(--accent-indigo)';this.style.boxShadow='0 0 12px rgba(99, 102, 241, 0.15)';"
+               onmouseout="this.style.borderColor='rgba(99, 102, 241, 0.15)';this.style.boxShadow='none';">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.1rem;">🖥️</span>
+                <h2 style="font-size: 0.95rem; font-weight: 700; text-transform: uppercase; tracking-wider; color: var(--text-primary);">Host System Vitals</h2>
               </div>
-              <span class="chevron-indicator" style="font-size: 1.25rem; color: var(--text-muted);">▾</span>
+              <span style="font-size: 0.75rem; color: var(--accent-indigo-text); font-weight: 600;">Inspect Health Metrics ➔</span>
             </div>
             
-            <div id="advanced-diagnostics-body" style="display: none; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.04);">
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-                
-                <!-- Samba Connections Diagnostics -->
-                <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem;">
-                  <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-orange); letter-spacing: 0.05em;">Samba Network Status</div>
-                  <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <span style="font-size: 0.82rem; color: var(--text-secondary);">Active Sessions</span>
-                    <span id="diag-samba-conns" style="font-size: 0.78rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 20px; background: rgba(245,158,11,0.1); color: var(--accent-orange); border: 1px solid rgba(245,158,11,0.2);">0 active</span>
-                  </div>
-                </div>
-
-                <!-- Tailscale VPN Diagnostics -->
-                <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem;">
-                  <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-indigo-text); letter-spacing: 0.05em;">Tailscale Node Status</div>
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
-                    <span style="color: var(--text-secondary);">VPN IP Address</span>
-                    <code id="diag-ts-ip" style="font-family: var(--font-mono); color: var(--accent-indigo-text);">N/A</code>
-                  </div>
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
-                    <span style="color: var(--text-secondary);">Connected Peers</span>
-                    <span id="diag-ts-peers" style="font-weight: 700; color: var(--text-primary);">0 peers</span>
-                  </div>
-                </div>
-
-                <!-- Load Average Diagnostics -->
-                <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem;">
-                  <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-green); letter-spacing: 0.05em;">Load Average (1m/5m/15m)</div>
-                  <div id="diag-load-avg" style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); font-family: var(--font-mono); letter-spacing: -0.02em;">0.00  0.00  0.00</div>
-                  <div style="font-size: 0.7rem; color: var(--text-muted);">Process scheduler queue depth telemetry</div>
-                </div>
-
-                <!-- Swap Memory Diagnostics -->
-                <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem;">
-                  <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-blue); letter-spacing: 0.05em;">Swap Space allocation</div>
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
-                    <span style="color: var(--text-secondary);">Swap Allocated</span>
-                    <span id="diag-swap-total" style="color: var(--text-primary); font-weight: 600;">0.0 GB</span>
-                  </div>
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
-                    <span style="color: var(--text-secondary);">Swap Used</span>
-                    <span id="diag-swap-used" style="color: var(--text-primary); font-weight: 600;">0.0 GB</span>
-                  </div>
-                </div>
-
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center; padding-top: 0.25rem;">
+              <div style="padding: 0.5rem 0; border-right: 1px solid var(--border-color);">
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">CPU Load</div>
+                <div id="vitals-cpu-val" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">0%</div>
+              </div>
+              <div style="padding: 0.5rem 0; border-right: 1px solid var(--border-color);">
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">Memory Usage</div>
+                <div id="vitals-ram-val" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">0%</div>
+              </div>
+              <div style="padding: 0.5rem 0;">
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">CPU Temperature</div>
+                <div id="vitals-temp-val" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 0.2rem;">0°C</div>
               </div>
             </div>
           </div>
@@ -412,28 +349,28 @@
               <h2>Docker Service Status Overview</h2>
             </div>
             
-            <!-- Grid displaying aggregate container counts (No Gray backgrounds) -->
+            <!-- Grid displaying aggregate container counts -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; margin-top: 1rem; margin-bottom: 1.5rem;">
-              <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; text-align: center;">
+              <div style="padding: 1rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 10px; text-align: center;">
                 <div style="font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Total Services</div>
                 <div id="widget-total-count" style="font-size: 1.6rem; font-weight: 700; color: var(--text-primary); margin-top: 0.25rem;">0</div>
               </div>
-              <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--accent-green); border-radius: 10px; text-align: center;">
+              <div style="padding: 1rem; background: rgba(16,185,129,0.03); border: 1px solid rgba(16,185,129,0.15); border-radius: 10px; text-align: center;">
                 <div style="font-size: 0.78rem; color: var(--accent-green); text-transform: uppercase; font-weight: 600;">Running</div>
                 <div id="widget-running-count" style="font-size: 1.6rem; font-weight: 700; color: var(--accent-green); margin-top: 0.25rem;">0</div>
               </div>
-              <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--accent-orange); border-radius: 10px; text-align: center;">
-                <div style="font-size: 0.78rem; color: var(--accent-orange); text-transform: uppercase; font-weight: 600;">Stopped</div>
-                <div id="widget-stopped-count" style="font-size: 1.6rem; font-weight: 700; color: var(--accent-orange); margin-top: 0.25rem;">0</div>
+              <div style="padding: 1rem; background: rgba(244,63,94,0.03); border: 1px solid rgba(244,63,94,0.15); border-radius: 10px; text-align: center;">
+                <div style="font-size: 0.78rem; color: var(--warning-banner-text); text-transform: uppercase; font-weight: 600;">Stopped</div>
+                <div id="widget-stopped-count" style="font-size: 1.6rem; font-weight: 700; color: var(--warning-banner-text); margin-top: 0.25rem;">0</div>
               </div>
-              <div style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--accent-red); border-radius: 10px; text-align: center;">
+              <div style="padding: 1rem; background: rgba(239,68,68,0.03); border: 1px solid rgba(239,68,68,0.15); border-radius: 10px; text-align: center;">
                 <div style="font-size: 0.78rem; color: var(--accent-red); text-transform: uppercase; font-weight: 600;">In Error</div>
                 <div id="widget-error-count" style="font-size: 1.6rem; font-weight: 700; color: var(--accent-red); margin-top: 0.25rem;">0</div>
               </div>
             </div>
 
             <!-- Dynamic System Alerts & Notices Bulletin -->
-            <div id="dashboard-notices-bulletin" class="warning-banner" style="background: var(--bg-card); border-color: var(--border-color); color: var(--text-secondary); margin-bottom: 1.5rem;">
+            <div id="dashboard-notices-bulletin" class="warning-banner" style="background: rgba(255,255,255,0.01); border-color: var(--border-color); color: var(--text-secondary); margin-bottom: 1.5rem;">
               <h3 id="bulletin-header" style="color: var(--text-primary);">📰 Status Bulletin</h3>
               <div id="bulletin-content" style="margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.6;">
                 Analyzing server cluster status...
@@ -447,127 +384,96 @@
             </div>
           </div>
 
-          <!-- Service Status (Signal Template Style) -->
-          <div class="card" style="margin-top: 1.5rem;">
-            <div class="card-header" style="margin-bottom: 0.5rem;">
-              <div>
-                <h2>Service Status</h2>
-                <div class="card-subtitle">Live health status across microservices node clusters</div>
-              </div>
-            </div>
-            <div id="service-status-grid-pills" style="display: flex; flex-wrap: wrap; gap: 0.85rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
-              <!-- Dynamically populated container node blocks -->
-            </div>
-            <div style="display: flex; gap: 1.5rem; font-size: 0.8rem; font-weight: 700;">
-              <div style="display: flex; align-items: center; gap: 0.4rem;">
-                <span style="width: 10px; height: 10px; border-radius: 3px; background: var(--accent-green); display: inline-block;"></span>
-                <span id="health-healthy-lbl">0 Healthy</span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 0.4rem;">
-                <span style="width: 10px; height: 10px; border-radius: 3px; background: var(--accent-orange); display: inline-block;"></span>
-                <span id="health-degraded-lbl">0 Degraded</span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 0.4rem;">
-                <span style="width: 10px; height: 10px; border-radius: 3px; background: var(--accent-red); display: inline-block;"></span>
-                <span id="health-down-lbl">0 Down</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- One-Time / Administrative Operations Control -->
-          <div class="card" style="margin-top: 1.5rem;">
+          <!-- Homepage Dashboard Widgets Refresh Card -->
+          <div class="card" style="margin-top: 0.5rem;">
             <div class="card-header" style="margin-bottom: 0.75rem;">
-              <h2>Administrative Operations Control</h2>
-            </div>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 1.25rem;">
-              Quick actions to deploy, synchronize, update, or restart services.
-            </p>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-              <button class="btn btn-secondary" onclick="triggerJourney('install')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                <span style="font-size: 1.4rem;">🚀</span>
-                <span style="font-size: 0.82rem; font-weight: 600;">Install from Scratch</span>
-              </button>
-              <button class="btn btn-secondary" onclick="triggerJourney('update')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                <span style="font-size: 1.4rem;">⚡</span>
-                <span style="font-size: 0.82rem; font-weight: 600;">Selective Update</span>
-              </button>
-              <button class="btn btn-secondary" onclick="triggerJourney('restart')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                <span style="font-size: 1.4rem;">🔄</span>
-                <span style="font-size: 0.82rem; font-weight: 600;">Selective Restart</span>
-              </button>
-
-              <button class="btn btn-secondary" onclick="runConfiguredAction('sync', 'Synchronizing Configurations from Git')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                <span style="font-size: 1.4rem;">📥</span>
-                <span style="font-size: 0.82rem; font-weight: 600;">Fetch from Git</span>
-              </button>
-
-              <button class="btn btn-secondary" onclick="triggerJourney('docker-install')" style="padding: 1rem; border-radius: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; height: 95px; background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary);">
-                <span style="font-size: 1.4rem;">🐳</span>
-                <span style="font-size: 0.82rem; font-weight: 600;">Install Docker Engine</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Real-Time Metrics Line Chart (Signal Template Style) -->
-          <div class="card" style="margin-top: 1.5rem;">
-            <div class="card-header" style="margin-bottom: 0.5rem;">
-              <div>
-                <h2>Request Volume (24h)</h2>
-                <div class="card-subtitle">Success and error requests stacked per hour</div>
+              <h2>Homepage Widget Services</h2>
+              <div class="terminal-actions" style="gap: 0.5rem;">
+                <button class="btn btn-secondary" onclick="toggleDashboardWidgetConfig()" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                  ⚙️ Configure Credentials
+                </button>
+                <button class="btn btn-primary" onclick="runConfiguredAction('homepage', 'Updating Homepage Widgets')" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                  🔄 Refresh Widgets
+                </button>
               </div>
             </div>
-            
-            <div style="position: relative; height: 180px; width: 100%; margin-top: 1rem;">
-              <svg id="throughput-line-chart" viewBox="0 0 500 150" preserveAspectRatio="none" style="width: 100%; height: 100%; overflow: visible;">
-                <defs>
-                  <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.12"/>
-                    <stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/>
-                  </linearGradient>
-                </defs>
-                <!-- Grid Lines -->
-                <line x1="0" y1="37.5" x2="500" y2="37.5" stroke="var(--border-color)" stroke-dasharray="3,3" />
-                <line x1="0" y1="75" x2="500" y2="75" stroke="var(--border-color)" stroke-dasharray="3,3" />
-                <line x1="0" y1="112.5" x2="500" y2="112.5" stroke="var(--border-color)" stroke-dasharray="3,3" />
-                
-                <!-- Chart Area Path -->
-                <path d="M 0 135 C 50 115 100 100 150 120 C 200 140 250 80 300 70 C 350 60 400 85 450 95 C 475 100 500 105 500 105 L 500 150 L 0 150 Z" fill="url(#chart-grad)" />
-                <!-- Chart Line Path -->
-                <path d="M 0 135 C 50 115 100 100 150 120 C 200 140 250 80 300 70 C 350 60 400 85 450 95 C 475 100 500 105 500 105" fill="none" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round" />
-                <!-- Red line path (stacked mock load) -->
-                <path d="M 0 134 C 50 114 100 99 150 119 C 200 139 250 78 300 68 C 350 58 400 83 450 93 C 475 98 500 103 500 103" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" />
-              </svg>
-            </div>
-            
-            <!-- Time markers -->
-            <div style="display: flex; justify-content: space-between; margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
-              <span>00:00</span>
-              <span>03:00</span>
-              <span>06:00</span>
-              <span>09:00</span>
-              <span>12:00</span>
-              <span>15:00</span>
-              <span>18:00</span>
-              <span>21:00</span>
-            </div>
-          </div>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 0.5rem;">
+              Sync and update configuration credentials for your dashboard homepage widgets (QBittorrent password, Paperless username/password, and Immich API key).
+            </p>
 
-          <!-- Dedicated New Deployment Card -->
-          <div class="card" style="margin-top: 1.5rem; border-left: 4px solid var(--accent-indigo);">
-            <div class="card-header" style="margin-bottom: 0.5rem;">
-              <div>
-                <h2>Start New Stack Deployment</h2>
-                <div class="card-subtitle">Install the complete application stack from scratch</div>
+            <div id="dashboard-widget-config" class="form-section" style="display: none; border-color: var(--border-color); background: rgba(0,0,0,0.15); margin-top: 1rem; margin-bottom: 0;">
+              <div class="form-section-body" style="grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1.25rem;">
+                <div class="form-group">
+                  <label for="homepage_QBITTORRENT_PASSWORD">QBittorrent API Password</label>
+                  <input type="password" id="homepage_QBITTORRENT_PASSWORD" placeholder="Password for dashboard widget">
+                </div>
+                <div class="form-group">
+                  <label for="homepage_IMMICH_API_KEY">Immich Widget API Key</label>
+                  <input type="password" id="homepage_IMMICH_API_KEY" placeholder="Immich API Key">
+                </div>
+                <div class="form-group">
+                  <label for="homepage_PAPERLESS_USERNAME">Paperless Widget Username</label>
+                  <input type="text" id="homepage_PAPERLESS_USERNAME" placeholder="Paperless username">
+                </div>
+                <div class="form-group">
+                  <label for="homepage_PAPERLESS_PASSWORD">Paperless Widget Password</label>
+                  <input type="password" id="homepage_PAPERLESS_PASSWORD" placeholder="Paperless password">
+                </div>
               </div>
             </div>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6; margin-bottom: 1.25rem;">
-              ⚠️ <strong>WARNING:</strong> Initiating a new stack deployment will configure host mounts, setup Docker directories, generate network bridge environments, and pull large container images for Jellyfin, Nextcloud, Immich, Tailscale, and Samba. Ensure your system meets the minimum requirements and has active internet access before executing.
-            </p>
-            <button class="btn btn-primary" onclick="triggerJourney('install')" style="padding: 0.65rem 1.5rem; font-size: 0.85rem; font-weight: 700; background: #008f8a; border: none; color: #fff; border-radius: 8px; cursor: pointer; transition: var(--transition);">
-              🚀 Initialize & Deploy Suite Stack
-            </button>
           </div>
+          
+          <!-- App Specific Custom Paths & Volume Mounts Card -->
+          <div class="card" style="margin-top: 1rem;">
+            <div class="card-header" style="margin-bottom: 0.75rem;">
+              <h2>App Custom Volume Mounts & Storage Paths</h2>
+              <div class="terminal-actions" style="gap: 0.5rem;">
+                <button class="btn btn-secondary" onclick="toggleVolumeSettingsConfig()" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                  ⚙️ Modify Path Overrides
+                </button>
+                <button class="btn btn-primary" onclick="applyCustomVolumeSettings()" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                  💾 Save & Apply Mounts
+                </button>
+              </div>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 0.5rem;">
+              Configure additional folder storage locations for your applications. These allow mounting secondary hard drives or external backup paths into Docker containers.
+            </p>
 
+            <div id="dashboard-volumes-config" class="form-section" style="display: none; border-color: var(--border-color); background: rgba(0,0,0,0.15); margin-top: 1rem; margin-bottom: 0;">
+              <div class="form-section-body" style="grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1.25rem;">
+                <div class="form-group">
+                  <label for="volume_JELLYFIN_EXTRA_DIR">🎬 Jellyfin Extra Media Mount Path</label>
+                  <input type="text" id="volume_JELLYFIN_EXTRA_DIR" placeholder="e.g. /mnt/hdd2/movies">
+                  <span class="form-tip">Mounted to <code>/extra_media</code> inside Jellyfin.</span>
+                </div>
+                <div class="form-group">
+                  <label for="volume_PHOTO_BACKUP_LOCATION">📸 Immich Photo Backup Path</label>
+                  <input type="text" id="volume_PHOTO_BACKUP_LOCATION" placeholder="e.g. /mnt/hdd/PhotoBackup">
+                  <span class="form-tip">Mounted read-only to <code>/mnt/PhotoBackup</code>.</span>
+                </div>
+                <div class="form-group">
+                  <label for="volume_UPLOAD_LOCATION">📸 Immich Photo Uploads Directory</label>
+                  <input type="text" id="volume_UPLOAD_LOCATION" placeholder="e.g. ./data/photos">
+                  <span class="form-tip">Primary uploads storage location.</span>
+                </div>
+                <div class="form-group">
+                  <label for="volume_NEXTCLOUD_DATA_LOCATION">☁️ Nextcloud Cloud Storage Directory</label>
+                  <input type="text" id="volume_NEXTCLOUD_DATA_LOCATION" placeholder="e.g. ./data/nextcloud/data">
+                  <span class="form-tip">Nextcloud user cloud storage directory root.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card" style="margin-top: 0.5rem;">
+            <div class="card-header">
+              <h2>Quick Stack Overview</h2>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+              Select a task from the left menu to begin. Each task guides you through the necessary parameters, options, and checklists before initiating execution in the log console.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -672,44 +578,6 @@
             </div>
           </div>
 
-          <!-- Edit Commands & Media Folder Sections (full width) -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
-            
-            <!-- Edit & Management Commands -->
-            <div style="padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px;">
-              <h3 style="font-size: 0.9rem; color: var(--accent-indigo-text); font-weight: 700; margin-bottom: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-                Management Commands
-              </h3>
-              <div id="detail-edit-commands" style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.82rem;">
-                <!-- Dynamically populated -->
-              </div>
-            </div>
-
-            <!-- Common Configuration Options -->
-            <div style="padding: 1.25rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px;">
-              <h3 style="font-size: 0.9rem; color: var(--accent-orange); font-weight: 700; margin-bottom: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"></path></svg>
-                Common Configuration
-              </h3>
-              <div id="detail-common-options" style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.82rem;">
-                <!-- Dynamically populated -->
-              </div>
-            </div>
-          </div>
-
-          <!-- Media/Custom Folder Paths (shown only if applicable) -->
-          <div id="detail-media-section" style="padding: 1.25rem; background: var(--bg-card); border: 1px solid rgba(16,185,129,0.15); border-radius: 14px; margin-bottom: 2rem; display: none;">
-            <h3 style="font-size: 0.9rem; color: var(--accent-green); font-weight: 700; margin-bottom: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              Media & Custom Folder Paths
-            </h3>
-            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.85rem; line-height: 1.5;">Add additional media directories by mounting them in the docker-compose.yml and updating library paths in the service UI.</p>
-            <div id="detail-media-folders" style="display: flex; flex-direction: column; gap: 0.4rem;">
-              <!-- Dynamically populated -->
-            </div>
-          </div>
-
           <!-- Bottom Section: Live logs console inside page -->
           <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 2rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -799,20 +667,26 @@
             <!-- Shared config flow will be moved here in JS -->
           </div>
           
-          <!-- Toggle restart option -->
-          <div style="margin-top: 1.5rem; display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 1.5rem;">
-            <div>
-              <div style="font-weight: 700; color: var(--text-primary); font-size: 0.9rem;">Restart Containers Immediately</div>
-              <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.15rem;">Stop and start containers to apply updates immediately. Turn off to only download images in the background.</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="update-restart-immediately" checked>
-              <span class="slider"></span>
-            </label>
-          </div>
-          
           <div class="btn-actions-footer">
             <button class="btn btn-primary" onclick="runSelectiveAction('update')">Update Selected</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- JOURNEY: Check & Pull Updates (without restart) -->
+      <section id="journey-check-updates" class="journey-pane">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Check & Pull Image Updates</h2>
+              <div class="card-subtitle">Download the latest Docker images from registries without restarting services</div>
+            </div>
+          </div>
+          <p style="color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.6;">
+            This will fetch and pull all service updates sequentially. New versions will be cached locally and will take effect the next time containers are restarted or re-deployed.
+          </p>
+          <div class="btn-actions-footer">
+            <button class="btn btn-primary" onclick="runDirectAction('check-updates', 'Pulling Registry Container Updates')">Check & Pull Images</button>
           </div>
         </div>
       </section>
@@ -1066,7 +940,54 @@
       </section>
 
       <!-- JOURNEY: Push Git -->
+      <section id="journey-git-push" class="journey-pane">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Push Configurations to GitHub</h2>
+              <div class="card-subtitle">Backs up and pushes your local configuration files to remote Git repository</div>
+            </div>
+          </div>
 
+          <div class="form-section" style="border: none; background: transparent; margin-bottom: 1.5rem;">
+            <div class="form-section-body" style="grid-template-columns: 1fr; gap: 1.25rem; padding: 0;">
+              <div class="form-group">
+                <label for="git_push_REPO">GitHub Repository</label>
+                <input type="text" id="git_push_REPO" placeholder="e.g. owner/repo">
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-actions-footer">
+            <button class="btn btn-primary" onclick="runConfiguredAction('git-push', 'Pushing local configurations to Git')">Push Configurations</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- JOURNEY: Fetch Git -->
+      <section id="journey-git-sync" class="journey-pane">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2>Fetch Configurations from GitHub</h2>
+              <div class="card-subtitle">Pulls latest configuration updates from your remote Git repository</div>
+            </div>
+          </div>
+
+          <div class="form-section" style="border: none; background: transparent; margin-bottom: 1.5rem;">
+            <div class="form-section-body" style="grid-template-columns: 1fr; gap: 1.25rem; padding: 0;">
+              <div class="form-group">
+                <label for="git_sync_REPO">GitHub Repository</label>
+                <input type="text" id="git_sync_REPO" placeholder="e.g. owner/repo">
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-actions-footer">
+            <button class="btn btn-primary" onclick="runConfiguredAction('sync', 'Fetching configurations from GitHub')">Fetch Configurations</button>
+          </div>
+        </div>
+      </section>
 
       <!-- JOURNEY: Suite Reference Guide -->
       <section id="journey-guide" class="journey-pane">
@@ -2150,10 +2071,6 @@
             <label for="MEDIA_DIR">Mass Media HDD Directory</label>
             <input type="text" id="MEDIA_DIR" placeholder="e.g. ./data/media">
           </div>
-          <div class="form-group">
-            <label for="GITHUB_REPO">GitHub Configuration Repo</label>
-            <input type="text" id="GITHUB_REPO" placeholder="format: owner/repo">
-          </div>
           
           <div class="form-group span-2 toggle-container" style="margin-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
             <label class="switch">
@@ -2222,9 +2139,9 @@
           </div>
         </div>
       </div>
+
     </div>
   </div>
-</div>
 
   <script src="/app.js"></script>
 </body>
