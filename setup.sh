@@ -2603,7 +2603,7 @@ setup_45drives_repo() {
 # ------------------------------------------------------------------------------
 action_install_cockpit() {
   echo -e "\n${BLUE}=== Installing and Configuring Cockpit Console & Plugins ===${NC}"
-  
+
   if [ "$(uname)" = "Darwin" ]; then
     echo -e "${YELLOW}[DEV MODE] Simulating Cockpit core and plugins installation...${NC}"
     echo -e "${GREEN}✔ [DEV MODE] Cockpit installed successfully.${NC}"
@@ -2615,39 +2615,115 @@ action_install_cockpit() {
     return 1
   fi
 
-  # 1. Update apt and install cockpit and cockpit-podman
-  echo -e "${BLUE}Installing Cockpit, Podman plugin, and Samba dependencies...${NC}"
-  apt-get update -qq || true
-  if apt-get install -y cockpit cockpit-podman samba; then
-    echo -e "${GREEN}✔ Core Cockpit, Podman plugin, and Samba installed successfully.${NC}"
-  else
-    echo -e "${RED}Error: Failed to install Core Cockpit.${NC}"
-    return 1
+  # ── Detect existing Cockpit installation ───────────────────────────────────
+  local cockpit_installed="false"
+  if command -v cockpit-bridge &>/dev/null || [ -d /usr/share/cockpit ]; then
+    cockpit_installed="true"
   fi
 
-  # 2. Add 45Drives repository
-  echo -e "${BLUE}Configuring 45Drives repository...${NC}"
-  if setup_45drives_repo; then
-    echo -e "${GREEN}✔ 45Drives repository configured.${NC}"
-    apt-get update -qq || true
-    
-    # 3. Install 45Drives Cockpit plugins
-    echo -e "${BLUE}Installing cockpit-file-sharing, cockpit-navigator, and cockpit-identities...${NC}"
-    if apt-get install -y cockpit-file-sharing cockpit-navigator cockpit-identities; then
-      echo -e "${GREEN}✔ 45Drives Cockpit plugins installed successfully.${NC}"
+  local do_install_core="true"
+
+  if [ "$cockpit_installed" = "true" ]; then
+    echo -e "${YELLOW}Cockpit is already installed on this system.${NC}"
+    read -rp "Would you like to reinstall Cockpit (uninstall + fresh install)? (y/n) [default: n]: " REINSTALL_COCKPIT
+    REINSTALL_COCKPIT="${REINSTALL_COCKPIT:-n}"
+    if [[ "$REINSTALL_COCKPIT" =~ ^[Yy]$ ]]; then
+      echo -e "${BLUE}Uninstalling existing Cockpit installation...${NC}"
+      apt-get remove --purge -y cockpit cockpit-podman cockpit-file-sharing cockpit-navigator cockpit-identities 2>/dev/null || true
+      apt-get autoremove -y || true
+      echo -e "${GREEN}✔ Existing Cockpit installation removed.${NC}"
+      do_install_core="true"
     else
-      echo -e "${YELLOW}Warning: Failed to install 45Drives plugins via repository.${NC}"
+      echo -e "${BLUE}Skipping core reinstall. Proceeding to plugin selection...${NC}"
+      do_install_core="false"
+    fi
+  fi
+
+  # ── Install core Cockpit ───────────────────────────────────────────────────
+  if [ "$do_install_core" = "true" ]; then
+    echo -e "${BLUE}Installing Cockpit core and Samba dependencies...${NC}"
+    apt-get update -qq || true
+    if apt-get install -y cockpit samba; then
+      echo -e "${GREEN}✔ Core Cockpit and Samba installed successfully.${NC}"
+    else
+      echo -e "${RED}Error: Failed to install core Cockpit.${NC}"
+      return 1
+    fi
+  fi
+
+  # ── Per-plugin prompts ─────────────────────────────────────────────────────
+  echo -e "\n${BLUE}--- Plugin Selection ---${NC}"
+
+  # Plugin: cockpit-podman
+  read -rp "Install cockpit-podman (Podman container manager)? (y/n) [default: y]: " INSTALL_PODMAN
+  INSTALL_PODMAN="${INSTALL_PODMAN:-y}"
+  if [[ "$INSTALL_PODMAN" =~ ^[Yy]$ ]]; then
+    if apt-get install -y cockpit-podman; then
+      echo -e "${GREEN}✔ cockpit-podman installed.${NC}"
+    else
+      echo -e "${YELLOW}Warning: Failed to install cockpit-podman.${NC}"
     fi
   else
-    echo -e "${RED}Error: Failed to configure 45Drives repository. Skipping 45Drives plugins.${NC}"
+    echo -e "${YELLOW}Skipping cockpit-podman.${NC}"
   fi
 
-  # 4. Enable and start Cockpit socket
+  # ── 45Drives plugins (require repository setup) ────────────────────────────
+  local needs_45drives="false"
+  local install_file_sharing="n"
+  local install_navigator="n"
+  local install_identities="n"
+
+  read -rp "Install cockpit-file-sharing (45Drives Samba GUI)? (y/n) [default: y]: " install_file_sharing
+  install_file_sharing="${install_file_sharing:-y}"
+  [[ "$install_file_sharing" =~ ^[Yy]$ ]] && needs_45drives="true"
+
+  read -rp "Install cockpit-navigator (45Drives File Browser)? (y/n) [default: y]: " install_navigator
+  install_navigator="${install_navigator:-y}"
+  [[ "$install_navigator" =~ ^[Yy]$ ]] && needs_45drives="true"
+
+  read -rp "Install cockpit-identities (45Drives User Manager)? (y/n) [default: y]: " install_identities
+  install_identities="${install_identities:-y}"
+  [[ "$install_identities" =~ ^[Yy]$ ]] && needs_45drives="true"
+
+  if [ "$needs_45drives" = "true" ]; then
+    echo -e "${BLUE}Configuring 45Drives repository...${NC}"
+    if setup_45drives_repo; then
+      echo -e "${GREEN}✔ 45Drives repository configured.${NC}"
+      apt-get update -qq || true
+
+      if [[ "$install_file_sharing" =~ ^[Yy]$ ]]; then
+        if apt-get install -y cockpit-file-sharing; then
+          echo -e "${GREEN}✔ cockpit-file-sharing installed.${NC}"
+        else
+          echo -e "${YELLOW}Warning: Failed to install cockpit-file-sharing.${NC}"
+        fi
+      fi
+
+      if [[ "$install_navigator" =~ ^[Yy]$ ]]; then
+        if apt-get install -y cockpit-navigator; then
+          echo -e "${GREEN}✔ cockpit-navigator installed.${NC}"
+        else
+          echo -e "${YELLOW}Warning: Failed to install cockpit-navigator.${NC}"
+        fi
+      fi
+
+      if [[ "$install_identities" =~ ^[Yy]$ ]]; then
+        if apt-get install -y cockpit-identities; then
+          echo -e "${GREEN}✔ cockpit-identities installed.${NC}"
+        else
+          echo -e "${YELLOW}Warning: Failed to install cockpit-identities.${NC}"
+        fi
+      fi
+    else
+      echo -e "${RED}Error: Failed to configure 45Drives repository. Skipping 45Drives plugins.${NC}"
+    fi
+  fi
+
+  # ── Enable and start Cockpit socket ───────────────────────────────────────
   echo -e "${BLUE}Enabling and starting Cockpit systemd socket...${NC}"
   systemctl daemon-reload
   systemctl enable --now cockpit.socket
-  
-  # Check if Cockpit is active
+
   if systemctl is-active --quiet cockpit.socket; then
     local SERVER_IP="${SERVER_IP:-$(hostname -I | awk '{print $1}')}"
     echo -e "\n${GREEN}✔ Cockpit is live and running!${NC}"
