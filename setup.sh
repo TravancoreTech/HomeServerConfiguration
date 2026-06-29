@@ -28,7 +28,7 @@ restore_ownership() {
     chown "${SUDO_UID}:${SUDO_GID}" .env 2>/dev/null || true
     chown "${SUDO_UID}:${SUDO_GID}" setup.sh 2>/dev/null || true
     chown "${SUDO_UID}:${SUDO_GID}" configure_homepage.sh 2>/dev/null || true
-    chown -R "${SUDO_UID}:${SUDO_GID}" immich nextcloud utility media dashboard storage 2>/dev/null || true
+    chown -R "${SUDO_UID}:${SUDO_GID}" immich nextcloud utility media homepage homarr storage 2>/dev/null || true
     if [ -d "appdata" ]; then
       chown -R "${SUDO_UID}:${SUDO_GID}" appdata 2>/dev/null || true
     fi
@@ -582,7 +582,8 @@ COMPOSE_FILES=(
   "immich/docker-compose.yml"
   "media/docker-compose.yml"
   "storage/docker-compose.yml"
-  "dashboard/docker-compose.yml"
+  "homepage/docker-compose.yml"
+  "homarr/docker-compose.yml"
 )
 
 # Restore file ownership to the non-root user

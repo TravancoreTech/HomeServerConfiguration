@@ -1,0 +1,30 @@
+# ==============================================================================
+# HOMARR DOCKER COMPOSE CONFIGURATION (DOCKER-COMPOSE.YML)
+# ==============================================================================
+# Homarr is bound to port 8081 (mapped to internal port 7575).
+# ==============================================================================
+
+services:
+  homarr:
+    container_name: dashboard_homarr
+    image: ghcr.io/homarr-labs/homarr:latest
+    restart: always
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_KEY}
+    ports:
+      - "8081:7575"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${SYSTEM_DATA_DIR:-../appdata}/homarr/configs:/app/data/configs
+      - ${SYSTEM_DATA_DIR:-../appdata}/homarr/data:/data
+      - ${SYSTEM_DATA_DIR:-../appdata}/homarr/icons:/app/public/icons
+    networks:
+      - default
+      - homeserver_network
+
+networks:
+  homeserver_network:
+    external: true

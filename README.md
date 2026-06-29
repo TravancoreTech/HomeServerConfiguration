@@ -209,8 +209,8 @@ Go to **Deploy & Setup → Install (From scratch)**. Fill in your server IP, tim
 
 ---
 
-### 📊 Dashboard Suite
-`dashboard/docker-compose.yml`
+### 📊 Dashboard Suites
+`homepage/docker-compose.yml` & `homarr/docker-compose.yml`
 
 | Service | Container | Port | Description |
 |---|---|---|---|
@@ -352,7 +352,8 @@ HomeServerConfiguration/
 ├── nextcloud/                # ☁️ Cloud drive suite docker-compose
 ├── storage/                  # 🗄️ Storage management suite docker-compose
 ├── utility/                  # 🛠️ Utility & admin suite docker-compose
-├── dashboard/                # 📊 Homepage/Homarr launcher docker-compose
+├── homepage/                 # 📊 Homepage landing dashboard docker-compose
+├── homarr/                   # 📊 Homarr landing dashboard docker-compose
 │
 └── appdata/                  # Services configuration directories (gitignored)
     ├── homepage/             # Config files for the gethomepage dashboard (committed)
