@@ -5,25 +5,10 @@
 # Homepage is bound straight to port 80 to act as the root landing page.
 #
 # Services included:
-#   1. Heimdall - Visual application launcher portal (port 8081)
 #   2. Homepage - Modern, metric-capable server dashboard (port 80)
 # ==============================================================================
 
 services:
-  heimdall:
-    container_name: dashboard_heimdall
-    image: lscr.io/linuxserver/heimdall:latest
-    restart: always
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-1000}
-      - TZ=${TZ:-Etc/UTC}
-    ports:
-      - "8081:80"
-      - "8443:443"
-    volumes:
-      - ${SYSTEM_DATA_DIR:-../appdata}/heimdall:/config
-
   homepage:
     container_name: dashboard_homepage
     image: ghcr.io/benphelps/homepage:latest
@@ -57,7 +42,7 @@ services:
       - TZ=${TZ:-Etc/UTC}
       - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_KEY}
     ports:
-      - "7575:7575"
+      - "8081:7575"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${SYSTEM_DATA_DIR:-../appdata}/homarr/configs:/app/data/configs

@@ -142,15 +142,9 @@
 
 
 - Utilities & Security:
-    - Heimdall:
-        icon: heimdall.png
-        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8081
-        container: dashboard_heimdall
-        description: Visual Apps Portal
-
     - Homarr:
         icon: homarr.png
-        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:7575
+        href: http://{{HOMEPAGE_VAR_SERVER_IP}}:8081
         container: dashboard_homarr
         description: Modern Server Dashboard
 

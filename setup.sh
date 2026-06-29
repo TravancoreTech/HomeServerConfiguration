@@ -1232,8 +1232,7 @@ print_successful_urls() {
   echo -e "\n${GREEN}======================================================================${NC}"
   echo -e "${GREEN}✔ Active services are accessible at the URLs below:${NC}"
   echo -e "  - Homepage Dashboard:   http://${SERVER_IP}"
-  echo -e "  - Homarr Dashboard:     http://${SERVER_IP}:7575"
-  echo -e "  - Heimdall Dashboard:   http://${SERVER_IP}:8081"
+  echo -e "  - Homarr Dashboard:     http://${SERVER_IP}:8081"
   echo -e "  - Nextcloud:            http://${SERVER_IP}:8080"
   echo -e "  - Jellyfin:             http://${SERVER_IP}:8096"
   echo -e "  - Immich Photos:        http://${SERVER_IP}:2283"
@@ -2120,7 +2119,6 @@ action_nuke_selected() {
   echo -e "${RED}Deleting appdata configuration directories for selected services...${NC}"
   for service in "${selected_services[@]}"; do
     case "$service" in
-      heimdall) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/heimdall" ;;
       homarr) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/homarr" ;;
       homepage) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/homepage" ;;
       jellyfin) rm -rf "${SYSTEM_DATA_DIR:-./appdata}/jellyfin" ;;

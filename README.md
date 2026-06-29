@@ -215,8 +215,7 @@ Go to **Deploy & Setup → Install (From scratch)**. Fill in your server IP, tim
 | Service | Container | Port | Description |
 |---|---|---|---|
 | [Homepage](https://gethomepage.dev) | `dashboard_homepage` | `80` | Live metrics dashboard (bound to root port) |
-| [Homarr](https://homarr.dev) | `dashboard_homarr` | `7575` | Modern server landing dashboard portal |
-| [Heimdall](https://heimdall.site) | `dashboard_heimdall` | `8081` | Visual app launcher portal |
+| [Homarr](https://homarr.dev) | `dashboard_homarr` | `8081` | Modern server landing dashboard portal |
 
 > Homepage reads live container metrics via the Docker socket and is configured via `appdata/homepage/`.
 
@@ -353,7 +352,7 @@ HomeServerConfiguration/
 ├── nextcloud/                # ☁️ Cloud drive suite docker-compose
 ├── storage/                  # 🗄️ Storage management suite docker-compose
 ├── utility/                  # 🛠️ Utility & admin suite docker-compose
-├── dashboard/                # 📊 Homepage/Heimdall launcher docker-compose
+├── dashboard/                # 📊 Homepage/Homarr launcher docker-compose
 │
 └── appdata/                  # Services configuration directories (gitignored)
     ├── homepage/             # Config files for the gethomepage dashboard (committed)
