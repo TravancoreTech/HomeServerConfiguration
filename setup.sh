@@ -1151,6 +1151,10 @@ EOF
       "$app_dir/homarr" \
       "$app_dir/homepage" 2>/dev/null || true
   fi
+
+  # Explicitly ensure homarr and homepage are owned by UID 1000 (standard non-root container UID)
+  chown -R 1000:1000 "$app_dir/homarr" "$app_dir/homepage" 2>/dev/null || true
+
   # Allow the container services to write (especially Baikal/Kopia/Cronicle/Homarr/Homepage which run as special UIDs)
   chmod -R 777 \
     "$app_dir/radicale" \
