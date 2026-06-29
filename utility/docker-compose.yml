@@ -22,8 +22,9 @@ services:
 
   stirling-pdf:
     container_name: utility_stirling_pdf
+    profiles: ["on-demand"]
     image: stirlingtools/stirling-pdf:latest
-    restart: always
+    restart: no
     environment:
       - DOCKER_ENABLE_SECURITY=false
       - INSTALL_BOOK_AND_ADVANCED_HTML_OPS=false
@@ -35,15 +36,17 @@ services:
 
   it-tools:
     container_name: utility_it_tools
+    profiles: ["on-demand"]
     image: corentinth/it-tools:latest
-    restart: always
+    restart: no
     ports:
       - "8084:80"
 
   uptime-kuma:
     container_name: utility_uptime_kuma
+    profiles: ["on-demand"]
     image: louislam/uptime-kuma:1
-    restart: always
+    restart: no
     ports:
       - "3001:3001"
     volumes:
@@ -54,8 +57,9 @@ services:
 
   syncthing:
     container_name: utility_syncthing
+    profiles: ["on-demand"]
     image: lscr.io/linuxserver/syncthing:latest
-    restart: always
+    restart: no
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
@@ -72,8 +76,9 @@ services:
 
   pairdrop:
     container_name: utility_pairdrop
+    profiles: ["on-demand"]
     image: lscr.io/linuxserver/pairdrop:latest
-    restart: always
+    restart: no
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}

@@ -9,8 +9,9 @@
 services:
   filebrowser:
     container_name: storage_filebrowser
+    profiles: ["on-demand"]
     image: filebrowser/filebrowser:latest
-    restart: always
+    restart: no
     user: "${PUID}:${PGID}"
     ports:
       - "8082:80"

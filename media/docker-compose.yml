@@ -52,8 +52,9 @@ services:
 
   radarr:
     container_name: media_radarr
+    profiles: ["on-demand"]
     image: lscr.io/linuxserver/radarr:latest
-    restart: always
+    restart: no
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -71,8 +72,9 @@ services:
 
   sonarr:
     container_name: media_sonarr
+    profiles: ["on-demand"]
     image: lscr.io/linuxserver/sonarr:latest
-    restart: always
+    restart: no
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -90,8 +92,9 @@ services:
 
   prowlarr:
     container_name: media_prowlarr
+    profiles: ["on-demand"]
     image: lscr.io/linuxserver/prowlarr:latest
-    restart: always
+    restart: no
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -105,8 +108,9 @@ services:
 
   flaresolverr:
     container_name: media_flaresolverr
+    profiles: ["on-demand"]
     image: ghcr.io/flaresolverr/flaresolverr:latest
-    restart: always
+    restart: no
     environment:
       - LOG_LEVEL=info
       - LOG_HTML=false
@@ -115,8 +119,9 @@ services:
 
   jellyseerr:
     container_name: media_jellyseerr
+    profiles: ["on-demand"]
     image: fallenbagel/jellyseerr:latest
-    restart: always
+    restart: no
     environment:
       - LOG_LEVEL=debug
       - TZ=${TZ}
@@ -131,8 +136,9 @@ services:
 
   bazarr:
     container_name: media_bazarr
+    profiles: ["on-demand"]
     image: lscr.io/linuxserver/bazarr:latest
-    restart: always
+    restart: no
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -148,8 +154,9 @@ services:
 
   navidrome:
     container_name: media_navidrome
+    profiles: ["on-demand"]
     image: deluan/navidrome:latest
-    restart: always
+    restart: no
     user: "${PUID}:${PGID}"
     ports:
       - "4533:4533"
@@ -164,8 +171,9 @@ services:
 
   metube:
     container_name: media_metube
+    profiles: ["on-demand"]
     image: ghcr.io/alexta69/metube:latest
-    restart: always
+    restart: no
     ports:
       - "8087:8081"
     environment:
