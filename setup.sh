@@ -921,11 +921,14 @@ prompt_and_generate_configs() {
   fi
 
   # Homarr Secret Prompt
-  if [ -n "${HOMARR_SECRET_KEY:-}" ]; then
-    echo -e "${GREEN}✔ Reusing existing secret key for Homarr.${NC}"
+  if [ -n "${HOMARR_SECRET_KEY:-}" ] && [[ "$HOMARR_SECRET_KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo -e "${GREEN}✔ Reusing existing valid secret key for Homarr.${NC}"
     HOMARR_SECRET="$HOMARR_SECRET_KEY"
   else
-    HOMARR_SECRET=$(openssl rand -hex 32 2>/dev/null || echo "homarr_secret_123_random_chars_64_characters_long_for_security_key")
+    if [ -n "${HOMARR_SECRET_KEY:-}" ]; then
+      echo -e "${YELLOW}Warning: Existing Homarr secret key is invalid (must be a 64-character hex string). Generating a new one...${NC}"
+    fi
+    HOMARR_SECRET=$(openssl rand -hex 32 2>/dev/null || echo "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e")
   fi
 
   # GitHub repo prompt

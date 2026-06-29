@@ -36,10 +36,13 @@ else
   exit 1
 fi
 
-# Copy other configuration templates only if they do not exist in the target directory
+# Copy other configuration templates, creating backups if they exist to protect user edits
 for file in bookmarks.yaml settings.yaml widgets.yaml docker.yaml; do
-  if [ -f "appdata/homepage/$file" ] && [ ! -f "$TARGET_DIR/$file" ]; then
-    echo "Initializing default $file in $TARGET_DIR..."
+  if [ -f "appdata/homepage/$file" ]; then
+    if [ -f "$TARGET_DIR/$file" ]; then
+      cp "$TARGET_DIR/$file" "$TARGET_DIR/${file}.user.bak" || true
+    fi
+    echo "Syncing template $file to $TARGET_DIR..."
     cp "appdata/homepage/$file" "$TARGET_DIR/$file"
   fi
 done
