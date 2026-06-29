@@ -1131,6 +1131,8 @@ EOF
   mkdir -p "$app_dir/backrest/data" "$app_dir/backrest/config" "$app_dir/backrest/cache" "$app_dir/backrest/tmp"
   mkdir -p "$app_dir/cronicle/data" "$app_dir/cronicle/logs" "$app_dir/cronicle/plugins"
   mkdir -p "$app_dir/torrent-generator"
+  mkdir -p "$app_dir/homarr"
+  mkdir -p "$app_dir/homepage"
 
   if [ -n "${SUDO_UID:-}" ]; then
     chown -R "${SUDO_UID}:${SUDO_GID}" \
@@ -1139,15 +1141,19 @@ EOF
       "$app_dir/kopia" \
       "$app_dir/backrest" \
       "$app_dir/cronicle" \
-      "$app_dir/torrent-generator" 2>/dev/null || true
+      "$app_dir/torrent-generator" \
+      "$app_dir/homarr" \
+      "$app_dir/homepage" 2>/dev/null || true
   fi
-  # Allow the container services to write (especially Baikal/Kopia/Cronicle which run as special UIDs)
+  # Allow the container services to write (especially Baikal/Kopia/Cronicle/Homarr/Homepage which run as special UIDs)
   chmod -R 777 \
     "$app_dir/radicale" \
     "$app_dir/baikal" \
     "$app_dir/kopia" \
     "$app_dir/backrest" \
-    "$app_dir/cronicle" 2>/dev/null || true
+    "$app_dir/cronicle" \
+    "$app_dir/homarr" \
+    "$app_dir/homepage" 2>/dev/null || true
 
   if [ "$generated_kopia_pass" = true ]; then
     echo -e "\n${YELLOW}🔑 A random Kopia Admin Password has been generated: ${GREEN}${KOPIA_ADMIN_PASS}${NC}"
