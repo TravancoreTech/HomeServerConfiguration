@@ -15,14 +15,37 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-SERVICES_YAML="appdata/homepage/services.yaml"
+# Load environment variables from .env to get SYSTEM_DATA_DIR
+SYSTEM_DATA_DIR=""
+if [ -f ".env" ]; then
+  # Safely parse SYSTEM_DATA_DIR
+  SYSTEM_DATA_DIR=$(grep '^SYSTEM_DATA_DIR=' .env | cut -d= -f2- | sed 's/^"//;s/"$//' || true)
+fi
 
-if [ ! -f "$SERVICES_YAML" ]; then
-  echo -e "${RED}Error: Homepage services config not found at $SERVICES_YAML${NC}"
+TARGET_DIR="${SYSTEM_DATA_DIR:-./appdata}/homepage"
+echo -e "${BLUE}Target directory for Homepage: $TARGET_DIR${NC}"
+
+# Pre-create folder
+mkdir -p "$TARGET_DIR"
+
+# Always sync services.yaml to target directory to ensure it has the latest service listing
+if [ -f "appdata/homepage/services.yaml" ]; then
+  cp "appdata/homepage/services.yaml" "$TARGET_DIR/services.yaml"
+else
+  echo -e "${RED}Error: Template services.yaml not found at appdata/homepage/services.yaml${NC}"
   exit 1
 fi
 
-echo -e "${BLUE}Configuring Homepage services.yaml...${NC}"
+# Copy other configuration templates only if they do not exist in the target directory
+for file in bookmarks.yaml settings.yaml widgets.yaml docker.yaml; do
+  if [ -f "appdata/homepage/$file" ] && [ ! -f "$TARGET_DIR/$file" ]; then
+    echo "Initializing default $file in $TARGET_DIR..."
+    cp "appdata/homepage/$file" "$TARGET_DIR/$file"
+  fi
+done
+
+SERVICES_YAML="$TARGET_DIR/services.yaml"
+echo -e "${BLUE}Configuring Homepage services.yaml at $SERVICES_YAML...${NC}"
 
 # 1. Parse Radarr API Key
 # Radarr stores config in appdata/radarr/config.xml or appdata/Radarr/config.xml
