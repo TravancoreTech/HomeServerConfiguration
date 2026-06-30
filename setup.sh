@@ -2139,6 +2139,13 @@ action_system_maintenance() {
 action_sync_latest() {
   echo -e "\n${BLUE}Syncing latest configurations from Git repository...${NC}"
   sync_from_github
+
+  # Deploy homepage config files to wherever the container actually reads from
+  if [ -f "./configure_homepage.sh" ]; then
+    echo -e "\n${BLUE}Deploying homepage configuration...${NC}"
+    chmod +x ./configure_homepage.sh
+    ./configure_homepage.sh || true
+  fi
 }
 
 # Find device name in lsblk by matching size (part/disk)
