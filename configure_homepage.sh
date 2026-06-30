@@ -56,6 +56,44 @@ echo -e "${BLUE}Syncing Homepage config files to: $TARGET_DIR${NC}"
 mkdir -p "$TARGET_DIR"
 
 # ------------------------------------------------------------------------------
+# 2. Detect server IP and inject HOMEPAGE_VAR_SERVER_IP into .env if missing/empty
+# ------------------------------------------------------------------------------
+ENV_FILE=".env"
+DETECTED_IP=""
+
+# Try multiple methods to detect the LAN IP
+if command -v ip &>/dev/null; then
+  DETECTED_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}' || true)
+fi
+if [ -z "$DETECTED_IP" ] && command -v hostname &>/dev/null; then
+  DETECTED_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+fi
+
+if [ -n "$DETECTED_IP" ]; then
+  # Check if HOMEPAGE_VAR_SERVER_IP is already set and non-empty in .env
+  EXISTING_IP=$(grep '^HOMEPAGE_VAR_SERVER_IP=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"' || true)
+
+  if [ -z "$EXISTING_IP" ]; then
+    # Add or update the variable in .env
+    if grep -q '^HOMEPAGE_VAR_SERVER_IP=' "$ENV_FILE" 2>/dev/null; then
+      # Variable exists but is empty — update it in place
+      sed -i "s|^HOMEPAGE_VAR_SERVER_IP=.*|HOMEPAGE_VAR_SERVER_IP=$DETECTED_IP|" "$ENV_FILE"
+    else
+      # Variable missing — append it
+      echo "HOMEPAGE_VAR_SERVER_IP=$DETECTED_IP" >> "$ENV_FILE"
+    fi
+    echo -e "${GREEN}✔ Set HOMEPAGE_VAR_SERVER_IP=$DETECTED_IP in $ENV_FILE${NC}"
+    NEED_RESTART=true
+  else
+    echo -e "${GREEN}✔ HOMEPAGE_VAR_SERVER_IP already set to: $EXISTING_IP${NC}"
+    NEED_RESTART=false
+  fi
+else
+  echo -e "${YELLOW}Warning: Could not auto-detect server IP. Set HOMEPAGE_VAR_SERVER_IP manually in .env${NC}"
+  NEED_RESTART=false
+fi
+
+# ------------------------------------------------------------------------------
 # 2. Copy config files from repo → target directory
 #    services.yaml is always overwritten (it's the source of truth).
 #    Other files are backed up first to preserve any manual edits.
@@ -127,6 +165,20 @@ rm -f "${SERVICES_YAML}.bak" 2>/dev/null || true
 # ------------------------------------------------------------------------------
 if [ -n "${SUDO_USER:-}" ]; then
   chown "${SUDO_UID}:${SUDO_GID}" "$TARGET_DIR"/*.yaml 2>/dev/null || true
+fi
+
+# ------------------------------------------------------------------------------
+# 6. Restart Homepage container if env changed so the new IP takes effect
+# ------------------------------------------------------------------------------
+if [ "${NEED_RESTART:-false}" = "true" ] && command -v docker &>/dev/null; then
+  echo -e "${BLUE}Restarting Homepage container to apply new environment variables...${NC}"
+  CONTAINER_NAMES=("dashboard_homepage" "homepage")
+  for cname in "${CONTAINER_NAMES[@]}"; do
+    if docker inspect "$cname" &>/dev/null 2>&1; then
+      docker restart "$cname" && echo -e "${GREEN}✔ $cname restarted.${NC}" || true
+      break
+    fi
+  done
 fi
 
 echo -e "${GREEN}✔ Homepage configuration synced successfully to $TARGET_DIR${NC}"

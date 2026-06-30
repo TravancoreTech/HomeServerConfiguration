@@ -1765,51 +1765,277 @@ action_git_push() {
 # ------------------------------------------------------------------------------
 # PORTAL ACTION 12: TAILSCALE VPN CONFIGURATION
 # ------------------------------------------------------------------------------
-action_setup_tailscale() {
-  echo -e "\n${BLUE}=== Configure Secure Remote Access (Tailscale VPN) ===${NC}"
-  
-  if command -v tailscale &>/dev/null; then
-    echo -e "${GREEN}Tailscale is already installed on this system!${NC}"
-    echo -e "Current Status:"
-    tailscale status || true
-    echo ""
-    read -rp "Would you like to run 'tailscale up' to log in or refresh your connection? (y/n) [default: y]: " TS_UP
-    TS_UP="${TS_UP:-y}"
-    if [[ ! "$TS_UP" =~ ^[Yy]$ ]]; then
-      return 0
-    fi
-  else
-    echo -e "${YELLOW}Tailscale is not installed on this server.${NC}"
-    read -rp "Would you like to install and configure Tailscale? (y/n) [default: y]: " TS_INSTALL
-    TS_INSTALL="${TS_INSTALL:-y}"
-    if [[ ! "$TS_INSTALL" =~ ^[Yy]$ ]]; then
-      return 0
-    fi
 
-    echo -e "\n${BLUE}Installing Tailscale via official installer script...${NC}"
-    if ! curl -fsSL https://tailscale.com/install.sh | sh; then
-      echo -e "${RED}Failed to install Tailscale.${NC}"
-      return 1
-    fi
+# ── Shared helper: enable kernel IP forwarding ────────────────────────────────
+_tailscale_enable_ip_forwarding() {
+  local sysctl_conf="/etc/sysctl.d/99-tailscale.conf"
+  echo -e "${BLUE}Enabling kernel IP forwarding (required for exit node & routing)...${NC}"
+  if [ ! -f "$sysctl_conf" ]; then
+    cat > "$sysctl_conf" <<EOF
+# Required for Tailscale exit node and subnet routing
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+EOF
+    echo -e "${GREEN}✔ Created $sysctl_conf${NC}"
+  else
+    grep -q 'net.ipv4.ip_forward'          "$sysctl_conf" || echo 'net.ipv4.ip_forward = 1'          >> "$sysctl_conf"
+    grep -q 'net.ipv6.conf.all.forwarding' "$sysctl_conf" || echo 'net.ipv6.conf.all.forwarding = 1' >> "$sysctl_conf"
+    echo -e "${GREEN}✔ IP forwarding settings confirmed in $sysctl_conf${NC}"
+  fi
+  sysctl -p "$sysctl_conf" &>/dev/null
+  echo -e "${GREEN}✔ IP forwarding active (IPv4 + IPv6).${NC}"
+}
+
+# ── Post-install: full secure remote access setup ─────────────────────────────
+_tailscale_post_install_setup() {
+  echo -e "\n${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+  echo -e "${BLUE}║   Setting up Tailscale for secure remote access              ║${NC}"
+  echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+
+  # 1. IP forwarding
+  _tailscale_enable_ip_forwarding
+
+  # 2. Auto-detect LAN subnet
+  local LOCAL_SUBNET=""
+  local DETECTED_SUBNET=""
+  if command -v ip &>/dev/null; then
+    # Find the primary LAN interface subnet (exclude loopback, docker, veth, tailscale)
+    DETECTED_SUBNET=$(ip route \
+      | grep -v '^default' \
+      | grep -v 'tailscale\|docker\|veth\|br-\|lo' \
+      | awk '{print $1}' \
+      | grep -v '^127\.' \
+      | grep '/' \
+      | head -1 || true)
   fi
 
-  echo -e "\n${BLUE}Starting Tailscale authentication...${NC}"
-  echo -e "${YELLOW}Follow the link printed below to authorize this server in your Tailscale admin console:${NC}"
-  
-  # Run tailscale up. This prints a login URL.
-  # We disable exit-on-error temporarily just in case tailscale up exits non-zero on interruption or cancel
+  echo -e "\n${BLUE}--- LAN Subnet Routing ---${NC}"
+  echo -e "Advertising your LAN subnet lets you access ALL devices on your home"
+  echo -e "network (NAS, printers, cameras, etc.) via Tailscale from anywhere."
+  if [ -n "$DETECTED_SUBNET" ]; then
+    echo -e "Detected local subnet: ${YELLOW}$DETECTED_SUBNET${NC}"
+    read -rp "Advertise this subnet over Tailscale? (y/n) [default: y]: " ADVERTISE_SUBNET
+    ADVERTISE_SUBNET="${ADVERTISE_SUBNET:-y}"
+    if [[ "$ADVERTISE_SUBNET" =~ ^[Yy]$ ]]; then
+      LOCAL_SUBNET="$DETECTED_SUBNET"
+    else
+      read -rp "Enter a different subnet (e.g. 192.168.1.0/24), or leave empty to skip: " LOCAL_SUBNET
+    fi
+  else
+    read -rp "Enter your LAN subnet to advertise (e.g. 192.168.1.0/24), or leave empty to skip: " LOCAL_SUBNET
+  fi
+
+  # 3. Tailscale SSH
+  echo -e "\n${BLUE}--- Tailscale SSH ---${NC}"
+  echo -e "Tailscale SSH lets you SSH into this server using your Tailscale identity."
+  echo -e "No port 22 exposure needed — works through the Tailscale mesh securely."
+  read -rp "Enable Tailscale SSH? (y/n) [default: y]: " ENABLE_TS_SSH
+  ENABLE_TS_SSH="${ENABLE_TS_SSH:-y}"
+
+  # 4. Build tailscale up flags
+  local TS_FLAGS="--advertise-exit-node --accept-dns=true --accept-routes=true"
+  [[ "$ENABLE_TS_SSH" =~ ^[Yy]$ ]] && TS_FLAGS="$TS_FLAGS --ssh"
+  [ -n "$LOCAL_SUBNET" ]            && TS_FLAGS="$TS_FLAGS --advertise-routes=$LOCAL_SUBNET"
+
+  # 5. Authenticate and apply all config in one shot
+  echo -e "\n${BLUE}--- Authentication & Configuration ---${NC}"
+  echo -e "Running: ${YELLOW}tailscale up $TS_FLAGS${NC}"
+  echo -e "${YELLOW}A login URL will appear below. Open it to authorize this server:${NC}\n"
   set +e
-  tailscale up
+  # shellcheck disable=SC2086
+  tailscale up $TS_FLAGS
+  local EXIT_CODE=$?
   set -e
 
-  echo -e "\n${GREEN}Checking Tailscale connection IP...${NC}"
+  # 6. Show result
   local ts_ip
   ts_ip=$(tailscale ip -4 2>/dev/null || echo "")
+
   if [ -n "$ts_ip" ]; then
-    echo -e "${GREEN}✔ Tailscale is connected! Server IP address: ${BLUE}$ts_ip${NC}"
+    echo -e "\n${GREEN}✔ Tailscale connected!${NC}"
+    echo -e "  This server's Tailscale IP: ${BLUE}$ts_ip${NC}"
+  elif [ $EXIT_CODE -eq 0 ]; then
+    echo -e "\n${GREEN}✔ Tailscale configured. Complete auth via the link above.${NC}"
   else
-    echo -e "${YELLOW}Tailscale IP not found. You may need to finish logging in via the printed link.${NC}"
+    echo -e "\n${YELLOW}Tailscale returned non-zero. Check auth link above and retry if needed.${NC}"
   fi
+
+  # 7. Required admin console steps
+  echo -e "\n${YELLOW}══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${YELLOW}  ACTION REQUIRED: Approve in Tailscale admin console${NC}"
+  echo -e "${YELLOW}══════════════════════════════════════════════════════════════${NC}"
+  echo -e "  1. Open: ${BLUE}https://login.tailscale.com/admin/machines${NC}"
+  echo -e "  2. Find this server → click ${BLUE}'...'${NC} → ${BLUE}'Edit route settings'${NC}"
+  echo -e "  3. Enable: ${BLUE}✔ Use as exit node${NC}"
+  [ -n "$LOCAL_SUBNET" ] && \
+  echo -e "  4. Enable subnet route: ${BLUE}$LOCAL_SUBNET${NC}"
+  echo -e ""
+  echo -e "  ${BLUE}On your phone/laptop:${NC}"
+  echo -e "  → Open Tailscale app → tap this server → ${BLUE}'Use as exit node'${NC}"
+  [[ "$ENABLE_TS_SSH" =~ ^[Yy]$ ]] && \
+  echo -e "  → SSH: ${BLUE}ssh $(whoami)@$ts_ip${NC} (or use hostname via MagicDNS)"
+  echo -e "${YELLOW}══════════════════════════════════════════════════════════════${NC}"
+}
+
+# ── Helper: enable exit node from config menu ─────────────────────────────────
+_tailscale_enable_exit_node() {
+  echo -e "\n${BLUE}Configuring this server as a Tailscale exit node...${NC}"
+  echo -e "${YELLOW}This routes all internet traffic through this server when connected remotely.${NC}"
+
+  _tailscale_enable_ip_forwarding
+
+  echo -e "\n${BLUE}Advertising this machine as exit node...${NC}"
+  set +e
+  tailscale up --advertise-exit-node
+  local EXIT_CODE=$?
+  set -e
+
+  local ts_ip
+  ts_ip=$(tailscale ip -4 2>/dev/null || echo "")
+
+  if [ $EXIT_CODE -eq 0 ]; then
+    echo -e "\n${GREEN}✔ Exit node advertised!${NC}"
+    [ -n "$ts_ip" ] && echo -e "  Tailscale IP: ${BLUE}$ts_ip${NC}"
+  else
+    echo -e "${YELLOW}Non-zero exit — authenticate first via option 1, then retry.${NC}"
+  fi
+
+  echo -e "\n${YELLOW}══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${YELLOW}  Approve the exit node in the Tailscale admin console:${NC}"
+  echo -e "${YELLOW}══════════════════════════════════════════════════════════════${NC}"
+  echo -e "  1. ${BLUE}https://login.tailscale.com/admin/machines${NC}"
+  echo -e "  2. Find this server → ${BLUE}'...'${NC} → ${BLUE}'Edit route settings'${NC}"
+  echo -e "  3. Enable ${BLUE}'Use as exit node'${NC} and save"
+  echo -e "  4. On your device: Tailscale app → select this server as exit node"
+  echo -e "${YELLOW}══════════════════════════════════════════════════════════════${NC}"
+}
+
+# ── Interactive configuration menu ────────────────────────────────────────────
+_tailscale_configure_menu() {
+  while true; do
+    echo -e "\n${BLUE}--- Tailscale Configuration ---${NC}"
+    echo -e "  1) Log in / Authenticate          (get auth link)"
+    echo -e "  2) Enable exit node               (route traffic through this server)"
+    echo -e "  3) Disable exit node"
+    echo -e "  4) Advertise subnet routes        (expose LAN devices to Tailscale)"
+    echo -e "  5) Enable Tailscale SSH           (SSH without exposing port 22)"
+    echo -e "  6) Show current status"
+    echo -e "  7) Done"
+    read -rp "Select an option [default: 7]: " TS_OPT
+    TS_OPT="${TS_OPT:-7}"
+
+    case "$TS_OPT" in
+      1)
+        echo -e "\n${BLUE}Starting Tailscale authentication...${NC}"
+        echo -e "${YELLOW}Open the URL below to authorize this server:${NC}"
+        set +e; tailscale up; set -e
+        local ts_ip
+        ts_ip=$(tailscale ip -4 2>/dev/null || echo "")
+        [ -n "$ts_ip" ] \
+          && echo -e "${GREEN}✔ Connected! Tailscale IP: ${BLUE}$ts_ip${NC}" \
+          || echo -e "${YELLOW}Complete auth via the link above.${NC}"
+        ;;
+      2)
+        _tailscale_enable_exit_node
+        ;;
+      3)
+        echo -e "${BLUE}Disabling exit node...${NC}"
+        set +e; tailscale up --advertise-exit-node=false; set -e
+        echo -e "${GREEN}✔ Exit node disabled.${NC}"
+        ;;
+      4)
+        local DETECTED=""
+        command -v ip &>/dev/null && \
+          DETECTED=$(ip route | grep -v '^default\|tailscale\|docker\|veth\|br-\|lo' | awk '{print $1}' | grep '/' | head -1 || true)
+        [ -n "$DETECTED" ] && echo -e "Detected subnet: ${YELLOW}$DETECTED${NC}"
+        read -rp "Enter subnet to advertise (e.g. 192.168.1.0/24): " TS_SUBNET
+        TS_SUBNET="${TS_SUBNET:-$DETECTED}"
+        if [ -n "$TS_SUBNET" ]; then
+          set +e; tailscale up --advertise-routes="$TS_SUBNET"; set -e
+          echo -e "${GREEN}✔ Routes advertised. Approve in admin console → Edit route settings.${NC}"
+        else
+          echo -e "${YELLOW}No subnet entered, skipping.${NC}"
+        fi
+        ;;
+      5)
+        echo -e "${BLUE}Enabling Tailscale SSH...${NC}"
+        set +e; tailscale up --ssh; set -e
+        echo -e "${GREEN}✔ Tailscale SSH enabled.${NC}"
+        echo -e "  SSH via: ${BLUE}ssh $(whoami)@$(tailscale ip -4 2>/dev/null)${NC}"
+        ;;
+      6)
+        echo ""
+        tailscale status 2>/dev/null || echo "(Tailscale not connected)"
+        ;;
+      7|*)
+        break
+        ;;
+    esac
+  done
+}
+
+# ── Main action ───────────────────────────────────────────────────────────────
+action_setup_tailscale() {
+  echo -e "\n${BLUE}=== Configure Secure Remote Access (Tailscale VPN) ===${NC}"
+
+  if [ "$(uname)" = "Darwin" ]; then
+    echo -e "${YELLOW}[DEV MODE] Simulating Tailscale setup...${NC}"
+    echo -e "${GREEN}✔ [DEV MODE] Tailscale configured successfully.${NC}"
+    return 0
+  fi
+
+  # ── Detect existing installation ──────────────────────────────────────────
+  local ts_installed="false"
+  command -v tailscale &>/dev/null && ts_installed="true"
+
+  local do_install="true"
+
+  if [ "$ts_installed" = "true" ]; then
+    echo -e "${YELLOW}Tailscale is already installed on this system.${NC}"
+    echo -e "Current status:"
+    tailscale status 2>/dev/null || echo "  (not connected)"
+    echo ""
+    read -rp "Would you like to reinstall Tailscale? (y/n) [default: n]: " TS_REINSTALL
+    TS_REINSTALL="${TS_REINSTALL:-n}"
+    if [[ "$TS_REINSTALL" =~ ^[Yy]$ ]]; then
+      echo -e "${BLUE}Uninstalling Tailscale...${NC}"
+      tailscale down 2>/dev/null || true
+      if command -v apt-get &>/dev/null; then
+        apt-get remove --purge -y tailscale 2>/dev/null || true
+        rm -f /etc/apt/sources.list.d/tailscale.list
+        apt-get autoremove -y || true
+      elif command -v dnf &>/dev/null; then
+        dnf remove -y tailscale 2>/dev/null || true
+      fi
+      echo -e "${GREEN}✔ Tailscale removed.${NC}"
+      do_install="true"
+    else
+      echo -e "${BLUE}Skipping reinstall. Proceeding to configuration menu...${NC}"
+      do_install="false"
+    fi
+  else
+    echo -e "${YELLOW}Tailscale is not installed on this system.${NC}"
+    read -rp "Would you like to install Tailscale? (y/n) [default: y]: " TS_INSTALL
+    TS_INSTALL="${TS_INSTALL:-y}"
+    [[ ! "$TS_INSTALL" =~ ^[Yy]$ ]] && return 0
+    do_install="true"
+  fi
+
+  # ── Install ───────────────────────────────────────────────────────────────
+  if [ "$do_install" = "true" ]; then
+    echo -e "\n${BLUE}Installing Tailscale via official installer...${NC}"
+    if ! curl -fsSL https://tailscale.com/install.sh | sh; then
+      echo -e "${RED}Error: Tailscale installation failed.${NC}"
+      return 1
+    fi
+    echo -e "${GREEN}✔ Tailscale installed successfully.${NC}"
+
+    # Fresh install/reinstall → run full secure setup automatically
+    _tailscale_post_install_setup
+  fi
+
+  # ── Configuration menu (always shown after setup) ─────────────────────────
+  _tailscale_configure_menu
 }
 
 # ------------------------------------------------------------------------------
