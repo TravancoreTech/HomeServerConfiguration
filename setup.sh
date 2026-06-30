@@ -2138,6 +2138,11 @@ action_system_maintenance() {
 # PORTAL ACTION 0: FETCH LATEST CONFIGURATIONS FROM GITHUB
 action_sync_latest() {
   echo -e "\n${BLUE}Syncing latest configurations from Git repository...${NC}"
+
+  # Snapshot setup.sh checksum before sync to detect if it changed
+  local OLD_HASH=""
+  command -v md5sum &>/dev/null && OLD_HASH=$(md5sum "$0" 2>/dev/null | awk '{print $1}' || true)
+
   sync_from_github
 
   # Deploy homepage config files to wherever the container actually reads from
@@ -2145,6 +2150,24 @@ action_sync_latest() {
     echo -e "\n${BLUE}Deploying homepage configuration...${NC}"
     chmod +x ./configure_homepage.sh
     ./configure_homepage.sh || true
+  fi
+
+  # Check if setup.sh itself was updated — running process uses old in-memory code
+  local NEW_HASH=""
+  command -v md5sum &>/dev/null && NEW_HASH=$(md5sum "$0" 2>/dev/null | awk '{print $1}' || true)
+
+  if [ -n "$OLD_HASH" ] && [ -n "$NEW_HASH" ] && [ "$OLD_HASH" != "$NEW_HASH" ]; then
+    echo -e "\n${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║  setup.sh was updated — restart required to apply changes!   ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
+    read -rp "Restart now to load new version? (y/n) [default: y]: " RESTART_CONFIRM
+    RESTART_CONFIRM="${RESTART_CONFIRM:-y}"
+    if [[ "$RESTART_CONFIRM" =~ ^[Yy]$ ]]; then
+      echo -e "${GREEN}Restarting setup.sh...${NC}"
+      exec sudo "$0" "$@"
+    else
+      echo -e "${YELLOW}⚠ You are still running the OLD version. Exit and re-run: sudo ./setup.sh${NC}"
+    fi
   fi
 }
 
